@@ -27,7 +27,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the ui-theme plugin's Context merge (ctx.theme).
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
-import { fontFaceById, fontStack, type FontSettings } from '../fonts.ts'
+import { bundledFaceById, fontStack, resolveFontChoice, type FontSettings } from '../fonts.ts'
 import { FONTS_ROUTE, FONT_SETTINGS_NS } from '../params.ts'
 import { FontSection } from './FontSection.tsx'
 import { en, NS, zh, type FontSectionKey } from './locales.ts'
@@ -78,13 +78,17 @@ export function apply(ctx: Context): void {
 }
 
 /**
- * Point the document at the stored face and keep it there.
+ * Point the document at the stored choice and keep it there.
  *
  * The stylesheet link and the token override are swapped together on every
  * committed change, so the document never references a family whose shards are
- * not being served. The first sync runs before the scope is ready, which
- * resolves to the default face — the same one ui-theme's own fallback would
- * have produced, so nothing shifts once the durable choice arrives.
+ * not being served. The system default applies neither: it drops both and lets
+ * `--dsw-font-family` resolve to ui-theme's own declaration, which is the only
+ * way "off" tracks that declaration instead of freezing a copy of it.
+ *
+ * The first sync runs before the scope is ready, which resolves to the default
+ * choice — the same one a fresh install shows, so nothing shifts once the
+ * durable value arrives.
  * @param ctx - client cordis context owning the effect.
  * @param scope - bound settings scope holding the choice.
  * @returns disposer removing the link, the override, and the subscription.
@@ -102,11 +106,17 @@ function applyBodyFont(ctx: Context, scope: SettingsScope<FontSettings>): () => 
   let releaseTokens: (() => void) | undefined
 
   const sync = (): void => {
-    const face = fontFaceById(scope.getSnapshot().value?.font)
-    if (face.id === applied) return
-    applied = face.id
-    link.href = `${FONTS_ROUTE}/${face.dir}/index.css`
+    const choice = resolveFontChoice(scope.getSnapshot().value?.font)
+    if (choice === applied) return
+    applied = choice
+    // Every change starts from nothing applied, so the system default needs no
+    // separate path: it simply stops before installing anything.
     releaseTokens?.()
+    releaseTokens = undefined
+    link.removeAttribute('href')
+    const face = bundledFaceById(choice)
+    if (face === undefined) return
+    link.href = `${FONTS_ROUTE}/${face.dir}/index.css`
     // A font carries no colour scheme, so both modes take the same stack rather
     // than leaving one palette uncovered.
     releaseTokens = ctx.theme.overrideTokens(PLUGIN_ID, {

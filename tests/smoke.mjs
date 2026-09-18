@@ -1,10 +1,11 @@
 // Smoke test: run the built Host half against a mock context and exercise the
-// route resolution, the face table, and the settings registration the browser
+// route resolution, the choice table, and the settings registration the browser
 // depends on. Run with `node tests/smoke.mjs`.
 import { stat } from 'node:fs/promises'
 import {
-  apply, fontFaceById, fontFileFor, fontStack,
-  DEFAULT_FONT_ID, FONT_FACES, FONTS_ROUTE, FONT_SETTINGS_NS, FONT_SETTINGS_SCHEMA,
+  apply, bundledFaceById, fontFileFor, fontStack, resolveFontChoice,
+  BUNDLED_FACES, DEFAULT_FONT_ID, FONT_CHOICES, FONTS_ROUTE,
+  FONT_SETTINGS_NS, FONT_SETTINGS_SCHEMA, SYSTEM_FONT_ID,
 } from '../lib/index.mjs'
 
 const failures = []
@@ -60,25 +61,33 @@ check('seeded with the default face', registeredOptions?.base?.font === DEFAULT_
 // the `ctx.inject` callback it runs in, so it adds none of its own.
 check('registers one explicit effect', disposers.length === 1, String(disposers.length))
 
-console.log('face table')
-check('ships at least two faces', FONT_FACES.length >= 2, String(FONT_FACES.length))
-check('defaults to the first face', FONT_FACES[0]?.id === DEFAULT_FONT_ID, String(FONT_FACES[0]?.id))
-check('ids are unique', new Set(FONT_FACES.map(f => f.id)).size === FONT_FACES.length)
-check('dirs are unique', new Set(FONT_FACES.map(f => f.dir)).size === FONT_FACES.length)
-for (const face of FONT_FACES) {
+console.log('choice table')
+check('offers the system default', FONT_CHOICES.includes(SYSTEM_FONT_ID))
+check('offers every bundled face', BUNDLED_FACES.every(face => FONT_CHOICES.includes(face.id)))
+check('leads with the system default', FONT_CHOICES[0] === SYSTEM_FONT_ID, String(FONT_CHOICES[0]))
+check('ships at least two bundled faces', BUNDLED_FACES.length >= 2, String(BUNDLED_FACES.length))
+check('the default is an offered choice', FONT_CHOICES.includes(DEFAULT_FONT_ID), DEFAULT_FONT_ID)
+check('choices are unique', new Set(FONT_CHOICES).size === FONT_CHOICES.length)
+check('ids are unique', new Set(BUNDLED_FACES.map(f => f.id)).size === BUNDLED_FACES.length)
+check('dirs are unique', new Set(BUNDLED_FACES.map(f => f.dir)).size === BUNDLED_FACES.length)
+check('no bundled face claims the system id', bundledFaceById(SYSTEM_FONT_ID) === undefined)
+for (const face of BUNDLED_FACES) {
   check(`${face.id}: stack leads with its family`, fontStack(face).startsWith(`'${face.family}'`), fontStack(face).slice(0, 40))
   check(`${face.id}: stack ends with the shared fallback`, fontStack(face).includes('sans-serif'))
+  check(`${face.id}: resolves to itself`, bundledFaceById(face.id)?.family === face.family)
   const sheet = fontFileFor(`${FONTS_ROUTE}/${face.dir}/index.css`)
   check(`${face.id}: stylesheet resolves`, sheet !== undefined)
   if (sheet !== undefined) {
     check(`${face.id}: stylesheet is on disk`, await stat(sheet).then(() => true, () => false))
   }
 }
-check('an unknown id falls back to the default', fontFaceById('nope').id === DEFAULT_FONT_ID)
-check('an undefined id falls back to the default', fontFaceById(undefined).id === DEFAULT_FONT_ID)
+check('an unknown value resolves to the default', resolveFontChoice('nope') === DEFAULT_FONT_ID)
+check('an undefined value resolves to the default', resolveFontChoice(undefined) === DEFAULT_FONT_ID)
+check('a known value passes through', resolveFontChoice(SYSTEM_FONT_ID) === SYSTEM_FONT_ID)
+check('the system default applies no face', bundledFaceById(resolveFontChoice(SYSTEM_FONT_ID)) === undefined)
 
 console.log('path resolution')
-const face = FONT_FACES[0]
+const face = BUNDLED_FACES[0]
 const allowed = [
   `${FONTS_ROUTE}/${face.dir}/index.css`,
   `${FONTS_ROUTE}/${face.dir}/files/shared-4-wght500.woff2`,

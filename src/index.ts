@@ -23,10 +23,13 @@ export const name = 'ui-beautify'
 export const inject = ['webServer']
 
 // Re-exported so the package's own tests can assert on the served route, the
-// face table, and the namespace identity without reaching into internal module
+// choice table, and the namespace identity without reaching into internal module
 // paths. These are the only values published beyond the plugin surface.
 export { FONTS_ROUTE } from './params.ts'
-export { DEFAULT_FONT_ID, FONT_FACES, FONT_IDS, fontFaceById, fontStack } from './fonts.ts'
+export {
+  BUNDLED_FACES, DEFAULT_FONT_ID, FONT_CHOICES, SYSTEM_FONT_ID,
+  bundledFaceById, fontStack, resolveFontChoice,
+} from './fonts.ts'
 export { fontFileFor, serveFontFile } from './serve.ts'
 export { FONT_SETTINGS_NS, FONT_SETTINGS_SCHEMA } from './settings.ts'
 

@@ -6,7 +6,7 @@
 import { createServer } from 'node:http'
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import { apply, FONT_FACES, FONTS_ROUTE } from '../lib/index.mjs'
+import { apply, BUNDLED_FACES, FONTS_ROUTE } from '../lib/index.mjs'
 
 const failures = []
 const check = (label, ok, detail = '') => {
@@ -41,7 +41,7 @@ const base = `http://127.0.0.1:${String(server.address().port)}`
 const sha = buffer => createHash('sha256').update(buffer).digest('hex')
 
 try {
-  for (const face of FONT_FACES) {
+  for (const face of BUNDLED_FACES) {
     console.log(`face ${face.id}`)
     const css = await fetch(`${base}${FONTS_ROUTE}/${face.dir}/index.css`)
     check('  stylesheet 200', css.status === 200, String(css.status))
@@ -95,7 +95,7 @@ try {
     traversal.status !== 200 || !(await traversal.text()).includes('dsh-ui-beautify'),
     String(traversal.status),
   )
-  const missing = await fetch(`${base}${FONTS_ROUTE}/${FONT_FACES[0].dir}/files/nope.woff2`)
+  const missing = await fetch(`${base}${FONTS_ROUTE}/${BUNDLED_FACES[0].dir}/files/nope.woff2`)
   check('missing shard is 404', missing.status === 404, String(missing.status))
 } finally {
   await new Promise((done) => { server.close(done) })

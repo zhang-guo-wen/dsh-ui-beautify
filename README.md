@@ -13,16 +13,19 @@ DeepSeek Harness 的**页面美化插件**。目前的能力：让 Web GUI 在�
 
 设置入口在 **Settings → 页面美化**（`settings.section`，order 12）。选择写进 `~/.dsh/settings.yaml` 的 `ui-beautify` 分节，改完立即生效、无需重启。
 
-## 内置字体
+## 可选字体
 
 | id | 字体 | 分片 | 体积 | 来源 |
 |---|---|---|---|---|
-| `noto-sans-sc`（默认）| 思源黑体 | 101 片，现成 | 4.3 MB | `@fontsource-variable/noto-sans-sc@5.3.0` |
-| `lxgw-wenkai` | 霞鹜文楷 | 202 片（2 字重 × 101），**自切** | 7.7 MB | `@fontsource/lxgw-wenkai@5.3.0` |
+| `system` | 系统默认 | 不加载任何内置字体 | 0 | —— |
+| `noto-sans-sc`（默认值）| 思源黑体 | 101 片，现成 | 4.3 MB | `@fontsource-variable/noto-sans-sc@5.3.0` |
+| `lxgw-wenkai` | 霞鹜文楷 | 202 片（2 字重 × 101），**自切** | 7.9 MB | `@fontsource/lxgw-wenkai@5.3.0` |
 
-两者都是 OFL 许可，允许随包分发；`assets/fonts/<face>/LICENSE` 各自保留原始许可文本。
+内置字体都是 OFL 许可，允许随包分发；`assets/fonts/<face>/LICENSE` 各自保留原始许可文本。
 
-**为什么按 `unicode-range` 分片**：浏览器只下载页面**实际用到**的分片，首屏通常只拉 latin（约 25 KB）+ 几个中文片（各约 50 KB），而不是一次性几 MB。思源黑体是可变字体（`wght` 100–900 一个分片覆盖全字重）。
+**`system` 不是「把系统字体栈复制一份写进 `--dsw-font-family`」**，而是**移除样式表链接与 token 覆盖层**，让 `--dsw-font-family` 回到 ui-theme 自己的声明。区别在于：复制一份会把今天的默认值冻结在插件里，上游改了默认字体这里也不会跟随；移除覆盖则始终跟随。选中它也是「关掉自定义字体」的唯一方式，不需要卸载插件。
+
+**为什么按 `unicode-range` 分片**：浏览器只下载页面**实际用到**的分片，首屏通常只拉 latin（约 25 KB）+ 几个中文片（各约 50 KB），而不是一次性几 MB。思源黑体是可变字体（`wght` 100–900 一个分片覆盖全字重）。选中 `system` 时**一个分片都不会请求**。
 
 ### 霞鹜文楷为什么是自切的
 
@@ -81,8 +84,8 @@ npm test               # 冒烟测试 + HTTP 层验证（对构建产物运行�
 ## 加一款字体
 
 1. 准备 `assets/fonts/<dir>/index.css` 与 `files/`。现成带分片的字体直接用；整体字体用 `tools/slice-font.py` 切。
-2. 在 `src/fonts.ts` 的 `FONT_FACES` 加一行（`id` / `dir` / `family`）——`family` 必须与该目录 `index.css` 里的 `font-family` **逐字一致**，写错会让所有 `@font-face` 匹配不上而静默回退。
-3. 在 `src/client/FontSection.tsx` 的 `FACE_COPY` 加名称与描述的字典键，并在 `src/client/locales.ts` 补齐中英文案。
+2. 在 `src/fonts.ts` 的 `BUNDLED_FACES` 加一行（`id` / `dir` / `family`）——`family` 必须与该目录 `index.css` 里的 `font-family` **逐字一致**，写错会让所有 `@font-face` 匹配不上而静默回退。`FONT_CHOICES` 由这张表派生，不用另改。
+3. 在 `src/client/FontSection.tsx` 的 `CHOICE_COPY` 加名称与描述的字典键，并在 `src/client/locales.ts` 补齐中英文案。
 
 除此之外插件里没有别处枚举字体。
 
@@ -132,7 +135,7 @@ document.fonts.check('14px "LXGW WenKai"')   // true = 该字体已加载
 ```
 src/
   params.ts               两半边共用的路由与命名空间常量
-  fonts.ts                字体注册表（id / dir / family）与字体栈
+  fonts.ts                可选字体表（system + 内置字体）与字体栈
   settings.ts             Host：注册 ui-beautify 命名空间
   index.ts                Host：认领字体路由 + 注册命名空间
   serve.ts                字体静态文件服务（含路径穿越防护、缓存策略）

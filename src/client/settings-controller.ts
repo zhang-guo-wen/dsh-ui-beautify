@@ -11,7 +11,7 @@
 
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
-import { DEFAULT_FONT_ID, type FontSettings } from '../fonts.ts'
+import { resolveFontChoice, type FontSettings } from '../fonts.ts'
 import { FONT_SETTINGS_NS } from '../params.ts'
 
 export { FONT_SETTINGS_NS } from '../params.ts'
@@ -74,7 +74,9 @@ export class FontController {
     return {
       available: snapshot.status === 'ready',
       writable: snapshot.writable,
-      font: snapshot.value?.font ?? DEFAULT_FONT_ID,
+      // The document is hand-editable, so an unknown stored value must show as
+      // the choice actually in effect rather than as nothing selected.
+      font: resolveFontChoice(snapshot.value?.font),
     }
   }
 
