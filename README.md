@@ -51,6 +51,45 @@ npm test               # 冒烟测试 + HTTP 层验证（对构建产物运行�
 
 `lib/` 是**提交进仓库的构建产物**，这样可以直接从 git 安装。改完源码记得 `npm run build` 并把 `lib/` 一起提交。
 
+## 排查：装了但字体没变
+
+按顺序查这三处，能定位绝大多数情况。
+
+**1. 插件在不在 profile 清单里。** `dsh plugin add` 之后如果还有别的插件管理操作（GUI 插件页、并发的 `dsh plugin` 命令），新装的 bundle **可能被基于旧快照的重写挤掉**——装完 50 秒后另一次 profile 写入就会把它覆盖：
+
+```powershell
+(Get-Content "$env:USERPROFILE\.dsh\profiles\web\package.json" -Raw | ConvertFrom-Json).dsh.profile.bundles
+```
+
+列表里没有 `@zhang-guo-wen/dsh-ui-beautify` 就重跑一次安装。
+
+**2. Host 半边通没通。** 这条不需要浏览器：
+
+```powershell
+curl.exe -s -o NUL -w "%{http_code}`n" http://127.0.0.1:3080/plugins/dsh-ui-beautify/fonts/index.css
+```
+
+`200` 说明 host 半边已在跑——profile 的 `patchReload: live` 会让 HMR 在清单变化后热重组，**装完不必重启宿主**。若清单里有它而这里不是 200，看宿主终端的组合错误。
+
+**3. Client 半边跑没跑。** 浏览器 Console：
+
+```js
+document.querySelector('link[data-plugin*="ui-beautify"]')?.href   // 应有 URL，不是 undefined
+getComputedStyle(document.body).getPropertyValue('--dsw-font-family')
+```
+
+第二项应输出以 `'Noto Sans SC Variable'` 开头的字体栈。
+
+**Host 通了但 client 没跑**：浏览器还持有旧的 boot 图，硬刷新（Ctrl+F5）。改过 `lib/client.js` 后同理——`HANDOFF_ID` 没变时浏览器会继续跑旧 bundle，这是最容易被忽略的一步。
+
+**注意 `getComputedStyle().fontFamily` 只反映声明的字体栈，不代表字体文件已经下载成功。** 要确认分片真的加载了：
+
+```js
+document.fonts.check('14px "Noto Sans SC Variable"')   // true = 字体已加载
+```
+
+或在 DevTools 的 Elements → Computed → Rendered Fonts 里看实际渲染用的字体。
+
 ## 目录
 
 ```
@@ -63,7 +102,8 @@ assets/fonts/
   index.css          @fontsource 生成的 101 条 @font-face（unicode-range 分片）
   files/*.woff2      分片字体
   LICENSE            OFL-1.1
-tests/smoke.mjs      针对构建产物的冒烟测试
+tests/smoke.mjs      路由注册与路径解析（针对构建产物）
+tests/http.mjs       HTTP 层验证：响应头、字节哈希、woff2 魔数
 ```
 
 ## 接下来可以加的
