@@ -1,0 +1,3 @@
+- insert:
+    - id: ui-beautify
+      name: '@zhang-guo-wen/dsh-ui-beautify'
