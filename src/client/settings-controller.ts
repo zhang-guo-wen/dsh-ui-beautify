@@ -2,7 +2,7 @@
  * Controller bridging the Host `ui-beautify` settings namespace onto the Page
  * beautification section snapshot.
  *
- * It reads the stored face id and writes a new one through the settings scope.
+ * It reads the stored face id and writes a new one through the settings form.
  * Applying a choice to the document is not this class's job — the plugin body
  * owns that, so the section can render a snapshot without touching the DOM.
  *
@@ -10,7 +10,7 @@
  */
 
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { resolveFontChoice, type FontSettings } from '../fonts.ts'
 import { FONT_SETTINGS_NS } from '../params.ts'
 
@@ -42,9 +42,9 @@ export class FontController {
   private readonly unsubscribe: () => void
 
   /**
-   * @param scope - bound `ui-beautify` settings scope.
+   * @param scope - the `ui-beautify` configuration form.
    */
-  constructor(private readonly scope: SettingsScope<FontSettings>) {
+  constructor(private readonly scope: ConfigForm<FontSettings>) {
     this.store = createSnapshotStore(this.projection())
     this.unsubscribe = scope.subscribe(() => { this.publish() })
   }

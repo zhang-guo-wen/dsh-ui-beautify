@@ -1,11 +1,11 @@
 // Smoke test: run the built Host half against a mock context and exercise the
-// route resolution, the choice table, and the settings registration the browser
+// route resolution, the choice table, and the settings schema the browser
 // depends on. Run with `node tests/smoke.mjs`.
 import { stat } from 'node:fs/promises'
 import {
   apply, bundledFaceById, fontFileFor, fontStack, resolveFontChoice,
   BUNDLED_FACES, DEFAULT_FONT_ID, FONT_CHOICES, FONTS_ROUTE,
-  FONT_SETTINGS_NS, FONT_SETTINGS_SCHEMA, SYSTEM_FONT_ID,
+  FONT_SETTINGS_NS, Config, SYSTEM_FONT_ID,
 } from '../lib/index.mjs'
 
 const failures = []
@@ -18,12 +18,9 @@ const check = (label, ok, detail = '') => {
   console.log(`  FAIL ${label}${detail === '' ? '' : ` — ${detail}`}`)
 }
 
-console.log('route and settings registration')
+console.log('route and settings declaration')
 let registered
 const disposers = []
-let registeredNamespace
-let registeredSchema
-let registeredOptions
 apply({
   effect(fn) {
     const dispose = fn()
@@ -35,30 +32,11 @@ apply({
       return () => {}
     },
   },
-  inject(services, callback) {
-    if (!services.includes('settings')) return
-    callback({
-      settings: {
-        register(namespace, schema, options) {
-          registeredNamespace = namespace
-          registeredSchema = schema
-          registeredOptions = options
-          return { get: () => ({ font: DEFAULT_FONT_ID }) }
-        },
-      },
-    })
-  },
 })
 check('claims exactly one route', registered !== undefined)
 check('as a prefix route', registered?.kind === 'prefix', String(registered?.kind))
 check('under the agreed path', registered?.path === FONTS_ROUTE, String(registered?.path))
 check('with a request handler', typeof registered?.handler === 'function')
-check('registers the settings namespace', registeredNamespace === FONT_SETTINGS_NS, String(registeredNamespace))
-check('with a schema', registeredSchema !== undefined)
-check('applies live, not on restart', registeredOptions?.applies === 'live', String(registeredOptions?.applies))
-check('seeded with the default face', registeredOptions?.base?.font === DEFAULT_FONT_ID, String(registeredOptions?.base?.font))
-// Only the route is an explicit effect; the namespace registration is scoped by
-// the `ctx.inject` callback it runs in, so it adds none of its own.
 check('registers one explicit effect', disposers.length === 1, String(disposers.length))
 
 console.log('choice table')
@@ -114,12 +92,13 @@ check(
 )
 
 console.log('settings schema')
-const schema = FONT_SETTINGS_SCHEMA
-check('defaults to the default face', schema({}).font === DEFAULT_FONT_ID, String(schema({}).font))
+check('the namespace is the loader row id', FONT_SETTINGS_NS === 'ui-beautify', FONT_SETTINGS_NS)
+check('declares the face field live', Config.dict.font.meta.volatile === true)
+check('defaults to the default face', Config({}).font.get() === DEFAULT_FONT_ID, String(Config({}).font.get()))
 check(
   'accepts an unknown id rather than failing the section',
-  schema({ font: 'anything' }).font === 'anything',
-  String(schema({ font: 'anything' }).font),
+  Config({ font: 'anything' }).font.get() === 'anything',
+  String(Config({ font: 'anything' }).font.get()),
 )
 
 if (failures.length > 0) {

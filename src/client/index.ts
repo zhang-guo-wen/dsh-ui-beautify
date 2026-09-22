@@ -19,14 +19,14 @@
 import type { Context } from '@deepseek-ai/cordis'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-// Type-only: the settings namespace scope merge (ctx.settingsScope) and slot types.
+// Type-only: the configuration-form service merge (ctx.configForms) and slot types.
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: the slot registry Context merge (ctx.slots).
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the ui-theme plugin's Context merge (ctx.theme).
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { bundledFaceById, fontStack, resolveFontChoice, type FontSettings } from '../fonts.ts'
 import { FONTS_ROUTE, FONT_SETTINGS_NS } from '../params.ts'
 import { FontSection } from './FontSection.tsx'
@@ -49,9 +49,9 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 /**
  * Required services: the theme service owns the token override, slots and locale
- * carry the section, and the settings scope is where the choice lives.
+ * carry the section, and the configuration forms service is where the choice lives.
  */
-export const inject = ['theme', 'slots', 'locale', 'settingsScope']
+export const inject = ['theme', 'slots', 'locale', 'configForms']
 
 /**
  * Client plugin body: register the section and keep the document in sync with
@@ -61,9 +61,9 @@ export const inject = ['theme', 'slots', 'locale', 'settingsScope']
 export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-beautify: dictionaries')
   const t = ctx.locale.bind(NS)
-  const scope = ctx.settingsScope.bind<FontSettings>({ namespace: FONT_SETTINGS_NS })
+  const scope = ctx.configForms.get<FontSettings>(FONT_SETTINGS_NS)
   const controller = new FontController(scope)
-  ctx.effect(() => () => { controller.dispose() }, 'ui-beautify: settings scope')
+  ctx.effect(() => () => { controller.dispose() }, 'ui-beautify: settings form')
 
   ctx.effect(() => applyBodyFont(ctx, scope), 'ui-beautify: body font')
 
@@ -90,10 +90,10 @@ export function apply(ctx: Context): void {
  * choice — the same one a fresh install shows, so nothing shifts once the
  * durable value arrives.
  * @param ctx - client cordis context owning the effect.
- * @param scope - bound settings scope holding the choice.
+ * @param scope - the `ui-beautify` configuration form holding the choice.
  * @returns disposer removing the link, the override, and the subscription.
  */
-function applyBodyFont(ctx: Context, scope: SettingsScope<FontSettings>): () => void {
+function applyBodyFont(ctx: Context, scope: ConfigForm<FontSettings>): () => void {
   const link = document.createElement('link')
   link.rel = 'stylesheet'
   link.dataset.plugin = PLUGIN_ID

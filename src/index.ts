@@ -14,7 +14,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import { FONTS_ROUTE } from './params.ts'
 import { serveFontFile } from './serve.ts'
-import { registerFontSettings } from './settings.ts'
+import { Config } from './settings.ts'
 
 /** Loader row name for this plugin. */
 export const name = 'ui-beautify'
@@ -31,11 +31,12 @@ export {
   bundledFaceById, fontStack, resolveFontChoice,
 } from './fonts.ts'
 export { fontFileFor, serveFontFile } from './serve.ts'
-export { FONT_SETTINGS_NS, FONT_SETTINGS_SCHEMA } from './settings.ts'
+export { FONT_SETTINGS_NS } from './settings.ts'
+export { Config }
 
 /**
- * Host plugin body: claim the font directory's URL prefix and register the
- * namespace that records the chosen face.
+ * Host plugin body: claim the font directory's URL prefix. The chosen face
+ * lives in this row's volatile Config, which the settings page edits directly.
  * @param ctx - host cordis context.
  */
 export function apply(ctx: Context): void {
@@ -43,5 +44,4 @@ export function apply(ctx: Context): void {
     () => ctx.webServer.register({ kind: 'prefix', path: FONTS_ROUTE, handler: serveFontFile }),
     'ui-beautify: font assets',
   )
-  registerFontSettings(ctx)
 }
