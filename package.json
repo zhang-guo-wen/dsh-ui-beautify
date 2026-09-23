@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "license": "Apache-2.0",
-  "main": "lib/index.mjs",
+  "publishConfig": {
+    "access": "public"
+  },  "main": "lib/index.mjs",
   "exports": {
     ".": {
       "default": "./lib/index.mjs"
@@ -37,7 +39,9 @@
     "lib/index.mjs",
     "lib/client.js",
     "assets/fonts",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "build": "tsdown -c tsdown.config.ts && node build-client.mjs",

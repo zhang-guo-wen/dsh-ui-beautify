@@ -1,0 +1,19 @@
+dsh-ui-beautify
+Copyright 2026 zhang-guo-wen
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+--------------------------------------------------------------------------
+
+This product is a plugin for DeepSeek Harness
+(https://github.com/deepseek-ai/deepseek-harness). It links against DeepSeek
+Harness packages as peer dependencies; no DeepSeek Harness source is included.
+
+Bundled third-party web fonts under assets/fonts/ ship under their own
+licenses, kept beside each font:
+
+- LXGW WenKai (assets/fonts/lxgw-wenkai) — SIL Open Font License 1.1; the
+  licence text, including the Klee One derivation it credits, is in
+  assets/fonts/lxgw-wenkai/LICENSE.
+- Noto Sans SC (assets/fonts/noto-sans-sc) — SIL Open Font License 1.1; the
+  licence text is in assets/fonts/noto-sans-sc/LICENSE.
