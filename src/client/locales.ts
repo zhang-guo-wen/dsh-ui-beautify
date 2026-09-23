@@ -4,7 +4,7 @@
  * Product-visible text lives here and reaches the component through the `t`
  * seat; the component itself carries no fallback strings.
  *
- * @module @zhang-guo-wen/dsh-ui-beautify/client/locales
+ * @module @guowenzhang/dsh-ui-beautify/client/locales
  */
 
 /** Dictionary namespace owning this section's copy. */

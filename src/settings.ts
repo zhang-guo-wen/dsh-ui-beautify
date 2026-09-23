@@ -12,7 +12,7 @@
  * namespace fall back to its last good value — so an unknown id must resolve to
  * the default at the read site instead of failing the section.
  *
- * @module @zhang-guo-wen/dsh-ui-beautify/settings
+ * @module @guowenzhang/dsh-ui-beautify/settings
  */
 
 import type { Volatile } from '@deepseek-ai/cordis'

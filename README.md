@@ -1,4 +1,4 @@
-# @zhang-guo-wen/dsh-ui-beautify
+# @guowenzhang/dsh-ui-beautify
 
 DeepSeek Harness 的**页面美化插件**。目前的能力：让 Web GUI 在设置页里切换**正文字体**，字体随插件分发，不依赖本机安装。
 
@@ -99,7 +99,7 @@ npm test               # 冒烟测试 + HTTP 层验证（对构建产物运行�
 (Get-Content "$env:USERPROFILE\.dsh\profiles\web\package.json" -Raw | ConvertFrom-Json).dsh.profile.bundles
 ```
 
-列表里没有 `@zhang-guo-wen/dsh-ui-beautify` 就重跑一次安装。
+列表里没有 `@guowenzhang/dsh-ui-beautify` 就重跑一次安装。
 
 **2. Host 半边通没通。** 这条不需要浏览器：
 

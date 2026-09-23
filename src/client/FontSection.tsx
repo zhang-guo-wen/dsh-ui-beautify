@@ -10,7 +10,7 @@
  * as the reason a card lives in its feature package rather than being a shared
  * control.
  *
- * @module @zhang-guo-wen/dsh-ui-beautify/client/FontSection
+ * @module @guowenzhang/dsh-ui-beautify/client/FontSection
  */
 
 import type { ReactNode } from 'react'

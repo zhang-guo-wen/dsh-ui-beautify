@@ -1,5 +1,5 @@
 /**
- * @zhang-guo-wen/dsh-ui-beautify — page beautification for the DSH Web GUI.
+ * @guowenzhang/dsh-ui-beautify — page beautification for the DSH Web GUI.
  *
  * The host half owns two things: the bundled font directories, and the settings
  * namespace that records which face the interface uses. The browser needs the
@@ -7,7 +7,7 @@
  * prefix; the client half links the chosen face's stylesheet, rebinds the body
  * font token, and renders the picker that writes the namespace. Nothing here is
  * model-facing.
- * @module @zhang-guo-wen/dsh-ui-beautify
+ * @module @guowenzhang/dsh-ui-beautify
  */
 import type { Context } from '@deepseek-ai/cordis'
 // Type-only: pulls the webserver plugin's Context merge (ctx.webServer).

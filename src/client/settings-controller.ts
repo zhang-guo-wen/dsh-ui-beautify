@@ -6,7 +6,7 @@
  * Applying a choice to the document is not this class's job — the plugin body
  * owns that, so the section can render a snapshot without touching the DOM.
  *
- * @module @zhang-guo-wen/dsh-ui-beautify/client/settings-controller
+ * @module @guowenzhang/dsh-ui-beautify/client/settings-controller
  */
 
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'

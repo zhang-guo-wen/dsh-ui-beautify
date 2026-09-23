@@ -14,7 +14,7 @@
  * Only the chosen face's stylesheet is linked, so the browser never fetches the
  * shard layout of a face the user is not using.
  *
- * @module @zhang-guo-wen/dsh-ui-beautify/client
+ * @module @guowenzhang/dsh-ui-beautify/client
  */
 import type { Context } from '@deepseek-ai/cordis'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
@@ -38,7 +38,7 @@ export type { FontSectionFace, FontSectionState } from './settings-controller.ts
 export { NS } from './locales.ts'
 
 /** Identity of this plugin's stylesheet link and its theme override layer. */
-const PLUGIN_ID = '@zhang-guo-wen/dsh-ui-beautify'
+const PLUGIN_ID = '@guowenzhang/dsh-ui-beautify'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {

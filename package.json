@@ -1,5 +1,5 @@
 {
-  "name": "@zhang-guo-wen/dsh-ui-beautify",
+  "name": "@guowenzhang/dsh-ui-beautify",
   "description": "Page beautification for DeepSeek Harness: ship open-source CJK webfonts and let the Web GUI pick its body font",
   "version": "0.1.0",
   "type": "module",
