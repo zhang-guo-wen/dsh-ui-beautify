@@ -6,7 +6,24 @@
   "license": "Apache-2.0",
   "publishConfig": {
     "access": "public"
-  },  "main": "lib/index.mjs",
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhang-guo-wen/dsh-ui-beautify.git"
+  },
+  "homepage": "https://github.com/zhang-guo-wen/dsh-ui-beautify#readme",
+  "bugs": {
+    "url": "https://github.com/zhang-guo-wen/dsh-ui-beautify/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "fonts",
+    "webfonts",
+    "cjk"
+  ],
+  "main": "lib/index.mjs",
   "exports": {
     ".": {
       "default": "./lib/index.mjs"
