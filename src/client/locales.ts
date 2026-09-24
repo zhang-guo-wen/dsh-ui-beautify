@@ -1,5 +1,5 @@
 /**
- * Locale-owned copy for the Page beautification settings section.
+ * Locale-owned copy for the body-font row in General settings.
  *
  * Product-visible text lives here and reaches the component through the `t`
  * seat; the component itself carries no fallback strings. One name and one
@@ -8,14 +8,12 @@
  * @module @guowenzhang/dsh-ui-beautify/client/locales
  */
 
-/** Dictionary namespace owning this section's copy. */
+/** Dictionary namespace owning this row's copy. */
 export const NS = 'settings.uiBeautify'
 
 /** English copy. */
 export const en = {
-  nav: 'Page beautification',
-  intro: 'Choose the typeface the interface uses for body text. Nothing is installed on this machine: a face is downloaded the first time it is used, then served from a local cache.',
-  cacheHint: 'The cache figures below are read when this page opens. Fonts keep downloading on demand in the background, so reload the page (F5) for the current state.',
+  title: 'Body font',
   groupSystem: 'Baseline',
   groupCjk: 'Chinese faces',
   groupLatin: 'Latin faces',
@@ -41,9 +39,10 @@ export const en = {
   fontInterDesc: 'Latin sans designed for screens. Chinese text falls back to the system stack.',
   fontGeist: 'Geist',
   fontGeistDesc: 'Geometric Latin sans. Chinese text falls back to the system stack.',
-  active: 'In use',
   cacheAbsent: 'Not downloaded',
+  cacheCached: 'Cached {size}',
   cachePresent: 'Cached {size} · {cached}/{total} shards',
+  cacheHint: 'read when this page opens; reload (F5) to refresh',
   unitKb: 'KB',
   unitMb: 'MB',
   unitGb: 'GB',
@@ -53,9 +52,7 @@ export const en = {
 
 /** Chinese copy. */
 export const zh: typeof en = {
-  nav: '页面美化',
-  intro: '选择界面正文使用的字体。无需在本机安装：字体在首次使用时下载，之后由本地缓存提供。',
-  cacheHint: '下方缓存数字是本页打开时读取的快照。字体仍在后台按需下载，刷新页面（F5）即可看到最新状态。',
+  title: '正文字体',
   groupSystem: '基准',
   groupCjk: '中文字体',
   groupLatin: '拉丁字体',
@@ -81,9 +78,10 @@ export const zh: typeof en = {
   fontInterDesc: '为屏幕设计的拉丁无衬线字体。中文回退到系统字体栈。',
   fontGeist: 'Geist',
   fontGeistDesc: '几何感较强的拉丁无衬线字体。中文回退到系统字体栈。',
-  active: '使用中',
   cacheAbsent: '未下载',
+  cacheCached: '已缓存 {size}',
   cachePresent: '已缓存 {size} · {cached}/{total} 片',
+  cacheHint: '打开本页时统计，刷新页面（F5）更新',
   unitKb: 'KB',
   unitMb: 'MB',
   unitGb: 'GB',
@@ -91,5 +89,5 @@ export const zh: typeof en = {
   readonly: '设置文档为只读，该选择无法保存。',
 }
 
-/** Every key this section's copy may use. */
-export type FontSectionKey = keyof typeof en
+/** Every key this row's copy may use. */
+export type FontRowKey = keyof typeof en

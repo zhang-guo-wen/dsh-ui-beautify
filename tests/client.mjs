@@ -44,23 +44,25 @@ globalThis.document = {
 // Every bare specifier the bundle requires has to be answered here. A new
 // import in the client half fails this test with the name it needs.
 const stores = []
-// React is stubbed down to a call recorder, so the section's render can be
-// inspected as the element tree it produced rather than as HTML.
+// React is stubbed down to a call recorder, so a render can be inspected as the
+// element tree it produced rather than as HTML.
 const elements = []
 const record = (type, props) => {
   const element = { type, props }
   elements.push(element)
   return element
 }
+const Menu = () => null
+const IconChevronDownOutlineRegular = () => null
 const externals = {
   react: {
-    // The section refreshes its cache reading from an effect; running it here
-    // is what a mount does.
+    // The row refreshes its cache reading from an effect; running it here is
+    // what a mount does.
     useEffect: (effect) => { effect() },
     useState: value => [value, () => {}],
   },
   'react/jsx-runtime': { jsx: record, jsxs: record, Fragment: 'Fragment' },
-  '@deepseek-ai/dsh-client-ui-primitives': { Tag: () => null },
+  '@deepseek-ai/dsh-client-ui-primitives': { Menu, IconChevronDownOutlineRegular, Tag: () => null },
   '@deepseek-ai/dsh-client-store': {
     createSnapshotStore: (initial) => {
       let current = initial
@@ -111,6 +113,7 @@ const disposers = []
 let tokens
 let released = 0
 let section
+let registered
 const scope = {
   getSnapshot: () => ({ status: 'ready', writable: true, value: stored }),
   subscribe: (listener) => { subscribers.push(listener); return () => {} },
@@ -132,7 +135,7 @@ plugin.apply({
   },
   slots: {
     inject: (_slot, register) => register(),
-    register(definition, component) { section = { definition, component }; return () => {} },
+    register(definition, component) { registered = { definition, component }; return () => {} },
   },
 })
 const links = () => head.filter(element => element.rel === 'stylesheet')
@@ -143,8 +146,14 @@ const setFont = (font) => {
 const snapshot = () => stores.at(-1)?.get()
 const settle = () => new Promise(resolve => { setTimeout(resolve, 10) })
 
-check('registers the settings section', section?.definition?.id === FONT_SETTINGS_NS && section.definition.order === 12)
-check('the section renders a component', typeof section?.component === 'function')
+check(
+  'registers a General-settings preference row',
+  registered?.definition?.name === 'settings.general.item'
+    && registered.definition.id === FONT_SETTINGS_NS
+    && registered.definition.order === 11.5,
+  JSON.stringify(registered?.definition),
+)
+check('the row renders a component', typeof registered?.component === 'function')
 
 const multiSheet = FONT_FACES.find(face => face.source.sheets.length > 1)
 const singleSheet = FONT_FACES.find(face => face.source.sheets.length === 1)
@@ -186,26 +195,28 @@ check(
 )
 
 console.log('cache read-out')
-const sectionFace = section.definition.inject()
-check('the section can ask for a fresh reading', typeof sectionFace.refreshCache === 'function')
+const rowFace = registered.definition.inject()
+check('the row can ask for a fresh reading', typeof rowFace.refreshCache === 'function')
 check('the reading starts empty', JSON.stringify(snapshot()?.cache) === '{}', JSON.stringify(snapshot()?.cache))
-sectionFace.refreshCache()
+rowFace.refreshCache()
 await settle()
 check('the Host is asked on the plugin\'s own route', cacheRequests.every(url => url === CACHE_ROUTE), cacheRequests.join(','))
 check(
-  'the answer reaches the snapshot the cards render',
+  'the answer reaches the snapshot the row renders',
   snapshot()?.cache['lxgw-wenkai']?.shardsTotal === 194 && snapshot()?.cache['lxgw-wenkai']?.bytes === 4_500_000,
   JSON.stringify(snapshot()?.cache),
 )
 check('a reading is not a choice', snapshot()?.font === 'noto-sans-sc', String(snapshot()?.font))
 
-console.log('rendered cards')
+console.log('rendered row')
 let refreshes = 0
 // CSS Modules hash every local name, so a class is matched by its `_<local>`
-// suffix: a substring match would count `cardHead` as a `card`.
+// suffix: a substring match would count `rowText` as a `row`.
 const byClass = name => elements.filter(element =>
   String(element.props?.className ?? '').split(/\s+/).some(token => token.endsWith(`_${name}`)))
-section.component({
+// The default face, which the stubbed Host reports nothing cached for.
+setFont('noto-sans-sc')
+registered.component({
   // The dictionary is the locale service's; what this checks is which keys and
   // which values the component asks it for.
   t: (key, params) => params === undefined ? key : `${key}(${JSON.stringify(params)})`,
@@ -213,29 +224,70 @@ section.component({
   choose: () => {},
   refreshCache: () => { refreshes += 1 },
 })
-check('mounting the section asks for a reading', refreshes === 1, String(refreshes))
+check('rendering the row asks for a reading', refreshes === 1, String(refreshes))
+check('the row draws its own label', byClass('title')[0]?.props.children === 'title', String(byClass('title')[0]?.props.children))
 check(
-  'presents the system default and both writing systems',
-  byClass('groupLabel').map(element => element.props.children).join(',') === 'groupSystem,groupCjk,groupLatin',
-  byClass('groupLabel').map(element => element.props.children).join(','),
+  'and the description of the chosen face',
+  byClass('desc')[0]?.props.children === 'fontNotoSansScDesc',
+  String(byClass('desc')[0]?.props.children),
 )
-check('one card per choice', byClass('card').length === FONT_CHOICES.length, String(byClass('card').length))
+
+const menu = elements.find(element => element.type === Menu)
+check('renders a dropdown', menu !== undefined)
+check('anchored on a selector showing the chosen face', byClass('selector')[0]?.props.children[0] === 'fontNotoSansSc', JSON.stringify(byClass('selector')[0]?.props.children))
+check('opened as a menu', byClass('selector')[0]?.props['aria-haspopup'] === 'menu')
+check('marking the stored choice', menu?.props.selectedId === 'noto-sans-sc', String(menu?.props.selectedId))
 check(
-  'tells the user how to refresh a stale reading',
-  byClass('note').map(element => element.props.children).join(',') === 'cacheHint',
-  byClass('note').map(element => element.props.children).join(','),
-)
-const cacheLines = byClass('cardMeta').map(element => element.props.children)
-check('the system default carries no cache line', cacheLines.length === FONT_FACES.length, String(cacheLines.length))
-check(
-  'a face with a reading shows its size and shard count',
-  cacheLines.includes('cachePresent({"size":"4.3 unitMb","cached":12,"total":194})'),
-  cacheLines.find(line => line.startsWith('cachePresent(')) ?? cacheLines[0],
+  'grouping the choices by writing system',
+  menu?.props.items.filter(item => item.type === 'label').map(item => item.text).join(',') === 'groupSystem,groupCjk,groupLatin',
+  JSON.stringify(menu?.props.items.filter(item => item.type === 'label').map(item => item.text)),
 )
 check(
-  'a face without a reading says it is not downloaded',
-  cacheLines.filter(line => line === 'cacheAbsent').length === FONT_FACES.length - 1,
-  cacheLines.filter(line => line === 'cacheAbsent').length + '',
+  'offering every catalogue face plus the system default',
+  menu?.props.items.filter(item => item.type === undefined).length === FONT_CHOICES.length,
+  String(menu?.props.items.filter(item => item.type === undefined).length),
+)
+check(
+  'labelling a cached face with what it holds',
+  menu?.props.items.find(item => item.id === 'lxgw-wenkai')?.label
+    === 'fontLxgwWenkai · cacheCached({"size":"4.3 unitMb"})',
+  String(menu?.props.items.find(item => item.id === 'lxgw-wenkai')?.label),
+)
+check(
+  'labelling an untouched face as not downloaded',
+  menu?.props.items.find(item => item.id === 'geist')?.label === 'fontGeist · cacheAbsent',
+  String(menu?.props.items.find(item => item.id === 'geist')?.label),
+)
+check(
+  'leaving the system default without a cache phrase',
+  menu?.props.items.find(item => item.id === SYSTEM_FONT_ID)?.label === 'fontSystem',
+  String(menu?.props.items.find(item => item.id === SYSTEM_FONT_ID)?.label),
+)
+check(
+  'reporting the chosen face\'s shard count and how to refresh it',
+  byClass('meta')[0]?.props.children
+    === 'cacheAbsent · cacheHint',
+  String(byClass('meta')[0]?.props.children),
+)
+
+setFont('lxgw-wenkai')
+registered.component({
+  t: (key, params) => params === undefined ? key : `${key}(${JSON.stringify(params)})`,
+  useFontSettings: selector => selector(snapshot()),
+  choose: () => {},
+  refreshCache: () => {},
+})
+// The last render is the one just made: `elements` accumulates every call.
+const lastMeta = () => byClass('meta').at(-1)?.props.children
+check(
+  'the chosen face is the one the reading describes',
+  lastMeta() === 'cachePresent({"size":"4.3 unitMb","cached":12,"total":194}) · cacheHint',
+  String(lastMeta()),
+)
+check(
+  'and the selector shows the face that was chosen',
+  byClass('selector').at(-1)?.props.children[0] === 'fontLxgwWenkai',
+  JSON.stringify(byClass('selector').at(-1)?.props.children),
 )
 
 for (const dispose of disposers) dispose()

@@ -1,17 +1,17 @@
 # @guowenzhang/dsh-ui-beautify
 
-DeepSeek Harness 的**页面美化插件**。目前的能力：让 Web GUI 在设置页里切换**正文字体**。字体**不随插件分发**——插件里只存下载地址，字体在首次使用时下载到本机缓存，之后完全离线可用。
+DeepSeek Harness 的**页面美化插件**。目前的能力：在「设置 → 通用设置」里用下拉切换 Web GUI 的**正文字体**。字体**不随插件分发**——插件里只存下载地址，字体在首次使用时下载到本机缓存，之后完全离线可用。
 
 ## 它做什么
 
 | 半边 | 职责 |
 |---|---|
 | Host | 认领两个路由：一个前缀路由把浏览器要的字体文件从镜像下载下来并缓存，再按 npm 包里的原始路径提供出去；一个精确路由汇报缓存里已有什么 |
-| Client | 按选择链入对应字体的分片样式表，把 `--dsw-font-family` 重绑过去，并渲染设置页的「页面美化」区块（含每款字体的缓存状态） |
+| Client | 按选择链入对应字体的分片样式表，把 `--dsw-font-family` 重绑过去，并在通用设置页里贡献一个下拉选择行（含缓存状态） |
 
 字体通过**主题服务的覆盖层**（`ctx.theme.overrideTokens`）生效——它写成 `body` 的行内样式，优先级高于 `:root`，因此不受插件激活顺序影响，卸载时自动回滚。
 
-设置入口在 **Settings → 页面美化**（`settings.section`，order 12）。选择写进 `~/.dsh/settings.yaml` 的 `ui-beautify` 分节，改完立即生效、无需重启。
+选择行挂在 **设置 → 通用设置**（`settings.general.item`，order **11.5**）——即「外观」一组里**「字号大小」正下方**、工作过程展示上方。用的是 ui-settings-general 专门为「不需要独立页面的单个偏好」留的加性插槽，所以字体选择**不再是一个独立页面**，侧边栏里也没有它的导航项。选择写进 `~/.dsh/settings.yaml` 的 `ui-beautify` 分节，改完立即生效、无需重启。
 
 ## 可选字体
 
@@ -73,21 +73,28 @@ $DSH_HOME/cache/ui-beautify/fonts/<face>/<generation>/<包内路径>
 
 字体没下下来时界面**不会坏**：`@font-face` 带 `font-display: swap`，浏览器先用手上的回退字体渲染，分片到位后再替换；彻底失败就一直用回退字体，只是没换成功。
 
-### 卡片上的缓存状态
+### 行里的缓存状态
 
-每张卡片底部有一行状态，**没有下载按钮**——字体是按需拉的，点选即用，不需要用户先决定下载什么：
+这一行只有三个元素，和旁边的偏好行完全一致：标题、当前字体的描述、以及一行状态；右侧是一个胶囊下拉。
 
-| 卡片显示 | 含义 |
+```
+正文字体                                        [ 思源黑体 ⌄ ]
+无衬线，笔画粗细均匀、字形方正，界面文本最中性稳妥。
+已缓存 103 KB · 1/101 片 · 打开本页时统计，刷新页面（F5）更新
+```
+
+**没有下载按钮**——字体是按需拉的，点选即用，不需要用户先决定下载什么。下载状态出现在两处：
+
+| 位置 | 显示 |
 |---|---|
-| `未下载` | 这款字体的样式表还没被取过，磁盘占用为 0 |
-| `已缓存 103 KB · 1/101 片` | 样式表已缓存，101 个 `unicode-range` 分片里已有 1 片 |
-| `已缓存 4.3 MB · 101/101 片` | 这款字体在当前界面用到的字符已经全部在本地 |
+| 下拉每一项 | `思源黑体 · 已缓存 4.3 MB`、`思源宋体 · 未下载`（`system` 不带后缀，它不下载任何东西） |
+| 行内状态行 | 当前字体的完整读数：`已缓存 103 KB · 1/101 片` |
 
-分母来自**已缓存的样式表**：分片名字只写在样式表里，所以没有样式表就无从知道总数，也就显示为「未下载」。分子是磁盘上真实存在的分片数，因此「1/101」表示的是**按需下载的进度**，而不是下载失败——随着你继续浏览、页面出现新字符，它会自己涨。
+状态行里的分母来自**已缓存的样式表**：分片名字只写在样式表里，所以没有样式表就无从知道总数，也就显示为「未下载」。分子是磁盘上真实存在的分片数，因此「1/101」表示的是**按需下载的进度**，而不是下载失败——随着你继续浏览、页面出现新字符，它会自己涨。
 
-数字的读取时机只有两个：**打开这个设置页时**，以及**切换字体后约 1.5 秒**（给首次下载留出落盘时间）。它不是实时订阅——下载在后台继续时数字会停在那一刻。因为**没有刷新按钮**，介绍文案下方常驻一行提示，告诉用户**刷新页面（F5）**即可重新统计；重新加载会重新挂载这个区块，也就重新读一次。
+下拉按「基准 / 中文字体 / 拉丁字体」分组，当前选中项带勾。切换字体即写入设置，无需确认。
 
-`system` 卡片没有状态行——它本来就不下载任何东西。
+数字的读取时机只有两个：**这一行渲染时**，以及**切换字体后约 1.5 秒**（给首次下载留出落盘时间）。它不是实时订阅——下载在后台继续时数字会停在那一刻。因为**没有刷新按钮**，状态行末尾常驻一句提示，告诉用户**刷新页面（F5）**即可重新统计；重新加载会重新挂载这一行，也就重新读一次。
 
 状态来自 Host 的 `GET /plugins/dsh-ui-beautify/cache`（`no-store`，只读）：
 
@@ -143,7 +150,7 @@ npm run test:cdn       # 联网：逐字体校验两个镜像、分片与字体�
 
 - `tests/smoke.mjs`：mock ctx 调 `apply()`，断言路由注册、字体表完整性（id 字符集、包名版本、样式表路径）、路由解析与路径穿越防护、镜像模板拼接、缓存目录解析、设置 schema。
 - `tests/http.mjs`：**桩镜像**（`node:http`）+ 真实 `node:http` 服务器驱动插件 handler。断言响应头与字节、第二次请求走磁盘、并发冷请求只下载一次、三种失败应答（404 / 502 / 403）、镜像回退，最后**关掉桩镜像再请求一次**，证明缓存命中可离线工作。
-- `tests/client.mjs`：按浏览器加载器的姿势（`window.__ModuleLoader__.load`）加载**构建产物** `lib/client.js`，配一个假 ctx、DOM 桩与只记录调用的 React 桩驱动 `apply()` 并渲染区块，断言设置区块注册、每款字体链入的链接、系统默认时全部移除、`--dsw-font-family` 的重绑内容，以及缓存状态行（`已缓存 4.3 MB · 12/194 片` 之类）由用量数据算出来。client 半边没有单元测试的其他覆盖，这条是「bundle 能不能加载、链接指向对不对、卡片显示什么」的唯一防线。
+- `tests/client.mjs`：按浏览器加载器的姿势（`window.__ModuleLoader__.load`）加载**构建产物** `lib/client.js`，配一个假 ctx、DOM 桩与只记录调用的 React 桩驱动 `apply()` **并真的渲染那一行**，断言：注册进 `settings.general.item`（而非 `settings.section`）、order 11.5、每款字体链入的链接、系统默认时全部移除、`--dsw-font-family` 的重绑内容、下拉的分组与每项文案（`思源黑体 · 已缓存 4.3 MB`）、以及行内状态行由用量数据算出来。client 半边没有单元测试的其他覆盖，这条是「bundle 能不能加载、链接指向对不对、这一行显示什么」的唯一防线。
 - `tests/cdn.mjs`：对真实镜像逐个字体跑，除了 200 还检查两件容易踩的事——样式表里声明的 `font-family` 与表里写的一致，以及它**确实是 `unicode-range` 分片**而不是一个整字体文件。
 
 `lib/` 是**提交进仓库的构建产物**，这样可以直接从 git 安装。改完源码记得 `npm run build` 并把 `lib/` 一起提交。
@@ -151,7 +158,7 @@ npm run test:cdn       # 联网：逐字体校验两个镜像、分片与字体�
 ## 加一款字体
 
 1. 在 `src/fonts.ts` 的 `FONT_FACES` 加一行（`id` / `family` / `group` / `source`）——`family` 必须与该包样式表里的 `font-family` **逐字一致**，写错会让所有 `@font-face` 匹配不上而静默回退；`id` 只能是 `[a-z0-9-]`，它同时是路由段。`FONT_CHOICES` 由这张表派生，不用另改。
-2. 在 `src/client/FontSection.tsx` 的 `CHOICE_COPY` 加名称与描述的字典键，并在 `src/client/locales.ts` 补齐中英文案。
+2. 在 `src/client/FontRow.tsx` 的 `CHOICE_COPY` 加名称与描述的字典键，并在 `src/client/locales.ts` 补齐中英文案。
 3. `npm run test:cdn` 验证（**务必跑**，下面两个坑只有联网才看得出来），再 `npm run build && npm test`。
 
 除此之外插件里没有别处枚举字体。
@@ -170,7 +177,7 @@ npm run test:cdn       # 联网：逐字体校验两个镜像、分片与字体�
 
 ## 排查：装了但字体没变
 
-按顺序查这五处。
+按顺序查这六处。
 
 **1. 插件在不在 profile 清单里。** `dsh plugin add` 之后如果还有别的插件管理操作（GUI 插件页、并发的 `dsh plugin` 命令），新装的 bundle **可能被基于旧快照的重写挤掉**——实测装完 50 秒后另一次 profile 写入就会把它覆盖：
 
@@ -188,9 +195,11 @@ curl.exe -s -o NUL -w "%{http_code}`n" http://127.0.0.1:3080/plugins/dsh-ui-beau
 
 `200` 说明路由已在跑、镜像也通——profile 的 `patchReload: live` 会让 HMR 在清单变化后热重组，**装完不必重启宿主**。若是 `502`，是镜像不可达（检查 `mirrors` 配置与网络）；若是 `404`，多半是清单里没有这个插件。
 
-**3. 命名空间有没有暴露。** 设置区块读的是 Host 注册的 `ui-beautify` 命名空间；若区块显示「宿主设置服务不可用」，说明没有挂载 settings 提供方（`dsh-settings-file`），选择无法保存。
+**3. 命名空间有没有暴露。** 那一行读的是 Host 注册的 `ui-beautify` 命名空间；若状态行显示「宿主设置服务不可用」，说明没有挂载 settings 提供方（`dsh-settings-file`），选择无法保存。
 
-**4. Client 半边跑没跑。** 浏览器 Console：
+**4. 那一行在不在。** 它注册进的是 `settings.general.item`——由 **ui-settings-general** 声明。若宿主里没有这个包（老版本或裁剪过的组合），`ctx.slots.inject` 会一直等这个声明，**这一行不出现，但字体照常应用**；此时只能改 `~/.dsh/settings.yaml` 手工选。设置里搜「正文字体」，位置在「外观」一组的「字号大小」正下方。
+
+**5. Client 半边跑没跑。** 浏览器 Console：
 
 ```js
 document.querySelectorAll('link[data-plugin*="ui-beautify"]').length   // 选中内置字体时应为 1，霞鹜文楷为 2
@@ -209,7 +218,7 @@ document.fonts.check('14px "LXGW WenKai"')   // true = 该字体已加载
 
 或在 DevTools 的 Elements → Computed → Rendered Fonts 里看实际渲染用的字体；在 Network 里筛 `fonts/` 能看到哪些分片被拉取、哪些来自 `(disk cache)`。
 
-**5. 缓存里到底有没有东西。** 设置页每张卡片底部就有一行状态；要命令行确认，缓存目录默认在 `$DSH_HOME/cache/ui-beautify/fonts`（Windows 上是 `C:\Users\<你>\.dsh\cache\ui-beautify\fonts`），每个字体一个目录，里面一个 generation 目录：
+**6. 缓存里到底有没有东西。** 通用设置里那一行的状态行就会写；要命令行确认，缓存目录默认在 `$DSH_HOME/cache/ui-beautify/fonts`（Windows 上是 `C:\Users\<你>\.dsh\cache\ui-beautify\fonts`），每个字体一个目录，里面一个 generation 目录：
 
 ```powershell
 curl.exe -s http://127.0.0.1:3080/plugins/dsh-ui-beautify/cache
@@ -230,15 +239,15 @@ src/
   settings.ts             Host：ui-beautify 命名空间与 mirrors/cacheDir 配置
   index.ts                Host：认领两个路由
   client/
-    index.ts              Client：注册设置区块 + 应用所选字体
-    FontSection.tsx       「页面美化」区块组件（分组渲染 + 每卡缓存状态行 + 刷新提示）
-    FontSection.module.css
-    settings-controller.ts 设置命名空间、缓存用量 ↔ 区块快照
+    index.ts              Client：注册通用设置里的偏好行 + 应用所选字体
+    FontRow.tsx           偏好行组件（标题 / 描述 / 缓存状态 + 下拉选择）
+    FontRow.module.css
+    settings-controller.ts 设置命名空间、缓存用量 ↔ 行快照
     locales.ts            中英文案
 tests/
   smoke.mjs               路由、字体表、路径解析、配置默认值（离线）
   http.mjs                桩镜像下的 HTTP 层：字节、缓存、并发、失败应答、离线、用量上报
-  client.mjs              加载 lib/client.js 驱动 apply() 并渲染区块：链接、token 重绑、缓存状态行
+  client.mjs              加载 lib/client.js 驱动 apply() 并渲染那一行：插槽、链接、token 重绑、下拉与状态行
   cdn.mjs                 联网逐字体校验镜像、分片与族名
 ```
 
@@ -246,8 +255,9 @@ tests/
 
 - **代码字体**：同一套机制覆盖 `--ds-font-family-code`，配 Sarasa Mono SC 或 Maple Mono CN 与正文同源。顺带能修掉 `--dsw-font-mono` 从未被定义、导致 ui-jobs / ui-agent-preset 一直走 fallback 的老问题。
 - **镜像自动测速**：启动时对 `mirrors` 各探一次，把最快的排到前面，而不是固定顺序。
-- **设置页里的缓存管理**：显示每款字体的缓存占用与「重新下载」按钮——`FontStore` 已经有 generation 概念，加上 enumerating 与 `rm` 即可。
-- **字号阶梯、行高、圆角、间距**：同一区块继续加行即可。
+- **缓存管理**：通用设置里再加一行，显示每款字体的缓存占用并提供「清理」——`FontStore` 已经有 generation 概念，加上 enumerating 与 `rm` 即可；`GET /plugins/dsh-ui-beautify/cache` 已经在报这份数据。
+- **跟随系统字体**：把 `system` 从「不覆盖」扩展成「跟随一个可配置的字体栈」。
+- **字号阶梯、行高、圆角、间距**：同一套行机制继续加行即可。
 - **自定义主题配色**：`ctx.theme.register` 可注册整套 alias token。
 
 ## 许可

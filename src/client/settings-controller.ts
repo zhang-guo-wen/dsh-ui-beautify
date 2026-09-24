@@ -1,14 +1,14 @@
 /**
  * Controller bridging the Host `ui-beautify` settings namespace and its cache
- * read-out onto the Page beautification section snapshot.
+ * read-out onto the General-settings row snapshot.
  *
  * It reads the stored face id, writes a new one through the settings form, and
  * carries what the local cache holds for each face. Applying a choice to the
- * document is not this class's job — the plugin body owns that, so the section
+ * document is not this class's job — the plugin body owns that, so the row
  * can render a snapshot without touching the DOM.
  *
  * The cache reading is a sample, not a subscription: the Host answers when
- * asked, and the section asks when it opens and shortly after a choice lands,
+ * asked, and the row asks when it renders and shortly after a choice lands,
  * which is when a download has had time to put something on disk.
  *
  * @module @guowenzhang/dsh-ui-beautify/client/settings-controller
@@ -29,8 +29,8 @@ export { FONT_SETTINGS_NS } from '../params.ts'
  */
 const CACHE_REREAD_DELAY_MS = 1500
 
-/** Snapshot the section renders. */
-export interface FontSectionState {
+/** Snapshot the row renders. */
+export interface FontRowState {
   /** Whether the namespace is exposed to this client. */
   available: boolean
   /** Whether the Host document accepts writes. */
@@ -41,11 +41,11 @@ export interface FontSectionState {
   cache: FontCacheReport
 }
 
-/** Registration-side face for the section. */
-export interface FontSectionFace {
+/** Registration-side face for the row. */
+export interface FontRowFace {
   hooks: {
-    /** Section snapshot bound by the renderer as useFontSettings. */
-    fontSettings: SnapshotStore<FontSectionState>
+    /** Row snapshot bound by the renderer as useFontSettings. */
+    fontSettings: SnapshotStore<FontRowState>
   }
   /** Store one face id as the chosen body font. */
   choose: (id: string) => void
@@ -55,7 +55,7 @@ export interface FontSectionFace {
 
 /** Owner handle over the `ui-beautify` namespace and its cache read-out. */
 export class FontController {
-  private readonly store: SnapshotStore<FontSectionState>
+  private readonly store: SnapshotStore<FontRowState>
   private readonly unsubscribe: () => void
   private cache: FontCacheReport = {}
   private pending: ReturnType<typeof setTimeout> | undefined
@@ -77,8 +77,8 @@ export class FontController {
     if (this.pending !== undefined) clearTimeout(this.pending)
   }
 
-  /** Build the renderer face for this section. */
-  inject(): FontSectionFace {
+  /** Build the renderer face for this row. */
+  inject(): FontRowFace {
     return {
       hooks: { fontSettings: this.store },
       choose: id => { this.choose(id) },
@@ -99,7 +99,7 @@ export class FontController {
       report = ((await response.json()) as { faces?: FontCacheReport }).faces ?? {}
     } catch {
       // A Host that is not answering leaves the cards without cache labels. The
-      // choice itself still works, so the section shows nothing rather than an
+      // choice itself still works, so the row shows nothing rather than an
       // error the user cannot act on.
       return
     }
@@ -122,7 +122,7 @@ export class FontController {
     void this.scope.set('font', id)
   }
 
-  private projection(): FontSectionState {
+  private projection(): FontRowState {
     const snapshot = this.scope.getSnapshot()
     return {
       available: snapshot.status === 'ready',

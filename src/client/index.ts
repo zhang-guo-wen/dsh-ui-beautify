@@ -30,12 +30,12 @@ import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { faceById, fontStack, resolveFontChoice, type FontSettings } from '../fonts.ts'
 import { FONTS_ROUTE, FONT_SETTINGS_NS } from '../params.ts'
-import { FontSection } from './FontSection.tsx'
-import { en, NS, zh, type FontSectionKey } from './locales.ts'
+import { FontRow } from './FontRow.tsx'
+import { en, NS, zh, type FontRowKey } from './locales.ts'
 import { FontController } from './settings-controller.ts'
 
-export type { FontSectionProps } from './FontSection.tsx'
-export type { FontSectionFace, FontSectionState } from './settings-controller.ts'
+export type { FontRowProps } from './FontRow.tsx'
+export type { FontRowFace, FontRowState } from './settings-controller.ts'
 export { NS } from './locales.ts'
 
 /** Identity of this plugin's stylesheet link and its theme override layer. */
@@ -43,39 +43,40 @@ const PLUGIN_ID = '@guowenzhang/dsh-ui-beautify'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
-    /** This plugin's settings section copy. */
-    'settings.uiBeautify': FontSectionKey
+    /** This plugin's settings row copy. */
+    'settings.uiBeautify': FontRowKey
   }
 }
 
 /**
  * Required services: the theme service owns the token override, slots and locale
- * carry the section, and the configuration forms service is where the choice lives.
+ * carry the row, and the configuration forms service is where the choice lives.
  */
 export const inject = ['theme', 'slots', 'locale', 'configForms']
 
 /**
- * Client plugin body: register the section and keep the document in sync with
- * the stored choice.
+ * Client plugin body: register the preference row and keep the document in sync
+ * with the stored choice.
  * @param ctx - client cordis context.
  */
 export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-beautify: dictionaries')
-  const t = ctx.locale.bind(NS)
   const scope = ctx.configForms.get<FontSettings>(FONT_SETTINGS_NS)
   const controller = new FontController(scope)
   ctx.effect(() => () => { controller.dispose() }, 'ui-beautify: settings form')
 
   ctx.effect(() => applyBodyFont(ctx, scope), 'ui-beautify: body font')
 
-  ctx.slots.inject('settings.section', () => ctx.slots.register({
-    name: 'settings.section',
+  // `11.5` is deliberate: the body font belongs with the appearance controls,
+  // directly under the interface font size (11) and above the transcript row
+  // (12). A whole step there would push it past the end of that group.
+  ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+    name: 'settings.general.item',
     id: 'ui-beautify',
-    order: 12,
-    label: () => t('nav'),
+    order: 11.5,
     locale: NS,
     inject: () => controller.inject(),
-  }, FontSection))
+  }, FontRow))
 }
 
 /**
