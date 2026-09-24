@@ -169,6 +169,7 @@ npm run typecheck      # tsc --noEmit
 npm run build          # tsdown（host）+ build-client.mjs（client handoff 包）
 npm test               # 冒烟 + HTTP 层验证（对构建产物运行，不联网）
 npm run test:cdn       # 联网：逐字体校验两个镜像、分片与字体族名
+npm run probe -- <包>  # 联网：评估一个候选 npm 包能不能当字体用
 ```
 
 - `tests/smoke.mjs`：mock ctx 调 `apply()`，断言路由注册、字体表完整性（id 字符集、包名版本、样式表路径）、路由解析与路径穿越防护、镜像模板拼接、缓存目录解析、设置 schema。
@@ -180,11 +181,43 @@ npm run test:cdn       # 联网：逐字体校验两个镜像、分片与字体�
 
 ## 加一款字体
 
-1. 在 `src/fonts.ts` 的 `FONT_FACES` 加一行（`id` / `family` / `group` / `source`）——`family` 必须与该包样式表里的 `font-family` **逐字一致**，写错会让所有 `@font-face` 匹配不上而静默回退；`id` 只能是 `[a-z0-9-]`，它同时是路由段。`FONT_CHOICES` 由这张表派生，不用另改。
-2. 在 `src/client/FontRow.tsx` 的 `CHOICE_COPY` 加名称与描述的字典键，并在 `src/client/locales.ts` 补齐中英文案。
-3. `npm run test:cdn` 验证（**务必跑**，下面两个坑只有联网才看得出来），再 `npm run build && npm test`。
+1. `npm run probe -- <包名>[@版本]` 评估候选包（见下节），拿到可用的样式表路径与字体族名。
+2. 在 `src/fonts.ts` 的 `FONT_FACES` 加一行（`id` / `family` / `group` / `source`）——`family` 必须与该包样式表里的 `font-family` **逐字一致**，写错会让所有 `@font-face` 匹配不上而静默回退；`id` 只能是 `[a-z0-9-]`，它同时是路由段。`FONT_CHOICES` 由这张表派生，不用另改。
+3. 在 `src/client/FontRow.tsx` 的 `CHOICE_COPY` 加名称与描述的字典键，并在 `src/client/locales.ts` 补齐中英文案。
+4. `npm run test:cdn` 验证（**务必跑**，下面两个坑只有联网才看得出来），再 `npm run build && npm test`。
 
 除此之外插件里没有别处枚举字体。
+
+### 候选从哪里找
+
+字体不是从某个字体站下的：插件只认 **npm 包**（一行 `包名@版本`，运行时从镜像取），所以"找字体" = "找发布了 webfont 的 npm 包"。实践中就两类来源：
+
+| 来源 | 覆盖 | 本插件已用 |
+|---|---|---|
+| **Fontsource**（`@fontsource/*`、`@fontsource-variable/*`）| 把 Google Fonts 全量转成 npm 包，每款都带 `unicode-range` 分片，命名统一（`index.css` + `files/`）| 思源黑体、思源宋体、站酷小薇/快乐/庆科黄油、马善政楷书、志莽行书、龙藏体、柳建毛草、Inter、Geist |
+| **字体作者或社区自建包** | 中文 webfont 的分片打包，命名各不相同，**必须逐个验** | `lxgw-wenkai-webfont`、`lxgw-wenkai-tc-webfont`、`lxgw-wenkai-screen-webfont`（霞鹜文楷系列）|
+
+同类但未收录的还有 `@chinese-fonts/*`、`cn-fontsource-*`、`misans-vf`（MiSans）等——最后一个是 jsDelivr 独有（npmmirror 没同步），加进来就得依赖 jsDelivr。
+
+`npm run probe` 就是给第二类准备的评估器：
+
+```sh
+npm run probe -- @fontsource/zcool-kuaile
+npm run probe -- lxgw-wenkai-webfont 1.7.0 lxgwwenkai-regular.css
+```
+
+它对每个候选样式表报出：两个镜像各自的状态码、声明的字体族、`@font-face` 与 `unicode-range` 条数（决定**是不是真分片**）、首个分片的实际字节数；拿到切片样式表后，直接打印一行可以粘进 `fonts.ts` 的配置。实测同一款字体的两种样式表：
+
+```
+index.css                    registry.npmmirror.com=200 cdn.jsdelivr.net=200
+    family 'Noto Sans SC' · slice ✓ 101 shards
+    first url: files/noto-sans-sc-4-400-normal.woff2 (2300 B)
+chinese-simplified-400.css   registry.npmmirror.com=200 cdn.jsdelivr.net=200
+    family 'Noto Sans SC' · NOT SLICED (1 face(s), 0 ranges) — one download per subset
+    first url: files/noto-sans-sc-chinese-simplified-400-normal.woff2 (1142552 B)
+```
+
+2.3 KB 对 1.1 MB——这就是下面两个坑，探针会在你提交之前把它们指出来。
 
 ### 选包时的两个坑
 
@@ -272,6 +305,8 @@ tests/
   http.mjs                桩镜像下的 HTTP 层：字节、缓存、并发、失败应答、离线、用量上报
   client.mjs              加载 lib/client.js 驱动 apply() 并渲染那一行：插槽、链接、token 重绑、下拉与状态行
   cdn.mjs                 联网逐字体校验镜像、分片与族名
+tools/
+  probe-font.mjs          联网评估候选 npm 包：分片、族名、镜像可达、可直接粘贴的配置行
 ```
 
 ## 接下来可以加的

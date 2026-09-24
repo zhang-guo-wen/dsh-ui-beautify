@@ -63,7 +63,8 @@
     "build": "tsdown -c tsdown.config.ts && node build-client.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node tests/smoke.mjs && node tests/http.mjs && node tests/client.mjs",
-    "test:cdn": "node tests/cdn.mjs"
+    "test:cdn": "node tests/cdn.mjs",
+    "probe": "node tools/probe-font.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "*",
