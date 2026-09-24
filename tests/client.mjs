@@ -220,6 +220,11 @@ check(
   byClass('groupLabel').map(element => element.props.children).join(','),
 )
 check('one card per choice', byClass('card').length === FONT_CHOICES.length, String(byClass('card').length))
+check(
+  'tells the user how to refresh a stale reading',
+  byClass('note').map(element => element.props.children).join(',') === 'cacheHint',
+  byClass('note').map(element => element.props.children).join(','),
+)
 const cacheLines = byClass('cardMeta').map(element => element.props.children)
 check('the system default carries no cache line', cacheLines.length === FONT_FACES.length, String(cacheLines.length))
 check(

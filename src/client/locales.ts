@@ -15,6 +15,7 @@ export const NS = 'settings.uiBeautify'
 export const en = {
   nav: 'Page beautification',
   intro: 'Choose the typeface the interface uses for body text. Nothing is installed on this machine: a face is downloaded the first time it is used, then served from a local cache.',
+  cacheHint: 'The cache figures below are read when this page opens. Fonts keep downloading on demand in the background, so reload the page (F5) for the current state.',
   groupSystem: 'Baseline',
   groupCjk: 'Chinese faces',
   groupLatin: 'Latin faces',
@@ -54,6 +55,7 @@ export const en = {
 export const zh: typeof en = {
   nav: '页面美化',
   intro: '选择界面正文使用的字体。无需在本机安装：字体在首次使用时下载，之后由本地缓存提供。',
+  cacheHint: '下方缓存数字是本页打开时读取的快照。字体仍在后台按需下载，刷新页面（F5）即可看到最新状态。',
   groupSystem: '基准',
   groupCjk: '中文字体',
   groupLatin: '拉丁字体',

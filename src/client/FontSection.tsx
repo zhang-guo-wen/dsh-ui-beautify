@@ -106,6 +106,9 @@ export function FontSection(props: FontSectionProps): ReactNode {
     <div className={css.section}>
       <div className={css.panel}>
         <p className={css.intro}>{t('intro')}</p>
+        {/* The cache lines are a reading, not a subscription, so the page says
+            what to do about a number that looks stale. */}
+        <p className={css.note}>{t('cacheHint')}</p>
         {BLOCKS.map(({ label, ids }) => (
           <div key={label} className={css.group}>
             <span className={css.groupLabel}>{t(label)}</span>
