@@ -6,8 +6,8 @@
  * package-relative stylesheets it declares, and the first request for a sheet
  * or a shard fetches it from the configured mirrors into a local cache. The
  * browser needs those bytes over the application origin, so this plugin claims
- * a `webServer` prefix; the client half links the chosen face's stylesheets,
- * rebinds the body font token, and renders the picker that writes the
+ * a `webServer` prefix; the client half links the chosen faces' stylesheets,
+ * rebinds the body and code font tokens, and renders the pickers that write the
  * namespace. Nothing here is model-facing.
  * @module @guowenzhang/dsh-ui-beautify
  */
@@ -31,10 +31,13 @@ export const inject = ['webServer']
 // surface.
 export { CACHE_ROUTE, FONTS_ROUTE } from './params.ts'
 export {
-  DEFAULT_FONT_ID, FACE_ID_PATTERN, FONT_CHOICES, FONT_FACES, SYSTEM_FONT_ID,
-  faceById, fontStack, resolveFontChoice,
+  anyFaceById, choicesFor, CODE_FACES, CODE_FALLBACK_STACK, CODE_FONT_CHOICES,
+  DEFAULT_CODE_FONT_ID, DEFAULT_FONT_ID, FACE_ID_PATTERN, FONT_CHOICES, FONT_FACES,
+  FONT_ROLES, faceById, fontStack, resolveFontChoice, SYSTEM_FONT_ID,
 } from './fonts.ts'
-export type { FontCacheReport, FontCacheUsage, FontFace, FontGroup, FontSource } from './fonts.ts'
+export type {
+  FontCacheReport, FontCacheUsage, FontFace, FontGroup, FontRole, FontRoleSpec, FontSource,
+} from './fonts.ts'
 export { fontRouteFor, serveCacheUsage, serveFontFile } from './serve.ts'
 export type { FontRoute } from './serve.ts'
 export { FONT_SETTINGS_NS } from './settings.ts'
@@ -44,7 +47,7 @@ export { Config }
 
 /**
  * Host plugin body: claim the font directory's URL prefix and the cache
- * read-out the picker labels each face with. The chosen face lives in this
+ * read-out the pickers label each face with. The chosen faces live in this
  * row's volatile Config, which the settings page edits directly; the mirrors
  * and cache directory are read once here, at host start.
  * @param ctx - host cordis context.

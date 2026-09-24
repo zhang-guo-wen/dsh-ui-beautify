@@ -11,11 +11,15 @@ DeepSeek Harness 的**页面美化插件**。目前的能力：在「设置 → 
 
 字体通过**主题服务的覆盖层**（`ctx.theme.overrideTokens`）生效——它写成 `body` 的行内样式，优先级高于 `:root`，因此不受插件激活顺序影响，卸载时自动回滚。
 
-选择行挂在 **设置 → 通用设置**（`settings.general.item`，order **11.5**）——即「外观」一组里**「字号大小」正下方**、工作过程展示上方。用的是 ui-settings-general 专门为「不需要独立页面的单个偏好」留的加性插槽，所以字体选择**不再是一个独立页面**，侧边栏里也没有它的导航项。选择写进 `~/.dsh/settings.yaml` 的 `ui-beautify` 分节，改完立即生效、无需重启。
+选择行挂在 **设置 → 通用设置**（`settings.general.item`，order **11.5** 与 **11.6**）——即「外观」一组里**「字号大小」正下方**，「正文字体」在下、「代码字体」再下一行，两者都在工作过程展示上方。用的是 ui-settings-general 专门为「不需要独立页面的单个偏好」留的加性插槽，所以字体选择**不是独立页面**，侧边栏里也没有导航项。选择写进 `~/.dsh/settings.yaml` 的 `ui-beautify` 分节（`font` / `codeFont` 两个字段），改完立即生效、无需重启。
 
 ## 可选字体
 
-`system` 之外共 14 款，全部是 OFL 开源字体，每款都带 `unicode-range` 分片。
+两款字体**各自独立配置**：正文字体与代码字体，各占通用设置里的一行，互不影响。
+
+### 正文字体（`system` 之外 14 款）
+
+全部是 OFL 开源字体，每款都带 `unicode-range` 分片。
 
 | id | 字体 | 分片 | 全量体积 | 来源 |
 |---|---|---|---|---|
@@ -35,11 +39,28 @@ DeepSeek Harness 的**页面美化插件**。目前的能力：在「设置 → 
 | `inter` | Inter（拉丁）| 7 | 0.21 MB | `@fontsource-variable/inter@5.3.0` |
 | `geist` | Geist（拉丁）| 5 | 0.07 MB | `@fontsource-variable/geist@5.3.0` |
 
+### 代码字体（`system` 之外 5 款）
+
+默认是 `system`——**不改变任何现有观感**，代码块沿用 DSH 内置的等宽字体栈。想要统一观感再自己选：
+
+| id | 字体 | 分片 | 全量体积 | 来源 |
+|---|---|---|---|---|
+| `system`（默认值）| 系统默认 | 不下载任何字体，沿用内置栈 | 0 | —— |
+| `jetbrains-mono` | JetBrains Mono | 6 | 0.08 MB | `@fontsource-variable/jetbrains-mono@5.3.0` |
+| `fira-code` | Fira Code | 7 | 0.11 MB | `@fontsource-variable/fira-code@5.3.0` |
+| `geist-mono` | Geist Mono | 6 | 0.07 MB | `@fontsource-variable/geist-mono@5.3.0` |
+| `noto-sans-mono` | Noto Sans Mono | 7 | 0.30 MB | `@fontsource-variable/noto-sans-mono@5.3.0` |
+| `maple-mono-cn` | Maple Mono CN | 239 | 9.0 MB | `@mogeko/maple-mono-cn@7.9.0` |
+
+**只有 `maple-mono-cn` 覆盖中文**——中文注释也能对齐，代价是 9 MB 且 **npm 镜像没同步这个包，只能走 jsDelivr**（这正是镜像回退存在的意义）。其余四款只覆盖拉丁字符，中文回退到内置栈。
+
+### 体积怎么读
+
 **「分片」与「全量体积」指的是这一款字体**——它那几个样式表声明出来的全部分片之和（实测，解码后字节），**不是 npm 包的整包大小**：包里通常还有别的字重、别的子集和 `.woff` 备份，那些永远不会被下载。挑字体时以这张表为准，别拿包体积估算。
 
-**「全量体积」也永远不会真的下完。** 分片是按 `unicode-range` 切的，浏览器只请求页面**实际渲染到的字符**所属的那几片：以思源黑体为例，latin 片约 25 KB，中文片多在 30 KB 上下（实测 19 片，最大 77 KB），也就是首屏通常只有几百 KB 而不是 4.4 MB。`inter` / `geist` 只覆盖拉丁字符，中文回退到系统字体栈——选中后行内描述会写明这一点。
+**「全量体积」也永远不会真的下完。** 分片是按 `unicode-range` 切的，浏览器只请求页面**实际渲染到的字符**所属的那几片：以思源黑体为例，latin 片约 25 KB，中文片多在 30 KB 上下（实测 19 片，最大 77 KB），也就是首屏通常只有几百 KB 而不是 4.4 MB。
 
-**`system` 不是「把系统字体栈复制一份写进 `--dsw-font-family`」**，而是**移除样式表链接与 token 覆盖层**，让 `--dsw-font-family` 回到 ui-theme 自己的声明。区别在于：复制一份会把今天的默认值冻结在插件里，上游改了默认字体这里也不会跟随；移除覆盖则始终跟随。选中它也是「关掉自定义字体」的唯一方式，不需要卸载插件。
+**`system` 不是「把字体栈复制一份写进 token」**，而是**移除样式表链接与 token 覆盖层**，让 token 回到 ui-theme 自己的声明。区别在于：复制一份会把今天的默认值冻结在插件里，上游改了默认字体这里也不会跟随；移除覆盖则始终跟随。选中它也是「关掉自定义字体」的唯一方式，不需要卸载插件。
 
 ## 字体是怎么下载的
 
@@ -144,11 +165,18 @@ curl.exe -s http://127.0.0.1:3080/plugins/dsh-ui-beautify/cache
 
 ## 覆盖范围
 
-只改 `--dsw-font-family`，即**正文 / UI / Markdown**。
+两个角色各改一组 token，都通过 `ctx.theme.overrideTokens` 写成 `body` 的行内样式：
 
-代码与等宽字体 `--ds-font-family-code` **保持不动**（仍是 Consolas）。以下位置硬编码了字体，覆盖 CSS 变量管不到，同样保持原样：
+| 角色 | token | 覆盖到 |
+|---|---|---|
+| 正文字体 | `--dsw-font-family` | 正文 / UI / Markdown |
+| 代码字体 | `--ds-font-family-code` + `--dsw-font-mono` | 代码块、行内代码、JSON 树、轨迹表、工具行、侧栏路径、审批面板等 |
 
-- 集成终端（xterm 构造参数）
+顺带修掉一个老问题：`--dsw-font-mono` **ui-theme 从未定义过**，而 `ui-jobs`、`ui-agent-preset`、`ui-plugin-manager`、文档预览四处都在用 `var(--dsw-font-mono, …)` 的带兜底写法（`ui-jobs` 那处甚至没写兜底）。现在代码字体一并把它绑上，这几处也跟着生效。
+
+以下位置硬编码了字体，CSS 变量管不到，保持原样：
+
+- 集成终端（xterm 构造参数，不走 CSS）
 - 队列面板 `QueueDock.module.css` 里写死的 `Inter` 前缀
 
 ## 安装
@@ -288,30 +316,30 @@ Get-ChildItem "$env:USERPROFILE\.dsh\cache\ui-beautify\fonts" -Recurse -File | S
 ```
 src/
   params.ts               两半边共用的路由（字体前缀 + 缓存精确路由）与命名空间常量
-  fonts.ts                可选字体表（system + 10 款，含 npm 来源）与字体栈、缓存用量类型
+  fonts.ts                角色表（正文 / 代码）、两份字体表、字体栈、缓存用量类型
   source.ts               镜像模板、带超时/体积上限/内容校验的下载
   store.ts                磁盘缓存（generation、原子写入、并发合并、过期清理、用量统计）
   serve.ts                两个 HTTP 面：字体文件应答（404/502）与缓存用量 JSON
-  settings.ts             Host：ui-beautify 命名空间与 mirrors/cacheDir 配置
+  settings.ts             Host：ui-beautify 命名空间（font / codeFont）与 mirrors/cacheDir 配置
   index.ts                Host：认领两个路由
   client/
-    index.ts              Client：注册通用设置里的偏好行 + 应用所选字体
-    FontRow.tsx           偏好行组件（标题 / 描述 / 缓存状态 + 下拉选择）
-    FontRow.module.css
+    index.ts              Client：注册两行偏好项 + 按角色应用所选字体
+    FontRows.tsx          偏好行组件（标题 / 描述 / 缓存状态 + 下拉选择），两个角色共用
+    FontRows.module.css
     settings-controller.ts 设置命名空间、缓存用量 ↔ 行快照
     locales.ts            中英文案
 tests/
-  smoke.mjs               路由、字体表、路径解析、配置默认值（离线）
+  smoke.mjs               路由、两份字体表、路径解析、配置默认值（离线）
   http.mjs                桩镜像下的 HTTP 层：字节、缓存、并发、失败应答、离线、用量上报
-  client.mjs              加载 lib/client.js 驱动 apply() 并渲染那一行：插槽、链接、token 重绑、下拉与状态行
-  cdn.mjs                 联网逐字体校验镜像、分片与族名
+  client.mjs              加载 lib/client.js 驱动 apply() 并渲染两行：插槽、链接、两种 token、下拉与状态行
+  cdn.mjs                 联网逐字体（两个角色）校验镜像、分片与族名
 tools/
   probe-font.mjs          联网评估候选 npm 包：分片、族名、镜像可达、可直接粘贴的配置行
 ```
 
 ## 接下来可以加的
 
-- **代码字体**：同一套机制覆盖 `--ds-font-family-code`，配 Sarasa Mono SC 或 Maple Mono CN 与正文同源。顺带能修掉 `--dsw-font-mono` 从未被定义、导致 ui-jobs / ui-agent-preset 一直走 fallback 的老问题。
+- **第三个角色**：整个机制已经是「角色表」——加一行 `FONT_ROLES` 条目（key、tokens、fallback、faces、defaultId）就多一个可独立配置的字体位，比如标题字体、终端字体（终端需要先支持通过 CSS 变量传字体）。
 - **镜像自动测速**：启动时对 `mirrors` 各探一次，把最快的排到前面，而不是固定顺序。
 - **缓存管理**：通用设置里再加一行，显示每款字体的缓存占用并提供「清理」——`FontStore` 已经有 generation 概念，加上 enumerating 与 `rm` 即可；`GET /plugins/dsh-ui-beautify/cache` 已经在报这份数据。
 - **跟随系统字体**：把 `system` 从「不覆盖」扩展成「跟随一个可配置的字体栈」。
@@ -320,4 +348,4 @@ tools/
 
 ## 许可
 
-插件本体 Apache-2.0。**插件不分发任何字体文件**：字体按需从 npm 镜像下载到本机缓存，各自保留原始许可——思源黑体/思源宋体/站酷小薇/站酷快乐/站酷庆科黄油/马善政楷书/志莽行书/龙藏体/柳建毛草/Inter/Geist 为 SIL Open Font License 1.1（由 Fontsource 打包），霞鹜文楷、霞鹜文楷 TC 与霞鹜文楷屏幕版的字体同为 OFL 1.1，承载它们的 npm 包 `lxgw-wenkai-webfont` / `lxgw-wenkai-tc-webfont` / `lxgw-wenkai-screen-webfont` 为 MIT。
+插件本体 Apache-2.0。**插件不分发任何字体文件**：字体按需从 npm 镜像下载到本机缓存，各自保留原始许可——思源黑体/思源宋体/站酷小薇/站酷快乐/站酷庆科黄油/马善政楷书/志莽行书/龙藏体/柳建毛草/Inter/Geist 为 SIL Open Font License 1.1，JetBrains Mono / Fira Code / Geist Mono / Noto Sans Mono / Maple Mono CN 同为 SIL Open Font License 1.1（均由 Fontsource 或各自的打包者发布）；霞鹜文楷、霞鹜文楷 TC 与霞鹜文楷屏幕版的字体同为 OFL 1.1，承载它们的 npm 包 `lxgw-wenkai-webfont` / `lxgw-wenkai-tc-webfont` / `lxgw-wenkai-screen-webfont` 为 MIT。

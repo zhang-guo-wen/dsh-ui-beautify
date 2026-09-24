@@ -1,6 +1,6 @@
 /**
- * The body-font catalogue: every face the picker offers, and the CDN source it
- * is downloaded from.
+ * The font catalogue: every face the pickers offer, the CDN source each is
+ * downloaded from, and the token each role rebinds.
  *
  * The plugin ships no font bytes. A row names an npm package and a pinned
  * version, so the Host half can fetch one stylesheet or one shard the first time
@@ -8,11 +8,16 @@
  * one row here plus its copy in `src/client/locales.ts` — the picker, the
  * settings validation, and the download route all read this table.
  *
+ * A *role* is one independently configured font slot: the interface's body text
+ * and its code text are set separately, because a face that reads well in prose
+ * is not the one that keeps a table of columns aligned. Each role owns its
+ * catalogue, its fallback, and the custom properties it rebinds.
+ *
  * Both halves read this module, so nothing added here may import a Host-only
  * package: the Client half bundles it into the browser.
  */
 
-/** The stack every downloaded face falls back to, matching ui-theme's own default. */
+/** The stack the body faces fall back to, matching ui-theme's own declaration. */
 export const FALLBACK_STACK = [
   '-apple-system',
   'BlinkMacSystemFont',
@@ -27,18 +32,45 @@ export const FALLBACK_STACK = [
 ].join(', ')
 
 /**
+ * The stack the code faces fall back to.
+ *
+ * This repeats ui-theme's `--ds-font-family-code` value rather than reaching for
+ * it: the override is an inline style on `body`, so a `var()` pointing back at
+ * the token it replaces would resolve to itself. It ends in `monospace` because
+ * this stack is only ever used behind a downloaded face, never as the token's
+ * own value — ui-theme omits that tail for Windows CJK reasons.
+ */
+export const CODE_FALLBACK_STACK = [
+  "'SF Mono'",
+  "'JetBrains Mono'",
+  "'Fira Code'",
+  'Consolas',
+  "'Liberation Mono'",
+  'Menlo',
+  'Courier',
+  'monospace',
+].join(', ')
+
+/**
  * Id of the choice that downloads nothing at all.
  *
- * Selecting it removes the stylesheet links and the token override, so
- * `--dsw-font-family` resolves to whatever ui-theme declares. That is
- * deliberately not the same as overriding the token with a copy of ui-theme's
- * stack: a copy would freeze today's default into this plugin and stop
- * following it.
+ * Selecting it removes the stylesheet links and the token override, so the
+ * token resolves to whatever ui-theme declares. That is deliberately not the
+ * same as overriding the token with a copy of ui-theme's stack: a copy would
+ * freeze today's default into this plugin and stop following it.
  */
 export const SYSTEM_FONT_ID = 'system'
 
 /**
- * Which block of the picker a face belongs to.
+ * One independently configured font slot.
+ *
+ * `body` dresses the interface's text; `code` dresses code blocks, JSON trees,
+ * tool rows, and the rest of what ui-theme routes through the code token.
+ */
+export type FontRole = 'body' | 'code'
+
+/**
+ * Which block of a picker a face belongs to.
  *
  * A Latin face covers no CJK codepoint, so the two are presented separately
  * rather than mixed into one list where the difference is invisible.
@@ -71,7 +103,7 @@ export interface FontSource {
   sheets: readonly string[]
 }
 
-/** One face the interface can set its body text to. */
+/** One face a role can be set to. */
 export interface FontFace {
   /** Stable id stored in the settings and used as the route segment. */
   id: string
@@ -93,19 +125,12 @@ export interface FontFace {
  * The id is also a URL path segment, so the route refuses anything outside this
  * charset as malformed rather than looking it up: `..`, a percent-encoded
  * escape, and a separator can then never reach a lookup, a cache path, or a
- * mirror URL.
+ * mirror URL. Ids are unique across every role, because the route resolves a
+ * face without knowing which picker asked for it.
  */
 export const FACE_ID_PATTERN = /^[a-z0-9-]+$/
 
-/**
- * Every face the plugin can download, in the order the picker presents them.
- *
- * All of these fonts are SIL Open Font License 1.1; the two `lxgw-wenkai`
- * packages are MIT wrappers around OFL fonts. Each package lays its sheets out
- * as `<package>/<sheet>` beside a directory of `unicode-range` shards, with
- * every `url()` in those sheets relative to the sheet's own directory — which
- * is what lets the route double as a pass-through proxy.
- */
+/** Every face the body picker can download, in the order it presents them. */
 export const FONT_FACES: readonly FontFace[] = [
   {
     id: 'noto-sans-sc', family: 'Noto Sans SC Variable', group: 'cjk',
@@ -166,11 +191,163 @@ export const FONT_FACES: readonly FontFace[] = [
 ]
 
 /**
+ * Every face the code picker can download, in the order it presents them.
+ *
+ * Maple Mono CN is the only one that covers CJK, and the only one the npm
+ * mirror does not carry: it is served by jsDelivr alone, which is one of the
+ * reasons the download tries a second mirror at all.
+ */
+export const CODE_FACES: readonly FontFace[] = [
+  {
+    id: 'jetbrains-mono', family: 'JetBrains Mono Variable', group: 'latin',
+    source: { package: '@fontsource-variable/jetbrains-mono', version: '5.3.0', sheets: ['index.css'] },
+  },
+  {
+    id: 'fira-code', family: 'Fira Code Variable', group: 'latin',
+    source: { package: '@fontsource-variable/fira-code', version: '5.3.0', sheets: ['index.css'] },
+  },
+  {
+    id: 'geist-mono', family: 'Geist Mono Variable', group: 'latin',
+    source: { package: '@fontsource-variable/geist-mono', version: '5.3.0', sheets: ['index.css'] },
+  },
+  {
+    id: 'noto-sans-mono', family: 'Noto Sans Mono Variable', group: 'latin',
+    source: { package: '@fontsource-variable/noto-sans-mono', version: '5.3.0', sheets: ['index.css'] },
+  },
+  {
+    id: 'maple-mono-cn', family: 'Maple Mono CN', group: 'cjk',
+    source: { package: '@mogeko/maple-mono-cn', version: '7.9.0', sheets: ['dist/font/result.css'] },
+  },
+]
+
+/** Everything one role needs to be offered, validated, and applied. */
+export interface FontRoleSpec {
+  /** The settings field this role stores its choice in. */
+  key: 'font' | 'codeFont'
+  /** CSS custom properties the chosen face rebinds together. */
+  tokens: readonly string[]
+  /** The stack a downloaded face of this role falls back to. */
+  fallback: string
+  /** Catalogue, in picker order. */
+  faces: readonly FontFace[]
+  /** Face applied when nothing usable is stored. */
+  defaultId: string
+}
+
+/**
+ * The two roles, and the one place each of their differences lives.
+ *
+ * `--dsw-font-mono` is not declared by ui-theme today, and four components read
+ * it with a fallback. Rebinding it alongside `--ds-font-family-code` costs
+ * nothing and closes that gap, so the code choice reaches those components too.
+ */
+export const FONT_ROLES: Readonly<Record<FontRole, FontRoleSpec>> = {
+  body: {
+    key: 'font',
+    tokens: ['--dsw-font-family'],
+    fallback: FALLBACK_STACK,
+    faces: FONT_FACES,
+    defaultId: 'noto-sans-sc',
+  },
+  code: {
+    key: 'codeFont',
+    tokens: ['--ds-font-family-code', '--dsw-font-mono'],
+    fallback: CODE_FALLBACK_STACK,
+    faces: CODE_FACES,
+    // The code font stays ui-theme's until it is asked for: restyling every
+    // code block is a bigger change than the body face, and column alignment
+    // is what a bad choice breaks first.
+    defaultId: SYSTEM_FONT_ID,
+  },
+}
+
+/** The choice used when the settings document holds no usable body face. */
+export const DEFAULT_FONT_ID = FONT_ROLES.body.defaultId
+
+/** The choice used when the settings document holds no usable code face. */
+export const DEFAULT_CODE_FONT_ID = FONT_ROLES.code.defaultId
+
+/**
+ * Every id one picker offers and the settings schema accepts, in presentation
+ * order. The system default leads: it is the baseline the others depart from.
+ * @param role - the role whose choices are listed.
+ * @returns that role's ids.
+ */
+export function choicesFor(role: FontRole): readonly string[] {
+  return [SYSTEM_FONT_ID, ...FONT_ROLES[role].faces.map(face => face.id)]
+}
+
+/** Every id the body picker offers and the settings schema accepts. */
+export const FONT_CHOICES: readonly string[] = choicesFor('body')
+
+/** Every id the code picker offers and the settings schema accepts. */
+export const CODE_FONT_CHOICES: readonly string[] = choicesFor('code')
+
+/**
+ * The value shape the settings namespace stores.
+ *
+ * Declared here rather than beside the Host schema so the Client half can type
+ * its scope without pulling a Host-only schema package into the browser bundle.
+ */
+export interface FontSettings {
+  /** One of {@link FONT_CHOICES}. */
+  font: string
+  /** One of {@link CODE_FONT_CHOICES}. */
+  codeFont: string
+}
+
+/**
+ * Resolve one stored value to a choice the picker and the applier both accept.
+ *
+ * A settings document is hand-editable, so an unknown id is a real input rather
+ * than a type error: it resolves to the role's default instead of failing the
+ * read or leaving the interface on a face nobody offers.
+ * @param id - a stored value, or undefined when nothing is stored.
+ * @param role - the role the value belongs to.
+ * @returns a member of that role's choices.
+ */
+export function resolveFontChoice(id: string | undefined, role: FontRole): string {
+  return id !== undefined && choicesFor(role).includes(id) ? id : FONT_ROLES[role].defaultId
+}
+
+/**
+ * Resolve one choice to the face it downloads.
+ * @param id - a member of the role's choices.
+ * @param role - the role the id belongs to.
+ * @returns the matching face, or undefined for the system default.
+ */
+export function faceById(id: string, role: FontRole): FontFace | undefined {
+  return FONT_ROLES[role].faces.find(face => face.id === id)
+}
+
+/**
+ * Resolve one face id across every catalogue.
+ *
+ * The cache route resolves a path segment without knowing which picker asked
+ * for it, so this is the lookup that requires ids to be unique across roles.
+ * @param id - a face id.
+ * @returns the matching face, whichever role offers it.
+ */
+export function anyFaceById(id: string): FontFace | undefined {
+  return FONT_FACES.find(face => face.id === id) ?? CODE_FACES.find(face => face.id === id)
+}
+
+/**
+ * The value written into one of a role's tokens for a face.
+ * @param face - the face to build a stack for.
+ * @param role - the role whose fallback stack is appended.
+ * @returns the downloaded family followed by that role's fallback chain.
+ */
+export function fontStack(face: FontFace, role: FontRole): string {
+  return `'${face.family}', ${FONT_ROLES[role].fallback}`
+}
+
+/**
  * What one face currently occupies in the local cache.
  *
- * Reported by the Host and rendered by the picker, so both halves read this
- * type from one place: the numbers are the whole content of the section's cache
- * line, and a face missing from the report has never been downloaded.
+ * Reported by the Host and rendered by the pickers, so both halves read this
+ * type from one place: the numbers are the whole content of a row's cache line,
+ * and a face missing from the report has never been downloaded.
  */
 export interface FontCacheUsage {
   /** Bytes this face occupies on disk, its stylesheets included. */
@@ -189,57 +366,3 @@ export interface FontCacheUsage {
 
 /** Cache usage per face id. A face absent from the map has downloaded nothing. */
 export type FontCacheReport = Readonly<Record<string, FontCacheUsage>>
-
-/**
- * Every id the picker offers and the settings schema accepts, in presentation
- * order. The system default leads: it is the baseline the others depart from.
- */
-export const FONT_CHOICES: readonly string[] = [
-  SYSTEM_FONT_ID,
-  ...FONT_FACES.map(face => face.id),
-]
-
-/** The choice used when the settings document holds no usable value. */
-export const DEFAULT_FONT_ID = 'noto-sans-sc'
-
-/**
- * The value shape the settings namespace stores.
- *
- * Declared here rather than beside the Host schema so the Client half can type
- * its scope without pulling a Host-only schema package into the browser bundle.
- */
-export interface FontSettings {
-  /** One of {@link FONT_CHOICES}. */
-  font: string
-}
-
-/**
- * Resolve one stored value to a choice the picker and the applier both accept.
- *
- * A settings document is hand-editable, so an unknown id is a real input rather
- * than a type error: it resolves to the default instead of failing the read or
- * leaving the interface on a face nobody offers.
- * @param id - a stored value, or undefined when nothing is stored.
- * @returns a member of {@link FONT_CHOICES}.
- */
-export function resolveFontChoice(id: string | undefined): string {
-  return id !== undefined && FONT_CHOICES.includes(id) ? id : DEFAULT_FONT_ID
-}
-
-/**
- * Resolve one choice to the face it downloads.
- * @param id - a member of {@link FONT_CHOICES}.
- * @returns the matching face, or undefined for the system default.
- */
-export function faceById(id: string): FontFace | undefined {
-  return FONT_FACES.find(face => face.id === id)
-}
-
-/**
- * The value written into `--dsw-font-family` for one face.
- * @param face - the face to build a stack for.
- * @returns the downloaded family followed by the shared fallback chain.
- */
-export function fontStack(face: FontFace): string {
-  return `'${face.family}', ${FALLBACK_STACK}`
-}

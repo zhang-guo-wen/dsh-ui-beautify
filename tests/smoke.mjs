@@ -6,8 +6,9 @@
 import { existsSync } from 'node:fs'
 import {
   apply, faceById, fontRouteFor, fontStack, mirrorUrl, resolveCacheDir, resolveFontChoice,
-  CACHE_ROUTE, Config, DEFAULT_FONT_ID, DEFAULT_MIRRORS, FACE_ID_PATTERN, FONT_CHOICES,
-  FONT_FACES, FONTS_ROUTE, FONT_SETTINGS_NS, SYSTEM_FONT_ID,
+  CACHE_ROUTE, CODE_FACES, CODE_FONT_CHOICES, Config, DEFAULT_CODE_FONT_ID, DEFAULT_FONT_ID,
+  DEFAULT_MIRRORS, FACE_ID_PATTERN, FONT_CHOICES, FONT_FACES, FONT_ROLES, FONTS_ROUTE,
+  FONT_SETTINGS_NS, SYSTEM_FONT_ID,
 } from '../lib/index.mjs'
 
 const failures = []
@@ -47,36 +48,50 @@ check('the two routes do not overlap', !CACHE_ROUTE.startsWith(`${FONTS_ROUTE}/`
 check('registers one explicit effect per route', disposers.length === 2, String(disposers.length))
 
 console.log('face catalogue')
-check('offers several faces', FONT_FACES.length >= 6, String(FONT_FACES.length))
-check('offers the system default', FONT_CHOICES.includes(SYSTEM_FONT_ID))
-check('offers every catalogued face', FONT_FACES.every(face => FONT_CHOICES.includes(face.id)))
-check('leads with the system default', FONT_CHOICES[0] === SYSTEM_FONT_ID, String(FONT_CHOICES[0]))
-check('the default is an offered choice', FONT_CHOICES.includes(DEFAULT_FONT_ID), DEFAULT_FONT_ID)
-check('choices are unique', new Set(FONT_CHOICES).size === FONT_CHOICES.length)
-check('ids are unique', new Set(FONT_FACES.map(f => f.id)).size === FONT_FACES.length)
-check('no face claims the system id', faceById(SYSTEM_FONT_ID) === undefined)
+check('offers several body faces', FONT_FACES.length >= 6, String(FONT_FACES.length))
+check('offers several code faces', CODE_FACES.length >= 3, String(CODE_FACES.length))
+check('offers the system default to both roles', FONT_CHOICES.includes(SYSTEM_FONT_ID) && CODE_FONT_CHOICES.includes(SYSTEM_FONT_ID))
+check('offers every catalogued face', FONT_FACES.every(face => FONT_CHOICES.includes(face.id)) && CODE_FACES.every(face => CODE_FONT_CHOICES.includes(face.id)))
+check('leads with the system default', FONT_CHOICES[0] === SYSTEM_FONT_ID && CODE_FONT_CHOICES[0] === SYSTEM_FONT_ID)
+check('each default is an offered choice', FONT_CHOICES.includes(DEFAULT_FONT_ID) && CODE_FONT_CHOICES.includes(DEFAULT_CODE_FONT_ID))
+check('choices are unique', new Set(FONT_CHOICES).size === FONT_CHOICES.length && new Set(CODE_FONT_CHOICES).size === CODE_FONT_CHOICES.length)
+// The cache route resolves an id without knowing which picker asked for it.
+check('ids are unique across roles', new Set([...FONT_FACES, ...CODE_FACES].map(f => f.id)).size === FONT_FACES.length + CODE_FACES.length)
+check('no face claims the system id', faceById(SYSTEM_FONT_ID, 'body') === undefined && faceById(SYSTEM_FONT_ID, 'code') === undefined)
 check('covers both writing systems', FONT_FACES.some(f => f.group === 'cjk') && FONT_FACES.some(f => f.group === 'latin'))
-for (const face of FONT_FACES) {
-  const id = face.id
-  check(`${id}: id is a url segment`, FACE_ID_PATTERN.test(id), id)
-  check(`${id}: declares a family`, face.family.trim() !== '', face.family)
-  check(`${id}: stack leads with its family`, fontStack(face).startsWith(`'${face.family}'`), fontStack(face).slice(0, 40))
-  check(`${id}: stack ends with the shared fallback`, fontStack(face).includes('sans-serif'))
-  check(`${id}: resolves to itself`, faceById(id)?.family === face.family)
-  check(`${id}: pins a package`, /^(@[a-z0-9-]+\/)?[a-z0-9-]+$/.test(face.source.package), face.source.package)
-  check(`${id}: pins a version`, /^\d+\.\d+\.\d+$/.test(face.source.version), face.source.version)
-  check(`${id}: declares sheets`, face.source.sheets.length > 0)
-  check(
-    `${id}: sheets are package-relative stylesheets`,
-    face.source.sheets.every(sheet => sheet.endsWith('.css') && !sheet.startsWith('/') && !sheet.includes('..')),
-    face.source.sheets.join(', '),
-  )
-  check(`${id}: sheets are unique`, new Set(face.source.sheets).size === face.source.sheets.length)
+check('the two roles read different catalogues', !FONT_FACES.some(f => f.id === 'jetbrains-mono') && !CODE_FACES.some(f => f.id === 'noto-sans-sc'))
+for (const [role, stack] of [['body', 'sans-serif'], ['code', 'monospace']]) {
+  check(`${role}: declares its fallback`, FONT_ROLES[role].fallback.includes(stack), FONT_ROLES[role].fallback)
+  check(`${role}: declares the tokens it rebinds`, FONT_ROLES[role].tokens.length > 0, FONT_ROLES[role].tokens.join(','))
+  for (const face of FONT_ROLES[role].faces) {
+    const id = face.id
+    check(`${id}: id is a url segment`, FACE_ID_PATTERN.test(id), id)
+    check(`${id}: declares a family`, face.family.trim() !== '', face.family)
+    check(`${id}: stack leads with its family`, fontStack(face, role).startsWith(`'${face.family}'`), fontStack(face, role).slice(0, 40))
+    check(`${id}: stack ends with the role's fallback`, fontStack(face, role).includes(stack))
+    check(`${id}: resolves to itself`, faceById(id, role)?.family === face.family)
+    check(`${id}: pins a package`, /^(@[a-z0-9-]+\/)?[a-z0-9-]+$/.test(face.source.package), face.source.package)
+    check(`${id}: pins a version`, /^\d+\.\d+\.\d+$/.test(face.source.version), face.source.version)
+    check(`${id}: declares sheets`, face.source.sheets.length > 0)
+    check(
+      `${id}: sheets are package-relative stylesheets`,
+      face.source.sheets.every(sheet => sheet.endsWith('.css') && !sheet.startsWith('/') && !sheet.includes('..')),
+      face.source.sheets.join(', '),
+    )
+    check(`${id}: sheets are unique`, new Set(face.source.sheets).size === face.source.sheets.length)
+  }
 }
-check('an unknown value resolves to the default', resolveFontChoice('nope') === DEFAULT_FONT_ID)
-check('an undefined value resolves to the default', resolveFontChoice(undefined) === DEFAULT_FONT_ID)
-check('a known value passes through', resolveFontChoice(SYSTEM_FONT_ID) === SYSTEM_FONT_ID)
-check('the system default applies no face', faceById(resolveFontChoice(SYSTEM_FONT_ID)) === undefined)
+check('an unknown body value resolves to the body default', resolveFontChoice('nope', 'body') === DEFAULT_FONT_ID)
+check('an undefined body value resolves to the body default', resolveFontChoice(undefined, 'body') === DEFAULT_FONT_ID)
+check('a known value passes through', resolveFontChoice(SYSTEM_FONT_ID, 'body') === SYSTEM_FONT_ID)
+check('an unknown code value resolves to the code default', resolveFontChoice('nope', 'code') === DEFAULT_CODE_FONT_ID)
+check(
+  'a body id is not accepted as a code id',
+  resolveFontChoice('noto-sans-sc', 'code') === DEFAULT_CODE_FONT_ID,
+  resolveFontChoice('noto-sans-sc', 'code'),
+)
+check('the code default downloads nothing', DEFAULT_CODE_FONT_ID === SYSTEM_FONT_ID, DEFAULT_CODE_FONT_ID)
+check('the system default applies no face', faceById(resolveFontChoice(SYSTEM_FONT_ID, 'body'), 'body') === undefined)
 
 console.log('no font bytes ship with the plugin')
 check(
@@ -95,6 +110,17 @@ check('resolves a nested shard', shard?.kind === 'file' && shard.path === 'files
 check('resolves a percent-encoded shard name', fontRouteFor(`${FONTS_ROUTE}/${face.id}/files/a%2Db.woff2`)?.path === 'files/a-b.woff2')
 const unknown = fontRouteFor(`${FONTS_ROUTE}/no-such-face/index.css`)
 check('names an unknown face rather than a file', unknown?.kind === 'unknown-face', JSON.stringify(unknown))
+const codeSheet = fontRouteFor(`${FONTS_ROUTE}/${CODE_FACES[0].id}/${CODE_FACES[0].source.sheets[0]}`)
+check(
+  'serves a code face through the same route',
+  codeSheet?.kind === 'file' && codeSheet.face.family === CODE_FACES[0].family,
+  JSON.stringify(codeSheet),
+)
+check(
+  'serves a code face\'s nested sheet path',
+  fontRouteFor(`${FONTS_ROUTE}/maple-mono-cn/dist/font/result.css`)?.path === 'dist/font/result.css',
+  String(fontRouteFor(`${FONTS_ROUTE}/maple-mono-cn/dist/font/result.css`)?.path),
+)
 const refused = [
   `${FONTS_ROUTE}/../../package.json`,
   `${FONTS_ROUTE}/../src/index.ts`,
@@ -156,14 +182,21 @@ check(
 
 console.log('settings schema')
 check('the namespace is the loader row id', FONT_SETTINGS_NS === 'ui-beautify', FONT_SETTINGS_NS)
-check('declares the face field live', Config.dict.font.meta.volatile === true)
-check('defaults to the default face', Config({}).font.get() === DEFAULT_FONT_ID, String(Config({}).font.get()))
+check('declares the body field live', Config.dict.font.meta.volatile === true)
+check('declares the code field live', Config.dict.codeFont.meta.volatile === true)
+check('defaults to the default body face', Config({}).font.get() === DEFAULT_FONT_ID, String(Config({}).font.get()))
+check('defaults the code face to the built-in stack', Config({}).codeFont.get() === DEFAULT_CODE_FONT_ID, String(Config({}).codeFont.get()))
 check('defaults the mirrors to the built-in registries', Config({}).mirrors.join(',') === DEFAULT_MIRRORS.join(','))
 check('defaults the cache directory to the harness home', Config({}).cacheDir === '', String(Config({}).cacheDir))
 check(
   'accepts an unknown id rather than failing the section',
   Config({ font: 'anything' }).font.get() === 'anything',
   String(Config({ font: 'anything' }).font.get()),
+)
+check(
+  'keeps the two choices independent',
+  Config({ font: 'geist', codeFont: 'fira-code' }).font.get() === 'geist'
+    && Config({ font: 'geist', codeFont: 'fira-code' }).codeFont.get() === 'fira-code',
 )
 
 if (failures.length > 0) {

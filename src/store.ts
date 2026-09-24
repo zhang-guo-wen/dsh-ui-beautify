@@ -24,7 +24,7 @@ import { createHash } from 'node:crypto'
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join, resolve, sep } from 'node:path'
-import { faceById, type FontCacheReport, type FontCacheUsage, type FontFace } from './fonts.ts'
+import { anyFaceById, type FontCacheReport, type FontCacheUsage, type FontFace } from './fonts.ts'
 import { downloadFile } from './source.ts'
 
 /** Cache root segment under the harness home, matching the harness' own layout. */
@@ -190,7 +190,7 @@ export class FontStore {
       // A directory removed between the listing and this read reports nothing.
       return undefined
     }
-    const face = faceById(id)
+    const face = anyFaceById(id)
     let bytes = 0
     const generations = new Map<string, Set<string>>()
     for (const entry of entries) {

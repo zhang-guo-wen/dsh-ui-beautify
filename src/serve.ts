@@ -23,7 +23,7 @@ import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { extname } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { FACE_ID_PATTERN, faceById, type FontFace } from './fonts.ts'
+import { anyFaceById, FACE_ID_PATTERN, type FontFace } from './fonts.ts'
 import { FONTS_ROUTE } from './params.ts'
 import { FontDownloadError } from './source.ts'
 import type { FontStore } from './store.ts'
@@ -70,7 +70,7 @@ export function fontRouteFor(pathname: string): FontRoute | undefined {
   if (id === undefined || !FACE_ID_PATTERN.test(id)) return undefined
   const path = segments.join('/')
   if (!isServablePath(path)) return undefined
-  const face = faceById(id)
+  const face = anyFaceById(id)
   if (face === undefined) return { kind: 'unknown-face', id }
   return { kind: 'file', face, path }
 }
