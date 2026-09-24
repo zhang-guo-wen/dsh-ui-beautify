@@ -124,6 +124,10 @@ export const FONT_FACES: readonly FontFace[] = [
     source: { package: 'lxgw-wenkai-tc-webfont', version: '1.2.0', sheets: ['lxgwwenkaitc-regular.css', 'lxgwwenkaitc-bold.css'] },
   },
   {
+    id: 'lxgw-wenkai-screen', family: 'LXGW WenKai Screen', group: 'cjk',
+    source: { package: 'lxgw-wenkai-screen-webfont', version: '1.7.0', sheets: ['lxgwwenkaiscreen.css'] },
+  },
+  {
     id: 'zcool-xiaowei', family: 'ZCOOL XiaoWei', group: 'cjk',
     source: { package: '@fontsource/zcool-xiaowei', version: '5.3.0', sheets: ['index.css'] },
   },
@@ -132,12 +136,24 @@ export const FONT_FACES: readonly FontFace[] = [
     source: { package: '@fontsource/zcool-kuaile', version: '5.3.0', sheets: ['index.css'] },
   },
   {
+    id: 'zcool-qingke-huangyou', family: 'ZCOOL QingKe HuangYou', group: 'cjk',
+    source: { package: '@fontsource/zcool-qingke-huangyou', version: '5.3.0', sheets: ['index.css'] },
+  },
+  {
     id: 'ma-shan-zheng', family: 'Ma Shan Zheng', group: 'cjk',
     source: { package: '@fontsource/ma-shan-zheng', version: '5.3.1', sheets: ['index.css'] },
   },
   {
     id: 'zhi-mang-xing', family: 'Zhi Mang Xing', group: 'cjk',
     source: { package: '@fontsource/zhi-mang-xing', version: '5.3.0', sheets: ['index.css'] },
+  },
+  {
+    id: 'long-cang', family: 'Long Cang', group: 'cjk',
+    source: { package: '@fontsource/long-cang', version: '5.3.0', sheets: ['index.css'] },
+  },
+  {
+    id: 'liu-jian-mao-cao', family: 'Liu Jian Mao Cao', group: 'cjk',
+    source: { package: '@fontsource/liu-jian-mao-cao', version: '5.3.0', sheets: ['index.css'] },
   },
   {
     id: 'inter', family: 'Inter Variable', group: 'latin',

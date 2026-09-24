@@ -15,23 +15,29 @@ DeepSeek Harness 的**页面美化插件**。目前的能力：在「设置 → 
 
 ## 可选字体
 
-`system` 之外共 10 款，全部是 OFL 开源字体，每款都带 `unicode-range` 分片。
+`system` 之外共 14 款，全部是 OFL 开源字体，每款都带 `unicode-range` 分片。
 
 | id | 字体 | 分片 | 全量体积 | 来源 |
 |---|---|---|---|---|
 | `system` | 系统默认 | 不下载任何字体 | 0 | —— |
-| `noto-sans-sc`（默认值）| 思源黑体 | 101 | 4.3 MB | `@fontsource-variable/noto-sans-sc@5.3.0` |
-| `noto-serif-sc` | 思源宋体 | 101 | 5.8 MB | `@fontsource-variable/noto-serif-sc@5.3.0` |
-| `lxgw-wenkai` | 霞鹜文楷 | 2 字重 × 97 | 28 MB | `lxgw-wenkai-webfont@1.7.0` |
-| `lxgw-wenkai-tc` | 霞鹜文楷 TC | 2 字重 × 97 | 27 MB | `lxgw-wenkai-tc-webfont@1.2.0` |
-| `zcool-xiaowei` | 站酷小薇体 | 93 | 5.2 MB | `@fontsource/zcool-xiaowei@5.3.0` |
-| `zcool-kuaile` | 站酷快乐体 | 94 | 1.7 MB | `@fontsource/zcool-kuaile@5.3.0` |
-| `ma-shan-zheng` | 马善政楷书 | 93 | 6.0 MB | `@fontsource/ma-shan-zheng@5.3.1` |
-| `zhi-mang-xing` | 志莽行书 | 93 | 4.3 MB | `@fontsource/zhi-mang-xing@5.3.0` |
-| `inter` | Inter（拉丁）| 42 | 1.8 MB | `@fontsource-variable/inter@5.3.0` |
-| `geist` | Geist（拉丁）| 10 | 0.15 MB | `@fontsource-variable/geist@5.3.0` |
+| `noto-sans-sc`（默认值）| 思源黑体 | 101 | 4.4 MB | `@fontsource-variable/noto-sans-sc@5.3.0` |
+| `noto-serif-sc` | 思源宋体 | 101 | 5.9 MB | `@fontsource-variable/noto-serif-sc@5.3.0` |
+| `lxgw-wenkai` | 霞鹜文楷 | 2 字重 × 97 | 9.0 MB | `lxgw-wenkai-webfont@1.7.0` |
+| `lxgw-wenkai-tc` | 霞鹜文楷 TC | 2 字重 × 97 | 8.9 MB | `lxgw-wenkai-tc-webfont@1.2.0` |
+| `lxgw-wenkai-screen` | 霞鹜文楷 屏幕版 | 97 | 5.0 MB | `lxgw-wenkai-screen-webfont@1.7.0` |
+| `zcool-xiaowei` | 站酷小薇体 | 92 | 3.2 MB | `@fontsource/zcool-xiaowei@5.3.0` |
+| `zcool-kuaile` | 站酷快乐体 | 93 | 1.1 MB | `@fontsource/zcool-kuaile@5.3.0` |
+| `zcool-qingke-huangyou` | 站酷庆科黄油体 | 92 | 3.0 MB | `@fontsource/zcool-qingke-huangyou@5.3.0` |
+| `ma-shan-zheng` | 马善政楷书 | 92 | 3.5 MB | `@fontsource/ma-shan-zheng@5.3.1` |
+| `zhi-mang-xing` | 志莽行书 | 92 | 2.5 MB | `@fontsource/zhi-mang-xing@5.3.0` |
+| `long-cang` | 龙藏体 | 92 | 3.2 MB | `@fontsource/long-cang@5.3.0` |
+| `liu-jian-mao-cao` | 柳建毛草 | 92 | 2.6 MB | `@fontsource/liu-jian-mao-cao@5.3.0` |
+| `inter` | Inter（拉丁）| 7 | 0.21 MB | `@fontsource-variable/inter@5.3.0` |
+| `geist` | Geist（拉丁）| 5 | 0.07 MB | `@fontsource-variable/geist@5.3.0` |
 
-**「全量体积」永远不会真的下完。** 分片是按 `unicode-range` 切的，浏览器只请求页面**实际渲染到的字符**所属的那几片：以思源黑体为例，latin 片约 25 KB，中文片多在 30 KB 上下（实测 19 片，最大 77 KB），也就是首屏通常只有几百 KB 而不是 4.3 MB。`inter` / `geist` 只覆盖拉丁字符，中文回退到系统字体栈——卡片描述里写明了这一点。
+**「分片」与「全量体积」指的是这一款字体**——它那几个样式表声明出来的全部分片之和（实测，解码后字节），**不是 npm 包的整包大小**：包里通常还有别的字重、别的子集和 `.woff` 备份，那些永远不会被下载。挑字体时以这张表为准，别拿包体积估算。
+
+**「全量体积」也永远不会真的下完。** 分片是按 `unicode-range` 切的，浏览器只请求页面**实际渲染到的字符**所属的那几片：以思源黑体为例，latin 片约 25 KB，中文片多在 30 KB 上下（实测 19 片，最大 77 KB），也就是首屏通常只有几百 KB 而不是 4.4 MB。`inter` / `geist` 只覆盖拉丁字符，中文回退到系统字体栈——选中后行内描述会写明这一点。
 
 **`system` 不是「把系统字体栈复制一份写进 `--dsw-font-family`」**，而是**移除样式表链接与 token 覆盖层**，让 `--dsw-font-family` 回到 ui-theme 自己的声明。区别在于：复制一份会把今天的默认值冻结在插件里，上游改了默认字体这里也不会跟随；移除覆盖则始终跟随。选中它也是「关掉自定义字体」的唯一方式，不需要卸载插件。
 
@@ -45,6 +51,23 @@ DeepSeek Harness 的**页面美化插件**。目前的能力：在「设置 → 
 ```
 
 浏览器请求 `/plugins/dsh-ui-beautify/fonts/<face>/<包内路径>`，Host 半边按这个路径去镜像取文件、落盘、再回给浏览器。**路由直接镜像 npm 包的目录结构**，所以样式表里那些 `url(./files/x.woff2)` 相对路径原样成立，Host 不需要改写一个字节的 CSS（`tests/http.mjs` 断言了「逐字节相同」）。
+
+### 下载链路
+
+**浏览器从不直连外部站点**——它只跟 DSH 自己的源说话，由 Host 去取：
+
+```
+浏览器  ──①──▶  http://127.0.0.1:3080/plugins/dsh-ui-beautify/fonts/<face>/<包内路径>
+（同源）               │
+                      ├─ 命中缓存 ──▶ 读盘回给浏览器（分片带 immutable，浏览器自己再缓存一年）
+                      │
+                      └─ 未命中 ──②──▶  ① registry.npmmirror.com/<pkg>/<ver>/files/<path>
+                                        ② cdn.jsdelivr.net/npm/<pkg>@<ver>/<path>
+                                             │  200 → 校验 → 原子落盘 → 回给浏览器
+                                             │  404 → 404    不可达/内容不对 → 502（no-store，可重试）
+```
+
+走 Host 代理而不是让浏览器直接 `<link>` 到 CDN，换来四件事：单源（不受 CSP / CORS 影响）、磁盘缓存（离线可用，浏览器换一个也还在）、镜像失败可回退、以及下载内容可控校验。代价是 Host 必须有外网出口；若宿主机不通网而浏览器通网，这条路走不通——这是本插件唯一依赖宿主联网的地方。
 
 于是下载是**按需分片**的，不是整包预取：
 
@@ -262,4 +285,4 @@ tests/
 
 ## 许可
 
-插件本体 Apache-2.0。**插件不分发任何字体文件**：字体按需从 npm 镜像下载到本机缓存，各自保留原始许可——思源黑体/思源宋体/站酷小薇/站酷快乐/马善政楷书/志莽行书/Inter/Geist 为 SIL Open Font License 1.1（由 Fontsource 打包），霞鹜文楷与霞鹜文楷 TC 的字体同为 OFL 1.1，承载它们的 npm 包 `lxgw-wenkai-webfont` / `lxgw-wenkai-tc-webfont` 为 MIT。
+插件本体 Apache-2.0。**插件不分发任何字体文件**：字体按需从 npm 镜像下载到本机缓存，各自保留原始许可——思源黑体/思源宋体/站酷小薇/站酷快乐/站酷庆科黄油/马善政楷书/志莽行书/龙藏体/柳建毛草/Inter/Geist 为 SIL Open Font License 1.1（由 Fontsource 打包），霞鹜文楷、霞鹜文楷 TC 与霞鹜文楷屏幕版的字体同为 OFL 1.1，承载它们的 npm 包 `lxgw-wenkai-webfont` / `lxgw-wenkai-tc-webfont` / `lxgw-wenkai-screen-webfont` 为 MIT。
