@@ -17,9 +17,10 @@
  */
 
 import type { ReactNode } from 'react'
+import { useEffect } from 'react'
 import { Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { FONT_FACES, SYSTEM_FONT_ID } from '../fonts.ts'
+import { FONT_FACES, SYSTEM_FONT_ID, type FontCacheUsage } from '../fonts.ts'
 import type { FontSectionFace } from './settings-controller.ts'
 import type { FontSectionKey } from './locales.ts'
 import { NS } from './locales.ts'
@@ -64,11 +65,42 @@ const BLOCKS: readonly { label: FontSectionKey; ids: readonly string[] }[] = [
   { label: 'groupLatin', ids: FONT_FACES.filter(face => face.group === 'latin').map(face => face.id) },
 ]
 
+/** The unit a byte count is shown in, named by its dictionary key. */
+function byteSize(bytes: number): { value: string; unit: FontSectionKey } {
+  if (bytes >= 1024 ** 3) return { value: (bytes / 1024 ** 3).toFixed(1), unit: 'unitGb' }
+  if (bytes >= 1024 ** 2) return { value: (bytes / 1024 ** 2).toFixed(1), unit: 'unitMb' }
+  return { value: String(Math.max(1, Math.round(bytes / 1024))), unit: 'unitKb' }
+}
+
+/**
+ * The cache line under one card.
+ *
+ * A face no stylesheet has been cached for has downloaded nothing at all: the
+ * stylesheet is what names the shards, so its absence is the honest answer
+ * rather than a zero byte count.
+ * @param t - this section's translate seat.
+ * @param usage - what the Host reported for this face, if anything.
+ * @returns the line's text.
+ */
+function cacheLabel(t: FontSectionProps['t'], usage: FontCacheUsage | undefined): string {
+  if (usage === undefined || usage.shardsTotal === 0) return t('cacheAbsent')
+  const size = byteSize(usage.bytes)
+  return t('cachePresent', {
+    size: `${size.value} ${t(size.unit)}`,
+    cached: usage.shardsCached,
+    total: usage.shardsTotal,
+  })
+}
+
 /** The settings section body. */
 export function FontSection(props: FontSectionProps): ReactNode {
-  const { useFontSettings, t, choose } = props
+  const { useFontSettings, t, choose, refreshCache } = props
   const state = useFontSettings(snapshot => snapshot)
   const disabled = !state.available || !state.writable
+
+  // The reading is taken when the page opens: the numbers only move while a
+  // download is running, and this is the moment they are worth asking for.
+  useEffect(() => { refreshCache() }, [refreshCache])
 
   return (
     <div className={css.section}>
@@ -100,6 +132,11 @@ export function FontSection(props: FontSectionProps): ReactNode {
                       {active ? <Tag tone="success">{t('active')}</Tag> : null}
                     </span>
                     <span className={css.cardDesc}>{t(copy.desc)}</span>
+                    {/* The system default downloads nothing, so it has no cache
+                        line to show. */}
+                    {id === SYSTEM_FONT_ID
+                      ? null
+                      : <span className={css.cardMeta}>{cacheLabel(t, state.cache[id])}</span>}
                   </button>
                 )
               })}

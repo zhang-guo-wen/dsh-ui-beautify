@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto'
 import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { apply, Config, FONT_FACES, FONTS_ROUTE } from '../lib/index.mjs'
+import { apply, CACHE_ROUTE, Config, FONT_FACES, FONTS_ROUTE } from '../lib/index.mjs'
 
 const failures = []
 const check = (label, ok, detail = '') => {
@@ -91,9 +91,9 @@ async function startRegistry() {
   }
 }
 
-/** Apply the plugin against a mock context and serve its handler. */
+/** Apply the plugin against a mock context and serve its handlers. */
 async function startPlugin(options) {
-  let handler
+  const handlers = new Map()
   const disposers = []
   apply({
     effect(fn) {
@@ -102,13 +102,20 @@ async function startPlugin(options) {
     },
     webServer: {
       register(route) {
-        handler = route.handler
+        handlers.set(route.path, route.handler)
         return () => {}
       },
     },
   }, Config(options))
-  if (handler === undefined) throw new Error('the plugin registered no handler')
-  const server = createServer((req, res) => { void handler(req, res) })
+  if (handlers.size !== 2) throw new Error(`the plugin registered ${String(handlers.size)} routes`)
+  // The same dispatch the real webserver performs: exact table first, then the
+  // prefix table.
+  const exact = handlers.get(CACHE_ROUTE)
+  const prefix = handlers.get(FONTS_ROUTE)
+  const server = createServer((req, res) => {
+    const pathname = new URL(req.url ?? '/', 'http://x').pathname
+    void (pathname === CACHE_ROUTE ? exact : prefix)(req, res)
+  })
   await new Promise(ready => { server.listen(0, '127.0.0.1', ready) })
   return {
     base: `http://127.0.0.1:${String(server.address().port)}`,
@@ -126,6 +133,15 @@ const sheetUrl = `${plugin.base}${FONTS_ROUTE}/${face.id}/index.css`
 const shardUrl = `${plugin.base}${FONTS_ROUTE}/${face.id}/${SHARD}`
 
 try {
+  console.log('cache read-out on a cold cache')
+  const empty = await fetch(`${plugin.base}${CACHE_ROUTE}`)
+  check('200', empty.status === 200, String(empty.status))
+  check('application/json', empty.headers.get('content-type') === 'application/json; charset=utf-8', String(empty.headers.get('content-type')))
+  check('never cached', empty.headers.get('cache-control') === 'no-store', String(empty.headers.get('cache-control')))
+  check('reports nothing before anything is downloaded', JSON.stringify(await empty.json()) === '{"faces":{}}')
+  const posted = await fetch(`${plugin.base}${CACHE_ROUTE}`, { method: 'POST' })
+  check('refuses a write', posted.status === 405, String(posted.status))
+
   console.log('stylesheet over the route')
   const sheet = await fetch(sheetUrl)
   check('200', sheet.status === 200, String(sheet.status))
@@ -165,6 +181,17 @@ try {
     await readFile(cachedShardPath).then(bytes => sha(bytes) === sha(files.get(SHARD)), () => false),
   )
   check('no scratch file is left behind', !(await readdir(join(cacheDir, face.id, generations[0], 'files'))).some(name => name.endsWith('.tmp')))
+
+  console.log('cache read-out after downloading')
+  const report = await (await fetch(`${plugin.base}${CACHE_ROUTE}`)).json()
+  const usage = report.faces[face.id]
+  check('reports the face that was used', usage !== undefined, JSON.stringify(report))
+  check('counts the bytes on disk', usage?.bytes > 0, String(usage?.bytes))
+  // The stub stylesheet declares exactly one shard, so total and cached are
+  // both readable from it and the extra shards fetched above are not declared.
+  check('reads the shard total from the cached stylesheet', usage?.shardsTotal === 1, String(usage?.shardsTotal))
+  check('counts the shards that arrived', usage?.shardsCached === 1, String(usage?.shardsCached))
+  check('reports only the faces that were used', Object.keys(report.faces).join(',') === face.id, JSON.stringify(Object.keys(report.faces)))
 
   console.log('concurrent cold requests')
   const secondUrl = `${plugin.base}${FONTS_ROUTE}/${face.id}/${SECOND_SHARD}`

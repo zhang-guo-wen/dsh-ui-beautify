@@ -14,8 +14,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 // Type-only: pulls the webserver plugin's Context merge (ctx.webServer).
 import type {} from '@deepseek-ai/dsh-host-webserver'
-import { FONTS_ROUTE } from './params.ts'
-import { serveFontFile } from './serve.ts'
+import { CACHE_ROUTE, FONTS_ROUTE } from './params.ts'
+import { serveCacheUsage, serveFontFile } from './serve.ts'
 import { Config } from './settings.ts'
 import { FontStore, resolveCacheDir } from './store.ts'
 
@@ -29,13 +29,13 @@ export const inject = ['webServer']
 // catalogue, the cache layout, and the namespace identity without reaching into
 // internal module paths. These are the only values published beyond the plugin
 // surface.
-export { FONTS_ROUTE } from './params.ts'
+export { CACHE_ROUTE, FONTS_ROUTE } from './params.ts'
 export {
   DEFAULT_FONT_ID, FACE_ID_PATTERN, FONT_CHOICES, FONT_FACES, SYSTEM_FONT_ID,
   faceById, fontStack, resolveFontChoice,
 } from './fonts.ts'
-export type { FontFace, FontGroup, FontSource } from './fonts.ts'
-export { fontRouteFor, serveFontFile } from './serve.ts'
+export type { FontCacheReport, FontCacheUsage, FontFace, FontGroup, FontSource } from './fonts.ts'
+export { fontRouteFor, serveCacheUsage, serveFontFile } from './serve.ts'
 export type { FontRoute } from './serve.ts'
 export { FONT_SETTINGS_NS } from './settings.ts'
 export { DEFAULT_MIRRORS, downloadFile, mirrorUrl } from './source.ts'
@@ -43,9 +43,10 @@ export { FontStore, resolveCacheDir } from './store.ts'
 export { Config }
 
 /**
- * Host plugin body: claim the font directory's URL prefix. The chosen face
- * lives in this row's volatile Config, which the settings page edits directly;
- * the mirrors and cache directory are read once here, at host start.
+ * Host plugin body: claim the font directory's URL prefix and the cache
+ * read-out the picker labels each face with. The chosen face lives in this
+ * row's volatile Config, which the settings page edits directly; the mirrors
+ * and cache directory are read once here, at host start.
  * @param ctx - host cordis context.
  * @param config - this row's parsed configuration.
  */
@@ -61,5 +62,13 @@ export function apply(ctx: Context, config: Config): void {
       handler: (req, res) => serveFontFile(req, res, store),
     }),
     'ui-beautify: font assets',
+  )
+  ctx.effect(
+    () => ctx.webServer.register({
+      kind: 'exact',
+      path: CACHE_ROUTE,
+      handler: (req, res) => serveCacheUsage(req, res, store),
+    }),
+    'ui-beautify: cache read-out',
   )
 }

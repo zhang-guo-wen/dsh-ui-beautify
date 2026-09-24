@@ -6,8 +6,8 @@ DeepSeek Harness 的**页面美化插件**。目前的能力：让 Web GUI 在�
 
 | 半边 | 职责 |
 |---|---|
-| Host | 认领一个 `webServer` 前缀路由，把浏览器要的字体文件从镜像下载下来并缓存，然后按 npm 包里的原始路径提供出去 |
-| Client | 按选择链入对应字体的分片样式表，把 `--dsw-font-family` 重绑过去，并渲染设置页的「页面美化」区块 |
+| Host | 认领两个路由：一个前缀路由把浏览器要的字体文件从镜像下载下来并缓存，再按 npm 包里的原始路径提供出去；一个精确路由汇报缓存里已有什么 |
+| Client | 按选择链入对应字体的分片样式表，把 `--dsw-font-family` 重绑过去，并渲染设置页的「页面美化」区块（含每款字体的缓存状态） |
 
 字体通过**主题服务的覆盖层**（`ctx.theme.overrideTokens`）生效——它写成 `body` 的行内样式，优先级高于 `:root`，因此不受插件激活顺序影响，卸载时自动回滚。
 
@@ -73,6 +73,29 @@ $DSH_HOME/cache/ui-beautify/fonts/<face>/<generation>/<包内路径>
 
 字体没下下来时界面**不会坏**：`@font-face` 带 `font-display: swap`，浏览器先用手上的回退字体渲染，分片到位后再替换；彻底失败就一直用回退字体，只是没换成功。
 
+### 卡片上的缓存状态
+
+每张卡片底部有一行状态，**没有下载按钮**——字体是按需拉的，点选即用，不需要用户先决定下载什么：
+
+| 卡片显示 | 含义 |
+|---|---|
+| `未下载` | 这款字体的样式表还没被取过，磁盘占用为 0 |
+| `已缓存 103 KB · 1/101 片` | 样式表已缓存，101 个 `unicode-range` 分片里已有 1 片 |
+| `已缓存 4.3 MB · 101/101 片` | 这款字体在当前界面用到的字符已经全部在本地 |
+
+分母来自**已缓存的样式表**：分片名字只写在样式表里，所以没有样式表就无从知道总数，也就显示为「未下载」。分子是磁盘上真实存在的分片数，因此「1/101」表示的是**按需下载的进度**，而不是下载失败——随着你继续浏览、页面出现新字符，它会自己涨。
+
+数字的读取时机只有两个：**打开这个设置页时**，以及**切换字体后约 1.5 秒**（给首次下载留出落盘时间）。它不是实时订阅：下载在后台继续时数字会停在那一刻，重新进入页面即可刷新。
+
+`system` 卡片没有状态行——它本来就不下载任何东西。
+
+状态来自 Host 的 `GET /plugins/dsh-ui-beautify/cache`（`no-store`，只读）：
+
+```powershell
+curl.exe -s http://127.0.0.1:3080/plugins/dsh-ui-beautify/cache
+# {"faces":{"noto-sans-sc":{"bytes":105494,"shardsCached":1,"shardsTotal":101}}}
+```
+
 ### 两个可配项
 
 `mirrors` 与 `cacheDir` 是这个插件行的**普通配置**（不是设置页里的实时字段）：它们在宿主启动时读一次，改完要重启宿主。写在 profile 的 `cordis.patch.yml` 或 `~/.dsh/cordis.patch.yml` 的插件行 `config` 下：
@@ -120,7 +143,7 @@ npm run test:cdn       # 联网：逐字体校验两个镜像、分片与字体�
 
 - `tests/smoke.mjs`：mock ctx 调 `apply()`，断言路由注册、字体表完整性（id 字符集、包名版本、样式表路径）、路由解析与路径穿越防护、镜像模板拼接、缓存目录解析、设置 schema。
 - `tests/http.mjs`：**桩镜像**（`node:http`）+ 真实 `node:http` 服务器驱动插件 handler。断言响应头与字节、第二次请求走磁盘、并发冷请求只下载一次、三种失败应答（404 / 502 / 403）、镜像回退，最后**关掉桩镜像再请求一次**，证明缓存命中可离线工作。
-- `tests/client.mjs`：按浏览器加载器的姿势（`window.__ModuleLoader__.load`）加载**构建产物** `lib/client.js`，配一个假 ctx 与 DOM 桩驱动 `apply()`，断言设置区块注册、每款字体链入的链接、系统默认时全部移除、以及 `--dsw-font-family` 的重绑内容。client 半边没有单元测试的其他覆盖，这条是「bundle 能不能加载、链接指向对不对」的唯一防线。
+- `tests/client.mjs`：按浏览器加载器的姿势（`window.__ModuleLoader__.load`）加载**构建产物** `lib/client.js`，配一个假 ctx、DOM 桩与只记录调用的 React 桩驱动 `apply()` 并渲染区块，断言设置区块注册、每款字体链入的链接、系统默认时全部移除、`--dsw-font-family` 的重绑内容，以及缓存状态行（`已缓存 4.3 MB · 12/194 片` 之类）由用量数据算出来。client 半边没有单元测试的其他覆盖，这条是「bundle 能不能加载、链接指向对不对、卡片显示什么」的唯一防线。
 - `tests/cdn.mjs`：对真实镜像逐个字体跑，除了 200 还检查两件容易踩的事——样式表里声明的 `font-family` 与表里写的一致，以及它**确实是 `unicode-range` 分片**而不是一个整字体文件。
 
 `lib/` 是**提交进仓库的构建产物**，这样可以直接从 git 安装。改完源码记得 `npm run build` 并把 `lib/` 一起提交。
@@ -186,9 +209,10 @@ document.fonts.check('14px "LXGW WenKai"')   // true = 该字体已加载
 
 或在 DevTools 的 Elements → Computed → Rendered Fonts 里看实际渲染用的字体；在 Network 里筛 `fonts/` 能看到哪些分片被拉取、哪些来自 `(disk cache)`。
 
-**5. 缓存里到底有没有东西。** 缓存目录默认在 `$DSH_HOME/cache/ui-beautify/fonts`（Windows 上是 `C:\Users\<你>\.dsh\cache\ui-beautify\fonts`）。每个字体一个目录，里面一个 generation 目录：
+**5. 缓存里到底有没有东西。** 设置页每张卡片底部就有一行状态；要命令行确认，缓存目录默认在 `$DSH_HOME/cache/ui-beautify/fonts`（Windows 上是 `C:\Users\<你>\.dsh\cache\ui-beautify\fonts`），每个字体一个目录，里面一个 generation 目录：
 
 ```powershell
+curl.exe -s http://127.0.0.1:3080/plugins/dsh-ui-beautify/cache
 Get-ChildItem "$env:USERPROFILE\.dsh\cache\ui-beautify\fonts" -Recurse -File | Select-Object -First 10 FullName, Length
 ```
 
@@ -198,23 +222,23 @@ Get-ChildItem "$env:USERPROFILE\.dsh\cache\ui-beautify\fonts" -Recurse -File | S
 
 ```
 src/
-  params.ts               两半边共用的路由与命名空间常量
-  fonts.ts                可选字体表（system + 10 款，含 npm 来源）与字体栈
+  params.ts               两半边共用的路由（字体前缀 + 缓存精确路由）与命名空间常量
+  fonts.ts                可选字体表（system + 10 款，含 npm 来源）与字体栈、缓存用量类型
   source.ts               镜像模板、带超时/体积上限/内容校验的下载
-  store.ts                磁盘缓存（generation、原子写入、并发合并、过期清理）
-  serve.ts                路由解析与应答（路径穿越防护、缓存策略、404/502）
+  store.ts                磁盘缓存（generation、原子写入、并发合并、过期清理、用量统计）
+  serve.ts                两个 HTTP 面：字体文件应答（404/502）与缓存用量 JSON
   settings.ts             Host：ui-beautify 命名空间与 mirrors/cacheDir 配置
-  index.ts                Host：认领字体路由
+  index.ts                Host：认领两个路由
   client/
     index.ts              Client：注册设置区块 + 应用所选字体
-    FontSection.tsx       「页面美化」区块组件（按中/拉丁分组渲染）
+    FontSection.tsx       「页面美化」区块组件（分组渲染 + 每卡缓存状态行）
     FontSection.module.css
-    settings-controller.ts 设置命名空间 ↔ 区块快照
+    settings-controller.ts 设置命名空间、缓存用量 ↔ 区块快照
     locales.ts            中英文案
 tests/
   smoke.mjs               路由、字体表、路径解析、配置默认值（离线）
-  http.mjs                桩镜像下的 HTTP 层：字节、缓存、并发、失败应答、离线
-  client.mjs              加载 lib/client.js 驱动 apply()：区块注册、链接、token 重绑
+  http.mjs                桩镜像下的 HTTP 层：字节、缓存、并发、失败应答、离线、用量上报
+  client.mjs              加载 lib/client.js 驱动 apply() 并渲染区块：链接、token 重绑、缓存状态行
   cdn.mjs                 联网逐字体校验镜像、分片与族名
 ```
 

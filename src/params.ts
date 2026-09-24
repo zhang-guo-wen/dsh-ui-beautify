@@ -16,6 +16,15 @@
 export const FONTS_ROUTE = '/plugins/dsh-ui-beautify/fonts'
 
 /**
+ * Exact path reporting what the cache holds.
+ *
+ * The picker reads it to label each face, so it is an exact route of its own
+ * rather than a member of the font namespace: nothing under `FONTS_ROUTE` is a
+ * JSON document, and a face id can never reach this path.
+ */
+export const CACHE_ROUTE = '/plugins/dsh-ui-beautify/cache'
+
+/**
  * Settings namespace owned by this plugin.
  *
  * The Host half registers it and the Client half binds it, so the literal has

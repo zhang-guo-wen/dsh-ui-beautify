@@ -6,8 +6,8 @@
 import { existsSync } from 'node:fs'
 import {
   apply, faceById, fontRouteFor, fontStack, mirrorUrl, resolveCacheDir, resolveFontChoice,
-  Config, DEFAULT_FONT_ID, DEFAULT_MIRRORS, FACE_ID_PATTERN, FONT_CHOICES, FONT_FACES,
-  FONTS_ROUTE, FONT_SETTINGS_NS, SYSTEM_FONT_ID,
+  CACHE_ROUTE, Config, DEFAULT_FONT_ID, DEFAULT_MIRRORS, FACE_ID_PATTERN, FONT_CHOICES,
+  FONT_FACES, FONTS_ROUTE, FONT_SETTINGS_NS, SYSTEM_FONT_ID,
 } from '../lib/index.mjs'
 
 const failures = []
@@ -21,7 +21,7 @@ const check = (label, ok, detail = '') => {
 }
 
 console.log('route and settings declaration')
-let registered
+const routes = []
 const disposers = []
 const config = Config({})
 apply({
@@ -31,16 +31,20 @@ apply({
   },
   webServer: {
     register(route) {
-      registered = route
+      routes.push(route)
       return () => {}
     },
   },
 }, config)
-check('claims exactly one route', registered !== undefined)
-check('as a prefix route', registered?.kind === 'prefix', String(registered?.kind))
-check('under the agreed path', registered?.path === FONTS_ROUTE, String(registered?.path))
-check('with a request handler', typeof registered?.handler === 'function')
-check('registers one explicit effect', disposers.length === 1, String(disposers.length))
+const fontRoute = routes.find(route => route.path === FONTS_ROUTE)
+const cacheRoute = routes.find(route => route.path === CACHE_ROUTE)
+check('claims exactly two routes', routes.length === 2, routes.map(route => route.path).join(', '))
+check('the font route is a prefix route', fontRoute?.kind === 'prefix', String(fontRoute?.kind))
+check('the font route carries a request handler', typeof fontRoute?.handler === 'function')
+check('the cache read-out is an exact route', cacheRoute?.kind === 'exact', String(cacheRoute?.kind))
+check('the cache read-out carries a request handler', typeof cacheRoute?.handler === 'function')
+check('the two routes do not overlap', !CACHE_ROUTE.startsWith(`${FONTS_ROUTE}/`), CACHE_ROUTE)
+check('registers one explicit effect per route', disposers.length === 2, String(disposers.length))
 
 console.log('face catalogue')
 check('offers several faces', FONT_FACES.length >= 6, String(FONT_FACES.length))

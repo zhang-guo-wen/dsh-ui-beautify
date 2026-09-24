@@ -1,20 +1,33 @@
 /**
- * Controller bridging the Host `ui-beautify` settings namespace onto the Page
- * beautification section snapshot.
+ * Controller bridging the Host `ui-beautify` settings namespace and its cache
+ * read-out onto the Page beautification section snapshot.
  *
- * It reads the stored face id and writes a new one through the settings form.
- * Applying a choice to the document is not this class's job — the plugin body
- * owns that, so the section can render a snapshot without touching the DOM.
+ * It reads the stored face id, writes a new one through the settings form, and
+ * carries what the local cache holds for each face. Applying a choice to the
+ * document is not this class's job — the plugin body owns that, so the section
+ * can render a snapshot without touching the DOM.
+ *
+ * The cache reading is a sample, not a subscription: the Host answers when
+ * asked, and the section asks when it opens and shortly after a choice lands,
+ * which is when a download has had time to put something on disk.
  *
  * @module @guowenzhang/dsh-ui-beautify/client/settings-controller
  */
 
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
-import { resolveFontChoice, type FontSettings } from '../fonts.ts'
-import { FONT_SETTINGS_NS } from '../params.ts'
+import { resolveFontChoice, type FontCacheReport, type FontSettings } from '../fonts.ts'
+import { CACHE_ROUTE, FONT_SETTINGS_NS } from '../params.ts'
 
 export { FONT_SETTINGS_NS } from '../params.ts'
+
+/**
+ * How long after a committed choice the cache is read again.
+ *
+ * Applying a face is what starts its download, so the read that follows the
+ * click has to wait long enough for the first files to land.
+ */
+const CACHE_REREAD_DELAY_MS = 1500
 
 /** Snapshot the section renders. */
 export interface FontSectionState {
@@ -24,6 +37,8 @@ export interface FontSectionState {
   writable: boolean
   /** Id of the face currently stored. */
   font: string
+  /** What each face holds in the local cache; a face absent from it has downloaded nothing. */
+  cache: FontCacheReport
 }
 
 /** Registration-side face for the section. */
@@ -34,24 +49,32 @@ export interface FontSectionFace {
   }
   /** Store one face id as the chosen body font. */
   choose: (id: string) => void
+  /** Ask the Host what the cache holds and publish the answer. */
+  refreshCache: () => void
 }
 
-/** Owner handle over the `ui-beautify` namespace. */
+/** Owner handle over the `ui-beautify` namespace and its cache read-out. */
 export class FontController {
   private readonly store: SnapshotStore<FontSectionState>
   private readonly unsubscribe: () => void
+  private cache: FontCacheReport = {}
+  private pending: ReturnType<typeof setTimeout> | undefined
 
   /**
    * @param scope - the `ui-beautify` configuration form.
    */
   constructor(private readonly scope: ConfigForm<FontSettings>) {
     this.store = createSnapshotStore(this.projection())
-    this.unsubscribe = scope.subscribe(() => { this.publish() })
+    this.unsubscribe = scope.subscribe(() => {
+      this.publish()
+      this.scheduleCacheRead()
+    })
   }
 
-  /** Stop observing settings. */
+  /** Stop observing settings and drop the pending cache read. */
   dispose(): void {
     this.unsubscribe()
+    if (this.pending !== undefined) clearTimeout(this.pending)
   }
 
   /** Build the renderer face for this section. */
@@ -59,7 +82,37 @@ export class FontController {
     return {
       hooks: { fontSettings: this.store },
       choose: id => { this.choose(id) },
+      refreshCache: () => { this.refreshCache() },
     }
+  }
+
+  /** Read the cache once and publish what it holds. */
+  refreshCache(): void {
+    void this.read()
+  }
+
+  private async read(): Promise<void> {
+    let report: FontCacheReport
+    try {
+      const response = await fetch(CACHE_ROUTE, { headers: { accept: 'application/json' } })
+      if (!response.ok) return
+      report = ((await response.json()) as { faces?: FontCacheReport }).faces ?? {}
+    } catch {
+      // A Host that is not answering leaves the cards without cache labels. The
+      // choice itself still works, so the section shows nothing rather than an
+      // error the user cannot act on.
+      return
+    }
+    this.cache = report
+    this.publish()
+  }
+
+  private scheduleCacheRead(): void {
+    if (this.pending !== undefined) clearTimeout(this.pending)
+    this.pending = setTimeout(() => {
+      this.pending = undefined
+      this.refreshCache()
+    }, CACHE_REREAD_DELAY_MS)
   }
 
   private choose(id: string): void {
@@ -77,6 +130,7 @@ export class FontController {
       // The document is hand-editable, so an unknown stored value must show as
       // the choice actually in effect rather than as nothing selected.
       font: resolveFontChoice(snapshot.value?.font),
+      cache: this.cache,
     }
   }
 

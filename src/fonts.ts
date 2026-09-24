@@ -150,6 +150,31 @@ export const FONT_FACES: readonly FontFace[] = [
 ]
 
 /**
+ * What one face currently occupies in the local cache.
+ *
+ * Reported by the Host and rendered by the picker, so both halves read this
+ * type from one place: the numbers are the whole content of the section's cache
+ * line, and a face missing from the report has never been downloaded.
+ */
+export interface FontCacheUsage {
+  /** Bytes this face occupies on disk, its stylesheets included. */
+  bytes: number
+  /** Shards of this face's sheets that are already cached. */
+  shardsCached: number
+  /**
+   * Shards this face's sheets declare.
+   *
+   * A stylesheet is what names its shards, so this stays `0` until one is
+   * cached — which is also why it is the report's "downloaded at all" signal
+   * rather than the byte count.
+   */
+  shardsTotal: number
+}
+
+/** Cache usage per face id. A face absent from the map has downloaded nothing. */
+export type FontCacheReport = Readonly<Record<string, FontCacheUsage>>
+
+/**
  * Every id the picker offers and the settings schema accepts, in presentation
  * order. The system default leads: it is the baseline the others depart from.
  */

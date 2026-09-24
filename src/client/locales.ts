@@ -41,6 +41,11 @@ export const en = {
   fontGeist: 'Geist',
   fontGeistDesc: 'Geometric Latin sans. Chinese text falls back to the system stack.',
   active: 'In use',
+  cacheAbsent: 'Not downloaded',
+  cachePresent: 'Cached {size} · {cached}/{total} shards',
+  unitKb: 'KB',
+  unitMb: 'MB',
+  unitGb: 'GB',
   unavailable: 'The Host settings service is unavailable, so this choice cannot be saved.',
   readonly: 'The settings document is read-only, so this choice cannot be saved.',
 }
@@ -75,6 +80,11 @@ export const zh: typeof en = {
   fontGeist: 'Geist',
   fontGeistDesc: '几何感较强的拉丁无衬线字体。中文回退到系统字体栈。',
   active: '使用中',
+  cacheAbsent: '未下载',
+  cachePresent: '已缓存 {size} · {cached}/{total} 片',
+  unitKb: 'KB',
+  unitMb: 'MB',
+  unitGb: 'GB',
   unavailable: '宿主设置服务不可用，该选择无法保存。',
   readonly: '设置文档为只读，该选择无法保存。',
 }

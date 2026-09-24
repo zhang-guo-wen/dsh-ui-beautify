@@ -21,10 +21,10 @@
  */
 
 import { createHash } from 'node:crypto'
-import { mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join, resolve, sep } from 'node:path'
-import type { FontFace } from './fonts.ts'
+import { faceById, type FontCacheReport, type FontCacheUsage, type FontFace } from './fonts.ts'
 import { downloadFile } from './source.ts'
 
 /** Cache root segment under the harness home, matching the harness' own layout. */
@@ -150,6 +150,121 @@ export class FontStore {
       await rm(join(parent, entry), { recursive: true, force: true }).catch(() => undefined)
     }
   }
+
+  /**
+   * Report what each face occupies in the cache.
+   *
+   * Read from the directory rather than from bookkeeping: the browser decides
+   * which shards get fetched, so the filesystem is the only record of what
+   * actually arrived. A face's shard total comes from the stylesheets that are
+   * cached, which is what makes "3 of 101" mean anything.
+   * @returns one entry per face id holding at least one file.
+   */
+  async usage(): Promise<FontCacheReport> {
+    let names: string[]
+    try {
+      names = await readdir(this.options.cacheDir)
+    } catch {
+      // Nothing has ever been downloaded, so the cache directory does not exist.
+      return {}
+    }
+    const report: Record<string, FontCacheUsage> = {}
+    for (const name of names) {
+      const usage = await this.measure(name)
+      if (usage !== undefined) report[name] = usage
+    }
+    return report
+  }
+
+  /**
+   * Measure one face directory.
+   * @param id - the directory name, which is the face id.
+   * @returns its usage, or undefined when the directory holds no file.
+   */
+  private async measure(id: string): Promise<FontCacheUsage | undefined> {
+    const root = join(this.options.cacheDir, id)
+    let entries: string[]
+    try {
+      entries = await readdir(root, { recursive: true })
+    } catch {
+      // A directory removed between the listing and this read reports nothing.
+      return undefined
+    }
+    const face = faceById(id)
+    let bytes = 0
+    const generations = new Map<string, Set<string>>()
+    for (const entry of entries) {
+      const info = await stat(join(root, entry)).catch(() => undefined)
+      if (info === undefined || !info.isFile()) continue
+      bytes += info.size
+      const [generation, ...rest] = entry.split(sep)
+      if (generation === undefined || rest.length === 0) continue
+      const present = generations.get(generation) ?? new Set<string>()
+      present.add(rest.join('/'))
+      generations.set(generation, present)
+    }
+    if (bytes === 0) return undefined
+    // Bytes cover every generation because they describe the disk; the shard
+    // counts come from the generation that declares the most, which is the one
+    // currently in use once a sweep has finished.
+    let best: FontCacheUsage = { bytes, shardsCached: 0, shardsTotal: 0 }
+    for (const [generation, present] of generations) {
+      if (face === undefined) break
+      const declared = await declaredShards(join(root, generation), face)
+      if (declared === undefined) continue
+      const shardsCached = [...declared].filter(shard => present.has(shard)).length
+      if (declared.size > best.shardsTotal) best = { bytes, shardsCached, shardsTotal: declared.size }
+    }
+    return best
+  }
+}
+
+/**
+ * Collect the package-relative shard paths a face's cached stylesheets declare.
+ *
+ * The stylesheet is the only place that names a shard, so this doubles as the
+ * test for whether a face has been downloaded at all.
+ * @param generationDir - absolute path of one generation directory.
+ * @param face - the face whose sheets are read.
+ * @returns the declared shard paths, or undefined when no sheet is cached.
+ */
+async function declaredShards(generationDir: string, face: FontFace): Promise<Set<string> | undefined> {
+  const shards = new Set<string>()
+  let found = false
+  for (const sheet of face.source.sheets) {
+    let css: string
+    try {
+      css = await readFile(join(generationDir, sheet), 'utf8')
+    } catch {
+      // A sheet that was never downloaded declares nothing, and its shards
+      // cannot exist either — the browser learns their names from this file.
+      continue
+    }
+    found = true
+    for (const match of css.matchAll(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g)) {
+      const reference = match[2]
+      if (reference === undefined || !reference.endsWith('.woff2')) continue
+      if (/^([a-z]+:|\/)/i.test(reference)) continue
+      shards.add(resolveFromSheet(sheet, reference))
+    }
+  }
+  return found ? shards : undefined
+}
+
+/**
+ * Resolve one sheet's relative reference against the directory that sheet is in.
+ * @param sheet - the sheet's package-relative path.
+ * @param reference - the reference as written in the sheet.
+ * @returns the referenced file's package-relative path.
+ */
+function resolveFromSheet(sheet: string, reference: string): string {
+  const segments = sheet.split('/').slice(0, -1)
+  for (const segment of reference.split('/')) {
+    if (segment === '' || segment === '.') continue
+    if (segment === '..') segments.pop()
+    else segments.push(segment)
+  }
+  return segments.join('/')
 }
 
 /**

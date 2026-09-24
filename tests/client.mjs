@@ -7,7 +7,7 @@
 // Run with `node tests/client.mjs` (after `npm run build`).
 import { readFileSync } from 'node:fs'
 import { runInThisContext } from 'node:vm'
-import { FONT_FACES, FONTS_ROUTE, FONT_SETTINGS_NS, SYSTEM_FONT_ID } from '../lib/index.mjs'
+import { CACHE_ROUTE, FONT_CHOICES, FONT_FACES, FONTS_ROUTE, FONT_SETTINGS_NS, SYSTEM_FONT_ID } from '../lib/index.mjs'
 
 const failures = []
 const check = (label, ok, detail = '') => {
@@ -43,10 +43,42 @@ globalThis.document = {
 
 // Every bare specifier the bundle requires has to be answered here. A new
 // import in the client half fails this test with the name it needs.
+const stores = []
+// React is stubbed down to a call recorder, so the section's render can be
+// inspected as the element tree it produced rather than as HTML.
+const elements = []
+const record = (type, props) => {
+  const element = { type, props }
+  elements.push(element)
+  return element
+}
 const externals = {
-  'react/jsx-runtime': { jsx: () => null, jsxs: () => null, Fragment: null },
+  react: {
+    // The section refreshes its cache reading from an effect; running it here
+    // is what a mount does.
+    useEffect: (effect) => { effect() },
+    useState: value => [value, () => {}],
+  },
+  'react/jsx-runtime': { jsx: record, jsxs: record, Fragment: 'Fragment' },
   '@deepseek-ai/dsh-client-ui-primitives': { Tag: () => null },
-  '@deepseek-ai/dsh-client-store': { createSnapshotStore: initial => ({ get: () => initial, set() {} }) },
+  '@deepseek-ai/dsh-client-store': {
+    createSnapshotStore: (initial) => {
+      let current = initial
+      const store = { get: () => current, set: (value) => { current = value }, subscribe: () => () => {} }
+      stores.push(store)
+      return store
+    },
+  },
+}
+
+// The Host answers the cache read-out; the plugin body only ever reads it.
+const cacheRequests = []
+globalThis.fetch = async (url) => {
+  cacheRequests.push(String(url))
+  return {
+    ok: true,
+    json: async () => ({ faces: { 'lxgw-wenkai': { bytes: 4_500_000, shardsCached: 12, shardsTotal: 194 } } }),
+  }
 }
 
 let handoffId
@@ -75,6 +107,7 @@ check(
 console.log('registration and application')
 let stored = { font: 'lxgw-wenkai' }
 const subscribers = []
+const disposers = []
 let tokens
 let released = 0
 let section
@@ -84,7 +117,11 @@ const scope = {
   set: async (key, value) => { stored = { ...stored, [key]: value } },
 }
 plugin.apply({
-  effect: fn => fn(),
+  effect(fn) {
+    const dispose = fn()
+    if (typeof dispose === 'function') disposers.push(dispose)
+    return dispose
+  },
   locale: { register: () => () => {}, bind: () => key => key },
   configForms: { get: () => scope },
   theme: {
@@ -103,6 +140,8 @@ const setFont = (font) => {
   stored = { font }
   for (const notify of subscribers) notify()
 }
+const snapshot = () => stores.at(-1)?.get()
+const settle = () => new Promise(resolve => { setTimeout(resolve, 10) })
 
 check('registers the settings section', section?.definition?.id === FONT_SETTINGS_NS && section.definition.order === 12)
 check('the section renders a component', typeof section?.component === 'function')
@@ -145,6 +184,56 @@ check(
   links()[0]?.href === `${FONTS_ROUTE}/noto-sans-sc/index.css`,
   String(links()[0]?.href),
 )
+
+console.log('cache read-out')
+const sectionFace = section.definition.inject()
+check('the section can ask for a fresh reading', typeof sectionFace.refreshCache === 'function')
+check('the reading starts empty', JSON.stringify(snapshot()?.cache) === '{}', JSON.stringify(snapshot()?.cache))
+sectionFace.refreshCache()
+await settle()
+check('the Host is asked on the plugin\'s own route', cacheRequests.every(url => url === CACHE_ROUTE), cacheRequests.join(','))
+check(
+  'the answer reaches the snapshot the cards render',
+  snapshot()?.cache['lxgw-wenkai']?.shardsTotal === 194 && snapshot()?.cache['lxgw-wenkai']?.bytes === 4_500_000,
+  JSON.stringify(snapshot()?.cache),
+)
+check('a reading is not a choice', snapshot()?.font === 'noto-sans-sc', String(snapshot()?.font))
+
+console.log('rendered cards')
+let refreshes = 0
+// CSS Modules hash every local name, so a class is matched by its `_<local>`
+// suffix: a substring match would count `cardHead` as a `card`.
+const byClass = name => elements.filter(element =>
+  String(element.props?.className ?? '').split(/\s+/).some(token => token.endsWith(`_${name}`)))
+section.component({
+  // The dictionary is the locale service's; what this checks is which keys and
+  // which values the component asks it for.
+  t: (key, params) => params === undefined ? key : `${key}(${JSON.stringify(params)})`,
+  useFontSettings: selector => selector(snapshot()),
+  choose: () => {},
+  refreshCache: () => { refreshes += 1 },
+})
+check('mounting the section asks for a reading', refreshes === 1, String(refreshes))
+check(
+  'presents the system default and both writing systems',
+  byClass('groupLabel').map(element => element.props.children).join(',') === 'groupSystem,groupCjk,groupLatin',
+  byClass('groupLabel').map(element => element.props.children).join(','),
+)
+check('one card per choice', byClass('card').length === FONT_CHOICES.length, String(byClass('card').length))
+const cacheLines = byClass('cardMeta').map(element => element.props.children)
+check('the system default carries no cache line', cacheLines.length === FONT_FACES.length, String(cacheLines.length))
+check(
+  'a face with a reading shows its size and shard count',
+  cacheLines.includes('cachePresent({"size":"4.3 unitMb","cached":12,"total":194})'),
+  cacheLines.find(line => line.startsWith('cachePresent(')) ?? cacheLines[0],
+)
+check(
+  'a face without a reading says it is not downloaded',
+  cacheLines.filter(line => line === 'cacheAbsent').length === FONT_FACES.length - 1,
+  cacheLines.filter(line => line === 'cacheAbsent').length + '',
+)
+
+for (const dispose of disposers) dispose()
 
 if (failures.length > 0) {
   console.error(`\n${failures.length} check(s) failed`)

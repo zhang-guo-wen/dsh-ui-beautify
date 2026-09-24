@@ -1,11 +1,15 @@
 /**
- * The download route.
+ * The plugin's two HTTP surfaces.
  *
  * The browser fetches a face's stylesheets and shards from the application
  * origin, so this plugin claims one `webServer` prefix and resolves each path
  * against the face catalogue. The route mirrors the npm package layout exactly,
  * which is what the stylesheets assume: a path requested here is the path the
  * package holds, so no CSS has to be rewritten on the way through.
+ *
+ * The second surface is the cache read-out the picker labels each face with. It
+ * is a separate exact route, because nothing under the font prefix is a JSON
+ * document.
  *
  * Request paths are untrusted input and the resolved file is written to disk,
  * so a path outside the route, a path that names no face, and a path that would
@@ -149,4 +153,31 @@ export async function serveFontFile(
     stream.on('error', () => { res.destroy(); settle() })
     stream.pipe(res)
   })
+}
+
+/**
+ * Answer one request for the cache read-out.
+ *
+ * The picker asks for this when it opens and after a face is applied, so the
+ * answer must describe the disk as it is right now: it is never cached.
+ * @param req - the incoming request.
+ * @param res - the response to own.
+ * @param store - the cache being reported on.
+ */
+export async function serveCacheUsage(
+  req: IncomingMessage,
+  res: ServerResponse,
+  store: FontStore,
+): Promise<void> {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    res.writeHead(405, { allow: 'GET, HEAD' }).end('method not allowed')
+    return
+  }
+  const body = JSON.stringify({ faces: await store.usage() })
+  res.writeHead(200, {
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': String(Buffer.byteLength(body)),
+    'cache-control': 'no-store',
+  })
+  res.end(req.method === 'HEAD' ? undefined : body)
 }
