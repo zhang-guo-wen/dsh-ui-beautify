@@ -17,6 +17,8 @@
  * package: the Client half bundles it into the browser.
  */
 
+import type { MOTION_CHOICE_IDS } from './motion.ts'
+
 /** The stack the body faces fall back to, matching ui-theme's own declaration. */
 export const FALLBACK_STACK = [
   '-apple-system',
@@ -288,12 +290,16 @@ export const CODE_FONT_CHOICES: readonly string[] = choicesFor('code')
  *
  * Declared here rather than beside the Host schema so the Client half can type
  * its scope without pulling a Host-only schema package into the browser bundle.
+ * It carries the lane's motion answer as well as the two faces because the
+ * namespace belongs to the plugin, not to the font catalogue.
  */
-export interface FontSettings {
+export interface BeautifySettings {
   /** One of {@link FONT_CHOICES}. */
   font: string
   /** One of {@link CODE_FONT_CHOICES}. */
   codeFont: string
+  /** One of {@link MOTION_CHOICE_IDS}. */
+  motion: string
 }
 
 /**

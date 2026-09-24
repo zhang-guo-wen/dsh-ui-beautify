@@ -42,6 +42,8 @@ export { fontRouteFor, serveCacheUsage, serveFontFile } from './serve.ts'
 export type { FontRoute } from './serve.ts'
 export { FONT_SETTINGS_NS } from './settings.ts'
 export { DEFAULT_MIRRORS, downloadFile, mirrorUrl } from './source.ts'
+export { DEFAULT_MOTION_CHOICE, MOTION_CHOICE_IDS, resolveMotionChoice } from './motion.ts'
+export type { MotionChoice } from './motion.ts'
 export { FontStore, resolveCacheDir } from './store.ts'
 export { Config }
 

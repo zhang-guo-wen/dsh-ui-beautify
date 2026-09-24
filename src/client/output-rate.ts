@@ -33,10 +33,10 @@ const RATE_WINDOW_MS = 900
  */
 const SPEED_HALF_POINT = 220
 
-/** Crossing time with nothing streaming: the cyclist keeps looping regardless. */
-const CRUISE_SPANS_PER_SECOND = 0.06
-
-/** Crossing time the curve approaches but never reaches, however fast the output. */
+/**
+ * Crossing rate the curve approaches but never reaches, in lane spans per
+ * second. The fastest output still crosses the lane in about two seconds.
+ */
 const SPRINT_SPANS_PER_SECOND = 0.5
 
 /** One observation of the accumulating output. */
@@ -106,32 +106,41 @@ export function observeOutput(
 /**
  * Output speed across the recent window.
  *
- * The elapsed time runs to `now` rather than to the newest sample, so a stream
- * that stopped decays to zero instead of freezing at its last reading.
+ * The denominator is the window's own span, not the time since the newest
+ * sample. Running it to `now` looks harmless and is not: the numerator only
+ * moves when a chunk lands, so between chunks the reading decays and every
+ * arrival jerks it back up. That reads as a stutter, which is exactly what the
+ * animation must not do. A stalled stream is handled by the rule below instead.
+ *
+ * Once nothing has arrived for a whole window the answer is exactly zero: a
+ * reading that only ever decays towards zero would leave the cyclist creeping
+ * forever, and "the model stopped writing" has to mean a still bicycle.
  * @param samples - the window from {@link observeOutput}.
  * @param now - reading time in `performance.now()` milliseconds.
- * @returns characters per second, 0 before two samples bracket any output.
+ * @returns characters per second, 0 before two samples bracket any output, and
+ * 0 once the newest sample is older than the window.
  */
 export function charsPerSecond(samples: readonly OutputSample[], now: number): number {
   const last = samples.at(-1)
   const first = samples[0]
   if (last === undefined || first === undefined) return 0
-  const elapsed = (now - first.time) / 1000
-  if (elapsed <= 0) return 0
-  return Math.max(0, last.chars - first.chars) / elapsed
+  if (now - last.time > RATE_WINDOW_MS) return 0
+  const span = (last.time - first.time) / 1000
+  if (span <= 0) return 0
+  return Math.max(0, last.chars - first.chars) / span
 }
 
 /**
  * Turn an output rate into how fast the cyclist crosses the lane.
  *
- * The curve saturates rather than clamping: every further increase in output
- * speed still moves the cyclist a little faster, so a fast stream never looks
- * identical to a slightly faster one. Nothing streaming falls to the cruise
- * bound, which keeps the figure looping.
+ * Nothing arriving means no movement at all: the figure is a report of output,
+ * so a still model is a still bicycle. Above zero the curve is proportional for
+ * slow streams and saturates for fast ones, so every further increase still
+ * moves the cyclist a little faster and a fast stream never looks identical to a
+ * slightly faster one.
  * @param charsPerSecond - recent output speed from {@link charsPerSecond}.
- * @returns lane spans per second, between the cruise and sprint bounds.
+ * @returns lane spans per second, 0 when nothing is arriving.
  */
 export function laneSpeed(charsPerSecond: number): number {
-  const share = charsPerSecond / (charsPerSecond + SPEED_HALF_POINT)
-  return CRUISE_SPANS_PER_SECOND + (SPRINT_SPANS_PER_SECOND - CRUISE_SPANS_PER_SECOND) * share
+  return SPRINT_SPANS_PER_SECOND * (charsPerSecond / (charsPerSecond + SPEED_HALF_POINT))
 }

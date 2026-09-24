@@ -2,15 +2,19 @@
  * Controller bridging the Host `ui-beautify` settings namespace and its cache
  * read-out onto the General-settings rows' snapshots.
  *
- * It reads the stored face ids, writes a new one through the settings form, and
+ * It reads the stored choices, writes a new one through the settings form, and
  * carries what the local cache holds for each face. Applying a choice to the
  * document is not this class's job — the plugin body owns that, so a row can
  * render a snapshot without touching the DOM.
  *
+ * Every row shares one snapshot and one store: the choices live in one
+ * namespace, so three subscriptions would only give three views of the same
+ * document and three chances to disagree about it.
+ *
  * The cache reading is a sample, not a subscription: the Host answers when
  * asked, and a row asks when it renders and shortly after a choice lands, which
- * is when a download has had time to put something on disk. Both rows share one
- * reading, because they share one cache.
+ * is when a download has had time to put something on disk. Both font rows share
+ * one reading, because they share one cache.
  *
  * @module @guowenzhang/dsh-ui-beautify/client/settings-controller
  */
@@ -18,8 +22,9 @@
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import {
-  FONT_ROLES, resolveFontChoice, type FontCacheReport, type FontRole, type FontSettings,
+  resolveFontChoice, type BeautifySettings, type FontCacheReport,
 } from '../fonts.ts'
+import { resolveMotionChoice, type MotionChoice } from '../motion.ts'
 import { CACHE_ROUTE, FONT_SETTINGS_NS } from '../params.ts'
 
 export { FONT_SETTINGS_NS } from '../params.ts'
@@ -32,14 +37,14 @@ export { FONT_SETTINGS_NS } from '../params.ts'
  */
 const CACHE_REREAD_DELAY_MS = 1500
 
-/** Snapshot a row renders. */
-export interface FontRowState {
+/** Snapshot a settings row renders. */
+export interface SettingsRowState {
   /** Whether the namespace is exposed to this client. */
   available: boolean
   /** Whether the Host document accepts writes. */
   writable: boolean
   /**
-   * Whether the Host's namespace exposes each role's field at all.
+   * Whether the Host's namespace exposes each field at all.
    *
    * A field the bundled client knows about but the running Host does not is the
    * signature of a Host half that predates it: the plugin module is imported
@@ -48,30 +53,37 @@ export interface FontRowState {
    * field its schema lacks are refused, which otherwise looks like a dead
    * control.
    */
-  fields: Readonly<Record<FontRole, boolean>>
+  fields: Readonly<Record<keyof BeautifySettings, boolean>>
   /** Id of the body face currently stored. */
   font: string
   /** Id of the code face currently stored. */
   codeFont: string
+  /** Motion answer currently stored, already resolved to a choice. */
+  motion: MotionChoice
   /** What each face holds in the local cache; a face absent from it has downloaded nothing. */
   cache: FontCacheReport
 }
 
-/** What one row needs from the plugin body: the shared snapshot and its writers. */
-export interface FontRowFace {
+/** What one settings row needs from the plugin body: the shared snapshot and its writers. */
+export interface SettingsRowFace {
   hooks: {
-    /** Row snapshot bound by the renderer as useFontSettings. */
-    fontSettings: SnapshotStore<FontRowState>
+    /** Row snapshot bound by the renderer as useBeautify. */
+    beautify: SnapshotStore<SettingsRowState>
   }
-  /** Store one face id as this row's choice. */
-  choose: (id: string) => void
+  /**
+   * Store one value under one namespace field.
+   *
+   * Addressed by field rather than by role because the lane's row writes a
+   * choice that belongs to no font role.
+   */
+  choose: (key: keyof BeautifySettings, id: string) => void
   /** Ask the Host what the cache holds and publish the answer. */
   refreshCache: () => void
 }
 
 /** Owner handle over the `ui-beautify` namespace and its cache read-out. */
-export class FontController {
-  private readonly store: SnapshotStore<FontRowState>
+export class SettingsController {
+  private readonly store: SnapshotStore<SettingsRowState>
   private readonly unsubscribe: () => void
   private cache: FontCacheReport = {}
   private pending: ReturnType<typeof setTimeout> | undefined
@@ -79,7 +91,7 @@ export class FontController {
   /**
    * @param scope - the `ui-beautify` configuration form.
    */
-  constructor(private readonly scope: ConfigForm<FontSettings>) {
+  constructor(private readonly scope: ConfigForm<BeautifySettings>) {
     this.store = createSnapshotStore(this.projection())
     this.unsubscribe = scope.subscribe(() => {
       this.publish()
@@ -94,14 +106,13 @@ export class FontController {
   }
 
   /**
-   * Build the renderer face for one row.
-   * @param role - the role that row edits.
+   * Build the renderer face every settings row shares.
    * @returns its hooks and writers.
    */
-  inject(role: FontRole): FontRowFace {
+  inject(): SettingsRowFace {
     return {
-      hooks: { fontSettings: this.store },
-      choose: id => { this.choose(role, id) },
+      hooks: { beautify: this.store },
+      choose: (key, id) => { this.choose(key, id) },
       refreshCache: () => { this.refreshCache() },
     }
   }
@@ -135,27 +146,31 @@ export class FontController {
     }, CACHE_REREAD_DELAY_MS)
   }
 
-  private choose(role: FontRole, id: string): void {
+  private choose(key: keyof BeautifySettings, id: string): void {
     const snapshot = this.scope.getSnapshot()
     if (snapshot.status !== 'ready' || !snapshot.writable) return
-    const key = FONT_ROLES[role].key
     if (snapshot.value?.[key] === id) return
     void this.scope.set(key, id)
   }
 
-  private projection(): FontRowState {
+  private projection(): SettingsRowState {
     const snapshot = this.scope.getSnapshot()
     // Partial, because this reads presence: a field the Host's schema lacks is
     // absent from the section it sends, whatever this bundle expects.
-    const value: Partial<FontSettings> | undefined = snapshot.value
+    const value: Partial<BeautifySettings> | undefined = snapshot.value
     return {
       available: snapshot.status === 'ready',
       writable: snapshot.writable,
-      fields: { body: value?.font !== undefined, code: value?.codeFont !== undefined },
+      fields: {
+        font: value?.font !== undefined,
+        codeFont: value?.codeFont !== undefined,
+        motion: value?.motion !== undefined,
+      },
       // The document is hand-editable, so an unknown stored value must show as
       // the choice actually in effect rather than as nothing selected.
       font: resolveFontChoice(value?.font, 'body'),
       codeFont: resolveFontChoice(value?.codeFont, 'code'),
+      motion: resolveMotionChoice(value?.motion),
       cache: this.cache,
     }
   }

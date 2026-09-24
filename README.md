@@ -52,13 +52,26 @@ Downloads happen per shard, not as a whole package. A selected face's stylesheet
 
 ## The composer lane
 
-The strip directly above the message box carries a cyclist that crosses it from left to right and loops for as long as the page is open. Speed and wheel rotation follow how fast the model is writing right now: a fast stream sends it across quickly, a slow stream lets it cruise, and it keeps looping at that cruise while nothing is being produced.
+The strip directly above the message box carries a cyclist. It moves while the model is writing and rolls to a halt when it isn't: a fast stream sends it across quickly, a slow one lets it crawl, and once the output stops it keeps the speed it had and bleeds it off over eight seconds before coming to rest. It is a report of output, not a looping decoration.
 
 It is decoration, and it is deliberately quiet about it:
 
 - It reads nothing you type and sends nothing anywhere; the only thing it measures is how much assistant output has arrived.
-- There is no setting for it. Removing it means removing the plugin.
-- Screen readers skip it (`aria-hidden`), and a browser set to `prefers-reduced-motion: reduce` never gets it at all — that strip stays exactly as it was.
+- Screen readers skip it (`aria-hidden`).
+
+### Turning it on or off
+
+**设置 → 通用设置 → 输入框上方的动画**, the row directly under the two font rows:
+
+| Choice | What it does |
+|---|---|
+| **Follow the browser** (default) | Plays unless the browser asks for reduced motion, in which case the strip above the message box stays empty |
+| **Always play** | Plays even when the browser asks for reduced motion |
+| **Off** | Never appears |
+
+The row's status line says *why* the strip is empty. If it reads that your browser reports `prefers-reduced-motion: reduce`, that is the whole explanation — and **Always play** is the way past it.
+
+The lane is live in the settings document the moment you pick, but the **Host needs a restart** to know about the field at all: until then the row says the Host is running an older build of the plugin. That is the same one-time restart every new setting in this plugin needs.
 
 ## Notes and caveats
 
@@ -68,7 +81,8 @@ It is decoration, and it is deliberately quiet about it:
 - **A missing font never breaks the interface.** Text renders first with the fallback font and swaps in when the shard arrives; if the download fails for good, the fallback simply stays.
 - **Two places ignore the font tokens** because they hardcode their own font: the integrated terminal (an xterm constructor argument, not CSS) and a hardcoded `Inter` prefix in the queue panel's stylesheet.
 - **The mirror list and cache directory are host-start configuration**, not live settings — changing them requires restarting the host.
-- **The composer lane is decoration, not a read-out.** It has no number and no toggle, and its speed is an approximation of output speed, not the same figure as the `tok/s` in the status bar: while a step is still streaming the provider has reported no token count, so the lane measures characters instead.
+- **The composer lane is decoration, not a read-out.** It has no number, and its speed is an approximation of output speed rather than the `tok/s` in the status bar: while a step is still streaming the provider has reported no token count, so the lane measures characters instead.
+- **A new setting needs one Host restart.** The browser half picks up a new build on reload, but the Host loads its settings schema once per process — so a row for a newly added field is disabled until dsh restarts.
 - **Fonts are not covered by this plugin's license.** Each font keeps its own; see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 ## License

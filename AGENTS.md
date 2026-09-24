@@ -14,20 +14,22 @@
 ```
 src/
   params.ts               两半边共用的路由（字体前缀 + 缓存精确路由）与命名空间常量
-  fonts.ts                角色表（正文 / 代码）、两份字体表、字体栈、缓存用量类型
+  fonts.ts                角色表（正文 / 代码）、两份字体表、字体栈、缓存用量类型、命名空间值的类型
+  motion.ts               车道的动效选择（跟随浏览器 / 始终播放 / 关闭）与 prefers-reduced-motion 读取
   source.ts               镜像模板、带超时/体积上限/内容校验的下载
   store.ts                磁盘缓存（generation、原子写入、并发合并、过期清理、用量统计）
   serve.ts                两个 HTTP 面：字体文件应答（404/502）与缓存用量 JSON
-  settings.ts             Host：ui-beautify 命名空间（font / codeFont）与 mirrors/cacheDir 配置
+  settings.ts             Host：ui-beautify 命名空间（font / codeFont / motion）与 mirrors/cacheDir 配置
   index.ts                Host：认领两个路由
   client/
-    index.ts              Client：注册两行偏好项与 composer 车道 + 按角色应用所选字体
-    FontRows.tsx          偏好行组件（标题 / 描述 / 缓存状态 + 下拉选择），两个角色共用
-    FontRows.module.css
+    index.ts              Client：注册三行偏好项与 composer 车道 + 按角色应用所选字体
+    FontRows.tsx          字体偏好行组件（标题 / 描述 / 缓存状态 + 下拉选择），两个角色共用
+    MotionRow.tsx         车道那一行：三选一，并写出「为什么带子是空的」
+    SettingRow.module.css 三行共用的偏好行样式
     BikeLane.tsx          composer 卡片正上方的骑车小人：SVG 与逐帧驱动
     BikeLane.module.css
     output-rate.ts        输出速率（字符/秒）与「速率 → 车速」映射，纯函数
-    settings-controller.ts 设置命名空间、缓存用量 ↔ 行快照
+    settings-controller.ts 设置命名空间、缓存用量 ↔ 行快照，三行共用一份
     locales.ts            中英文案
 tests/
   smoke.mjs               路由、两份字体表、路径解析、配置默认值（离线）
@@ -222,22 +224,41 @@ composer 卡片正上方那条整宽插槽是 `conversation.input.dock`（ui-con
 
 **两个时钟必须分开**，这是动画平滑的全部原因：
 
-- React 只在字符数变化时重渲染，把新读数折进样本窗口——频率跟着 transcript 自己的发布节奏走，不是帧率。
-- `requestAnimationFrame` 独占位移与车轮角，直接写 `transform` 与 SVG 的 `transform`/`points` 属性，**不 setState**。所以流停下来它照样按帧循环，这正是「不断循环」这条要求的实现方式。
+- React 只在字符数变化时重渲染，把新读数折进样本窗口——频率跟着 transcript 自己的发布节奏走，不是帧率。画好的 SVG 用 `memo` 包住，否则每个分片都会让 React 重新协调那十个节点，而它们的属性其实都由帧循环独占。
+- `requestAnimationFrame` 独占位移与车轮角，直接写 `transform` 与 SVG 的 `transform`/`points` 属性，**不 setState**，并在这里自己对速度做缓动。输出一停它不是立刻不动，而是滑行 8 秒才停下（见下）。
 
 **车轮由位移驱动**（`角度 = 位移 / 轮半径`，滚动不打滑），不是第二条独立动画，因此不可能与地面脱节；曲柄再按 `GEAR_RATIO` 跟在车轮后面，腿随曲柄起落。
 
-`motionAllowed()` 在 `prefers-reduced-motion: reduce` 时**根本不注册这一条**：插槽回到原样，比渲染一辆停住的自行车更诚实，也省掉一个白跑的帧循环。
+`prefers-reduced-motion: reduce` 由**用户的选择**决定，不由环境强制：
 
-`src/client/output-rate.ts` 里的观感常量（巡航 0.06、冲刺上界 0.5 条车道/秒、半速点 220 字符/秒、窗口 900ms）是设计值，不是配置项。速率→车速的曲线**饱和而不是截断**：更快的输出永远还能再快一点，快速流不会和「稍快一点」看起来一模一样。窗口的分母跑到 `now` 而不是最后一个样本，所以流停下时会衰减回巡航，而不是冻结在最后一次读数上。
+| 存储值 | 行为 |
+|---|---|
+| `system`（默认）| 浏览器要求减少动效时不渲染、不启动帧循环 |
+| `always` | 无论浏览器怎么说都播放 |
+| `off` | 不渲染、不启动帧循环 |
 
-`BikeLane.module.css` 的 66×36px 与 `BikeLane.tsx` 的 `BIKE_WIDTH_PX` **必须一致**——轮半径由它推出，改一个不改另一个，车轮就会打滑。
+判断在 `BikeLane.tsx` 里做（`animate = choice === 'always' \|\| (choice === 'system' && !prefersReducedMotion())`），**不是** CSS 媒体查询：媒体查询看不见存储的选择，两者必须一起权衡。不播放时组件 `return null`，但**插槽条目照常注册**。
 
-## 设置与两个可配项
+曾经把判断放在 `apply()` 里、命中偏好就整条不注册——结果偏好打开时插件和坏掉长得一模一样，排查的人连一个节点都找不到，白烧了两轮定位。**环境开关不要挡在注册前面**：注册照常，行为只在组件里收窄；再给用户一个能覆盖它的开关，并在 `MotionRow` 的状态行里写出「为什么带子是空的」。
 
-选择行挂在 **设置 → 通用设置**（`settings.general.item`，order **11.5** 与 **11.6**）——即「外观」一组里**「字号大小」正下方**，「正文字体」在下、「代码字体」再下一行，两者都在工作过程展示上方。11.5/11.6 是因为整步会把它们挤出这一组；行 id 分别是 `ui-beautify` 与 `ui-beautify-code`。用的是 ui-settings-general 专门为「不需要独立页面的单个偏好」留的加性插槽，所以字体选择**不是独立页面**，侧边栏里也没有导航项。
+`src/client/output-rate.ts` 里的观感常量是设计值，不是配置项。**没有输出就没有位移**：`laneSpeed(0) === 0`，不会低速空转。曲线在半速点（220 字符/秒）以下近似线性、之上饱和，所以更快的输出永远还能再快一点，快速流不会和「稍快一点」看起来一模一样。
 
-选择写进**当前 profile 的配置文件** `$DSH_HOME/profiles/<profile>/cordis.patch.yml` 里 `ui-beautify` 行的 `config`（`font` / `codeFont` 两个字段），改完立即生效、无需重启。
+**四个细节都是为了动作连续，改之前先读它们的注释：**
+
+- `charsPerSecond` 的**分母是样本窗口自身的跨度，不是 `now`**。跑到 `now` 看着无害，其实每两次分片之间读数都在衰减、分片一到又猛跳——看起来就是一顿一顿的，正是要避免的卡顿。流是否停下的判断交给另一条规则：最新样本比窗口还旧就**精确返回 0**。
+- 还有输出时，帧循环对速度做**指数缓动**（`SPEED_EASE_SECONDS`，帧率无关的 `1 - exp(-dt/τ)`）。逐分片的读数是阶梯状的，不缓动就是跳到每个新值。
+- 输出停下后**不走这条缓动**：保持当时的速度，按 `COAST_SECONDS`（8 秒）**线性**减到 0。走缓动会在一秒内停住，那是急刹；滑行 8 秒才是「停下来」而不是「断掉」。
+- **位置按比例记，不按像素。** `MotionState.progress` 是行程的分数（0..1），像素 x 由它算出。按像素记时 `clientWidth` 每帧现读，车道**一变窄**（滚动条出现、侧栏折叠、卡片宽度变化）就会提前取模——车凭空跳回左边，看起来就是「重置」。行程比车道两端各多一个车宽，所以换行发生在画面外、看不见。
+
+`MotionState` 放在 `useRef` 里而不是 effect 闭包内：effect 一旦重跑（`animate` 翻转、子树重挂），闭包里的状态就归零，车会从起点重新出发。
+
+`BikeLane.module.css` 的 47×26px 与 `BikeLane.tsx` 的 `BIKE_WIDTH_PX` / `BIKE_HEIGHT_PX` **必须一致**——轮半径由它们推出，而且盒子的宽高比与画布并不完全相同，所以缩放取两者较小的那个比值，否则车轮会与地面打滑。
+
+## 设置与三个可配项
+
+选择行挂在 **设置 → 通用设置**（`settings.general.item`，order **11.5** / **11.6** / **11.7**）——即「外观」一组里**「字号大小」正下方**：「正文字体」、「代码字体」、「输入框上方的动画」，三者都在工作过程展示上方。11.5–11.7 是因为整步会把它们挤出这一组；行 id 分别是 `ui-beautify`、`ui-beautify-code`、`ui-beautify-motion`。用的是 ui-settings-general 专门为「不需要独立页面的单个偏好」留的加性插槽，所以这些选择**不是独立页面**，侧边栏里也没有导航项。三行共用 `MotionRow`/`FontRows` 与 `SettingRow.module.css`，也共用 `SettingsController` 的一份快照——同一个命名空间拆三次订阅只会得到三份会互相打架的视图。
+
+选择写进**当前 profile 的配置文件** `$DSH_HOME/profiles/<profile>/cordis.patch.yml` 里 `ui-beautify` 行的 `config`（`font` / `codeFont` / `motion` 三个字段），改完立即生效、无需重启。**`motion` 是 0.4.0 新增的字段**：升级后宿主仍跑着旧 schema 时，这一行会写「宿主仍在运行本插件的旧版本」并禁用——这是设计好的提示，重启 dsh 即可。
 
 > 更早的 DSH 版本把选择写在 `$DSH_HOME/settings.yaml`；该文件已被 DSH 迁移进 profile 的补丁文件并重命名为 `settings.yaml.imported`。现在手工改设置要改的是 profile 补丁。
 
@@ -257,7 +278,7 @@ composer 卡片正上方那条整宽插槽是 `conversation.input.dock`（ui-con
 
 `cacheDir` 留空时的解析顺序：`$DSH_HOME`（非空时）→ `~/.dsh`，再拼 `cache/ui-beautify/fonts`。插件自己展开 `~` / `~/` / `~\` 前缀，因为 `@deepseek-ai/dsh-home-paths` 是 harness 内部包，loader 从 profile 解析本插件的 import，那里没装它。填了值就 `resolve()` 成绝对路径，所以**相对路径按宿主进程的 cwd 解析**，不是 profile 目录。
 
-设置 schema 只做「读时校验」：`font` / `codeFont` 是 `z.string().volatile()`，未知 id 在读取处（`resolveFontChoice`）回落到该角色的默认值，而不是让整个命名空间回退到上一个好值；`mirrors` / `cacheDir` 有默认值但不是 volatile，不出现在设置页。
+设置 schema 只做「读时校验」：`font` / `codeFont` / `motion` 都是 `z.string().volatile()`，未知值在读取处（`resolveFontChoice` / `resolveMotionChoice`）回落到该项的默认值，而不是让整个命名空间回退到上一个好值；`mirrors` / `cacheDir` 有默认值但不是 volatile，不出现在设置页。
 
 ## 构建
 
@@ -285,7 +306,7 @@ npm run probe -- <包>  # 联网：评估一个候选 npm 包能不能当字体�
 - `tests/smoke.mjs`：mock ctx 调 `apply()`，断言路由注册、字体表完整性（id 字符集、包名版本、样式表路径）、路由解析与路径穿越防护、镜像模板拼接、缓存目录解析、设置 schema。
 - `tests/http.mjs`：**桩镜像**（`node:http`）+ 真实 `node:http` 服务器驱动插件 handler。断言响应头与字节、第二次请求走磁盘、并发冷请求只下载一次、三种失败应答（404 / 502 / 403）、镜像回退，最后**关掉桩镜像再请求一次**，证明缓存命中可离线工作。
 - `tests/client.mjs`：按浏览器加载器的姿势（`window.__ModuleLoader__.load`）加载**构建产物** `lib/client.js`，配一个假 ctx、DOM 桩与只记录调用的 React 桩驱动 `apply()` **并真的渲染那一行**，断言：注册进 `settings.general.item`（而非 `settings.section`）、order 11.5、每款字体链入的链接、系统默认时全部移除、`--dsw-font-family` 的重绑内容、下拉的分组与每项文案（`思源黑体 · 已缓存 4.3 MB`）、以及行内状态行由用量数据算出来。client 半边没有单元测试的其他覆盖，这条是「bundle 能不能加载、链接指向对不对、这一行显示什么」的唯一防线。
-  同一份桩还模拟了宿主 ref、commit 后 effect 与**可控时钟**，于是 composer 车道可以逐帧驱动：断言它注册进 `conversation.input.dock`、order 100、`aria-hidden`、空转时仍前进且车轮随位移转动、**输出越快走得越远且轮子转得越快**、step 结束后回落到巡航，以及 `prefers-reduced-motion` 时整条不注册。车轮角度的读取必须取模（`((to - from) % 360 + 360) % 360` 并只在单帧内测量）——绝对角度会绕圈，增量会因绕圈变成负数。
+  同一份桩还模拟了宿主 ref、commit 后 effect 与**可控时钟**，于是 composer 车道可以逐帧驱动：断言它注册进 `conversation.input.dock`、order 100、`aria-hidden`、**没有输出时位移与轮转都精确为 0**、有输出时前进并转轮、**输出停下后仍滑行 2 秒、8 秒后才完全停住**、以及**在车道上时从不跳回起点**（换行只允许发生在两端都基本在画面外的那一帧）；再加上三种动效选择的行为——`system` + 浏览器要求减少动效时不渲染也不申请帧、`always` 时照常播放并在动、`off` 时什么都不画。车道那一行也在这里渲染：三选一的选项、以及状态行写出「为什么带子是空的」。两个测量辅助函数把「没写过 transform」当成停住（0），而不是 `NaN`——停住的车道**什么都不写**，用 `NaN` 会让停住的断言全部假失败；`travelOf` / `turnOf` 读的是像素，所以「没跳回起点」要按**可见性**判断（换行那一帧两端都在画面外，DOM 上却是一次 800px 的跳跃）。车轮角度必须取模（`((to - from) % 360 + 360) % 360` 并只在单帧内测量）——绝对角度会绕圈，增量会因绕圈变成负数。
 - `tests/cdn.mjs`：对真实镜像逐个字体跑，除了 200 还检查两件容易踩的事——样式表里声明的 `font-family` 与表里写的一致，以及它**确实是 `unicode-range` 分片**而不是一个整字体文件。
 
 三个测试都从 `lib/index.mjs` / `lib/client.js` 读产物，所以改完源码先 `npm run build` 再测。
@@ -362,7 +383,7 @@ npx @deepseek-ai/dsh plugin --profile web remove @guowenzhang/dsh-ui-beautify   
 
 `lib/` 是提交进仓库的，所以**发版 = 改版本号 + 构建 + 提交产物 + 打 tag**。别人按 tag 安装，`master` 上的临时提交不会被他们拿到。
 
-1. 改根 `package.json` 的 `version`（当前 `0.3.0`）。
+1. 改根 `package.json` 的 `version`（当前 `0.4.0`）。
 2. `npm run build`，确认 `lib/index.mjs` 与 `lib/client.js` 是最新。
 3. 提交源码与 `lib/`（不要把 `lib/` 落在外面的工作区）。
 4. 打带注释的 tag 并推送：
@@ -512,8 +533,11 @@ Get-ChildItem "$env:USERPROFILE\.dsh\cache\ui-beautify\fonts" -Recurse -File | S
 10. 两个角色的 token 分两次 `overrideTokens` 调用 → 第二次替换第一次，前一个角色的字体失效。
 11. CSS module 里 JSX 引用但 CSS 未定义的类 → `undefined`，静默无样式。
 12. `tests/client.mjs` 里没有桩的 bare specifier → 构建产物加载即失败；client 半边新增 import 要同步那份桩表。
-13. `BikeLane.tsx` 的 `BIKE_WIDTH_PX` 与 `BikeLane.module.css` 的 66×36px 不一致 → 车轮按错误的半径换算，看起来在打滑。
+13. `BikeLane.tsx` 的 `BIKE_WIDTH_PX` / `BIKE_HEIGHT_PX` 与 `BikeLane.module.css` 的 47×26px 不一致 → 车轮按错误的半径换算，看起来在打滑。盒子宽高比与画布不同，缩放比取两者较小值。
 14. 用「两帧角度相减」量车轮转速 → 越过 360° 会得到负数；只能在单帧内取模测量（`tests/client.mjs` 就是这么做的）。
+15. 把 `charsPerSecond` 的分母改回 `now` → 分片之间减速、分片一到猛跳，动画立刻变成一顿一顿的（详见「骑车道」一节）。
+16. 把车道位置按**像素**记而不是按行程比例记 → 车道一变窄就提前取模，车凭空跳回左边，看起来像「重置」。
+17. 把动画状态放进 effect 闭包而不是 ref → effect 一重跑，车就从起点重新出发。
 
 ## 接下来可以加的
 
@@ -523,4 +547,5 @@ Get-ChildItem "$env:USERPROFILE\.dsh\cache\ui-beautify\fonts" -Recurse -File | S
 - **跟随系统字体**：把 `system` 从「不覆盖」扩展成「跟随一个可配置的字体栈」。
 - **字号阶梯、行高、圆角、间距**：同一套行机制继续加行即可。
 - **自定义主题配色**：`ctx.theme.register` 可注册整套 alias token。
-- **车道可配**：目前车道总是开启（除非系统要求减弱动效）。要让它成为可选项或可调速度，加一个 `z.boolean().volatile()` 设置字段即可——但那是 Host schema 的改动，改完必须重启宿主才认（见「生效语义」）。
+- **车道的外观**：车速曲线的常量在 `src/client/output-rate.ts`，尺寸常量在 `BikeLane.tsx`/`.module.css`（改尺寸要同时改两处）。想让它更小、更淡或换形象，只动这三处。
+- **车道可调速度**：加第二个 `z.number().volatile()` 字段做倍率即可，`SettingsController` 与 `MotionRow` 的写法可以照抄。

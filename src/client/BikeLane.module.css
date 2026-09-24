@@ -16,7 +16,7 @@
     var(--dsh-composer-dock-inset)
   );
   margin: 0 auto;
-  height: 36px;
+  height: 26px;
   overflow: hidden;
   color: var(--dsw-alias-label-tertiary);
   /* Decorative: it must never intercept a click meant for the composer. */
@@ -24,25 +24,26 @@
 }
 
 /* Positioned by the animation frame, which writes `transform` on this node.
-   Left at the lane's leading edge, one bike width clear of it. */
+   Parked at the lane's leading edge until output moves it. */
 .rider {
   position: absolute;
   top: 0;
   left: 0;
-  width: 66px;
-  height: 36px;
+  width: 47px;
+  height: 26px;
   will-change: transform;
 }
 
-/* Rendered size is mirrored by BIKE_WIDTH_PX in BikeLane.tsx, which derives the
-   wheel radius from it; changing one without the other makes the wheels slip. */
+/* Rendered size is mirrored by BIKE_WIDTH_PX / BIKE_HEIGHT_PX in BikeLane.tsx,
+   which derive the wheel radius from it; changing one without the other makes
+   the wheels slip against the ground. */
 .bike {
   display: block;
-  width: 66px;
-  height: 36px;
+  width: 47px;
+  height: 26px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 2;
+  stroke-width: 2.4;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -50,25 +51,25 @@
 /* Spokes are what makes a wheel read as turning, so the rim stays thin and the
    radial fill carries the stroke. */
 .wheel {
-  stroke-width: 1.5;
+  stroke-width: 1.8;
 }
 
 .frame {
-  stroke-width: 2.2;
+  stroke-width: 2.4;
 }
 
 /* The rider carries the heaviest stroke: at this size the figure has to read as
    a person above the frame, and equal weights turn the two into one smudge. */
 .riderBody {
-  stroke-width: 3;
+  stroke-width: 3.2;
 }
 
 .crank {
-  stroke-width: 1.4;
+  stroke-width: 1.6;
 }
 
 .leg {
-  stroke-width: 2.2;
+  stroke-width: 2.4;
 }
 
 /* The far leg is held back so the pedalling pair reads as depth rather than as

@@ -23,16 +23,16 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import {
   FONT_ROLES, SYSTEM_FONT_ID, type FontCacheUsage, type FontRole,
 } from '../fonts.ts'
-import type { FontRowFace, FontRowState } from './settings-controller.ts'
-import type { FontRowKey } from './locales.ts'
+import type { SettingsRowFace, SettingsRowState } from './settings-controller.ts'
+import type { SettingsKey } from './locales.ts'
 import { NS } from './locales.ts'
-import css from './FontRows.module.css'
+import css from './SettingRow.module.css'
 
-/** Full component props, shared by both rows. */
+/** Full component props, shared by both font rows. */
 export type FontRowProps =
   PropsRuntime<'settings.general.item'>
   & PropsLocale<typeof NS>
-  & InjectFace<FontRowFace>
+  & InjectFace<SettingsRowFace>
 
 /** The code row takes the same props; the name exists so both reads alike. */
 export type CodeFontRowProps = FontRowProps
@@ -42,7 +42,7 @@ export type CodeFontRowProps = FontRowProps
  * lives in the locale dictionary, so this table is the one place the two meet.
  * Ids are unique across roles, so one table serves both rows.
  */
-const CHOICE_COPY: Readonly<Record<string, { name: FontRowKey; desc: FontRowKey }>> = {
+const CHOICE_COPY: Readonly<Record<string, { name: SettingsKey; desc: SettingsKey }>> = {
   'noto-sans-sc': { name: 'fontNotoSansSc', desc: 'fontNotoSansScDesc' },
   'noto-serif-sc': { name: 'fontNotoSerifSc', desc: 'fontNotoSerifScDesc' },
   'lxgw-wenkai': { name: 'fontLxgwWenkai', desc: 'fontLxgwWenkaiDesc' },
@@ -69,19 +69,19 @@ const CHOICE_COPY: Readonly<Record<string, { name: FontRowKey; desc: FontRowKey 
  * different things to the two roles — "leave the interface font alone" against
  * "leave the built-in code stack alone" — so it cannot live in the table above.
  */
-const SYSTEM_COPY: Readonly<Record<FontRole, { name: FontRowKey; desc: FontRowKey }>> = {
+const SYSTEM_COPY: Readonly<Record<FontRole, { name: SettingsKey; desc: SettingsKey }>> = {
   body: { name: 'fontSystem', desc: 'fontSystemDesc' },
   code: { name: 'codeFontSystem', desc: 'codeFontSystemDesc' },
 }
 
 /** The row title each role shows. */
-const ROW_TITLE: Readonly<Record<FontRole, FontRowKey>> = { body: 'title', code: 'codeTitle' }
+const ROW_TITLE: Readonly<Record<FontRole, SettingsKey>> = { body: 'title', code: 'codeTitle' }
 
 /** This row's translate seat. */
 type Translate = FontRowProps['t']
 
 /** The copy for one choice, from the catalogue table or the system seat. */
-function copyFor(role: FontRole, id: string): { name: FontRowKey; desc: FontRowKey } | undefined {
+function copyFor(role: FontRole, id: string): { name: SettingsKey; desc: SettingsKey } | undefined {
   return id === SYSTEM_FONT_ID ? SYSTEM_COPY[role] : CHOICE_COPY[id]
 }
 
@@ -92,7 +92,7 @@ function copyFor(role: FontRole, id: string): { name: FontRowKey; desc: FontRowK
  * depart from; the catalogue then splits into the two writing systems a face
  * can cover.
  */
-function groupsFor(role: FontRole): readonly { label: FontRowKey; ids: readonly string[] }[] {
+function groupsFor(role: FontRole): readonly { label: SettingsKey; ids: readonly string[] }[] {
   const faces = FONT_ROLES[role].faces
   return [
     { label: 'groupSystem', ids: [SYSTEM_FONT_ID] },
@@ -102,7 +102,7 @@ function groupsFor(role: FontRole): readonly { label: FontRowKey; ids: readonly 
 }
 
 /** The unit a byte count is shown in, named by its dictionary key. */
-function byteSize(bytes: number): { value: string; unit: FontRowKey } {
+function byteSize(bytes: number): { value: string; unit: SettingsKey } {
   if (bytes >= 1024 ** 3) return { value: (bytes / 1024 ** 3).toFixed(1), unit: 'unitGb' }
   if (bytes >= 1024 ** 2) return { value: (bytes / 1024 ** 2).toFixed(1), unit: 'unitMb' }
   return { value: String(Math.max(1, Math.round(bytes / 1024))), unit: 'unitKb' }
@@ -154,10 +154,10 @@ function cacheDetail(t: Translate, usage: FontCacheUsage | undefined): string {
  * @returns the note that applies, the chosen face's reading, or nothing for the
  * system default, which downloads no face to report on.
  */
-function detailLine(t: Translate, role: FontRole, state: FontRowState): string {
+function detailLine(t: Translate, role: FontRole, state: SettingsRowState): string {
   if (!state.available) return t('unavailable')
   if (!state.writable) return t('readonly')
-  if (!state.fields[role]) return t('stale')
+  if (!state.fields[FONT_ROLES[role].key]) return t('stale')
   const choice = state[FONT_ROLES[role].key]
   if (choice === SYSTEM_FONT_ID) return ''
   return cacheDetail(t, state.cache[choice])
@@ -171,7 +171,7 @@ function detailLine(t: Translate, role: FontRole, state: FontRowState): string {
  * @param state - the snapshot this row renders.
  * @returns the menu entries.
  */
-function menuEntries(t: Translate, role: FontRole, state: FontRowState): MenuEntry[] {
+function menuEntries(t: Translate, role: FontRole, state: SettingsRowState): MenuEntry[] {
   const entries: MenuEntry[] = []
   for (const { label, ids } of groupsFor(role)) {
     entries.push({ type: 'label', id: `group-${role}-${label}`, text: t(label) })
@@ -195,8 +195,8 @@ function menuEntries(t: Translate, role: FontRole, state: FontRowState): MenuEnt
  * @returns the row body.
  */
 function FontPicker({ role, ...props }: FontRowProps & { role: FontRole }): ReactNode {
-  const { useFontSettings, t, choose, refreshCache } = props
-  const state = useFontSettings(snapshot => snapshot)
+  const { useBeautify, t, choose, refreshCache } = props
+  const state = useBeautify(snapshot => snapshot)
   const [open, setOpen] = useState(false)
   const choice = state[FONT_ROLES[role].key]
   const selected = copyFor(role, choice)
@@ -219,7 +219,7 @@ function FontPicker({ role, ...props }: FontRowProps & { role: FontRole }): Reac
         selectedId={choice}
         onSelect={(id) => {
           setOpen(false)
-          choose(id)
+          choose(FONT_ROLES[role].key, id)
         }}
         align="end"
         portal
@@ -229,7 +229,7 @@ function FontPicker({ role, ...props }: FontRowProps & { role: FontRole }): Reac
             className={css.selector}
             aria-haspopup="menu"
             aria-expanded={open}
-            disabled={!state.available || !state.writable || !state.fields[role]}
+            disabled={!state.available || !state.writable || !state.fields[FONT_ROLES[role].key]}
             onClick={() => { setOpen(previous => !previous) }}
           >
             {selected === undefined ? t(ROW_TITLE[role]) : t(selected.name)}

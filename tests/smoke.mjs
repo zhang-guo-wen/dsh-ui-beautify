@@ -6,9 +6,9 @@
 import { existsSync } from 'node:fs'
 import {
   apply, faceById, fontRouteFor, fontStack, mirrorUrl, resolveCacheDir, resolveFontChoice,
-  CACHE_ROUTE, CODE_FACES, CODE_FONT_CHOICES, Config, DEFAULT_CODE_FONT_ID, DEFAULT_FONT_ID,
-  DEFAULT_MIRRORS, FACE_ID_PATTERN, FONT_CHOICES, FONT_FACES, FONT_ROLES, FONTS_ROUTE,
-  FONT_SETTINGS_NS, SYSTEM_FONT_ID,
+  resolveMotionChoice, CACHE_ROUTE, CODE_FACES, CODE_FONT_CHOICES, Config, DEFAULT_CODE_FONT_ID,
+  DEFAULT_FONT_ID, DEFAULT_MIRRORS, DEFAULT_MOTION_CHOICE, FACE_ID_PATTERN, FONT_CHOICES,
+  FONT_FACES, FONT_ROLES, FONTS_ROUTE, FONT_SETTINGS_NS, MOTION_CHOICE_IDS, SYSTEM_FONT_ID,
 } from '../lib/index.mjs'
 
 const failures = []
@@ -184,8 +184,10 @@ console.log('settings schema')
 check('the namespace is the loader row id', FONT_SETTINGS_NS === 'ui-beautify', FONT_SETTINGS_NS)
 check('declares the body field live', Config.dict.font.meta.volatile === true)
 check('declares the code field live', Config.dict.codeFont.meta.volatile === true)
+check('declares the motion field live', Config.dict.motion.meta.volatile === true)
 check('defaults to the default body face', Config({}).font.get() === DEFAULT_FONT_ID, String(Config({}).font.get()))
 check('defaults the code face to the built-in stack', Config({}).codeFont.get() === DEFAULT_CODE_FONT_ID, String(Config({}).codeFont.get()))
+check('defaults the lane to following the browser', Config({}).motion.get() === DEFAULT_MOTION_CHOICE, String(Config({}).motion.get()))
 check('defaults the mirrors to the built-in registries', Config({}).mirrors.join(',') === DEFAULT_MIRRORS.join(','))
 check('defaults the cache directory to the harness home', Config({}).cacheDir === '', String(Config({}).cacheDir))
 check(
@@ -194,9 +196,19 @@ check(
   String(Config({ font: 'anything' }).font.get()),
 )
 check(
-  'keeps the two choices independent',
-  Config({ font: 'geist', codeFont: 'fira-code' }).font.get() === 'geist'
-    && Config({ font: 'geist', codeFont: 'fira-code' }).codeFont.get() === 'fira-code',
+  'keeps the three choices independent',
+  Config({ font: 'geist', codeFont: 'fira-code', motion: 'always' }).font.get() === 'geist'
+    && Config({ font: 'geist', codeFont: 'fira-code', motion: 'always' }).codeFont.get() === 'fira-code'
+    && Config({ font: 'geist', codeFont: 'fira-code', motion: 'always' }).motion.get() === 'always',
+)
+
+console.log('the lane motion choice')
+check('offers the three answers in order', MOTION_CHOICE_IDS.join(',') === 'system,always,off', MOTION_CHOICE_IDS.join(','))
+check('an unknown value resolves to the default', resolveMotionChoice('nope') === DEFAULT_MOTION_CHOICE)
+check('an undefined value resolves to the default', resolveMotionChoice(undefined) === DEFAULT_MOTION_CHOICE)
+check(
+  'every offered answer resolves to itself',
+  MOTION_CHOICE_IDS.every(choice => resolveMotionChoice(choice) === choice),
 )
 
 if (failures.length > 0) {

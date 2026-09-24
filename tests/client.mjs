@@ -59,6 +59,13 @@ const stores = []
 const elements = []
 /** Lane width the frame loop measures; the real value comes from layout. */
 const LANE_WIDTH = 800
+/**
+ * Rendered width of the cyclist, mirroring `BIKE_WIDTH_PX` in BikeLane.tsx.
+ *
+ * The traverse is this much longer than the lane at each end, so the tests that
+ * reason about where the figure is on screen need the same number.
+ */
+const BIKE_WIDTH = 47
 /** Host-node stand-in: enough for the frame loop to write to and be read back. */
 const makeNode = tag => ({
   tag,
@@ -89,6 +96,9 @@ const depsMoved = (previous, next) => previous === undefined || next === undefin
   || previous.length !== next.length
   || previous.some((dep, at) => !Object.is(dep, next[at]))
 const reactStub = {
+  // Memoization is a render-count optimization, which this recorder does not
+  // model; identity keeps the memoized component callable like any other.
+  memo: component => component,
   useEffect: (effect, deps) => {
     const at = cursor++
     if (!depsMoved(hooks[at], deps)) return
@@ -215,6 +225,7 @@ const makeCtx = (into) => ({
 plugin.apply(makeCtx(registrations))
 const bodyRow = registrations.find(entry => entry.definition.id === 'ui-beautify')
 const codeRow = registrations.find(entry => entry.definition.id === 'ui-beautify-code')
+const motionRow = registrations.find(entry => entry.definition.id === 'ui-beautify-motion')
 const laneEntry = registrations.find(entry => entry.definition.id === 'ui-beautify-lane')
 const links = () => head.filter(element => element.rel === 'stylesheet')
 const hrefs = () => links().map(link => link.href)
@@ -226,8 +237,8 @@ const snapshot = () => stores.at(-1)?.get()
 const settle = () => new Promise(resolve => { setTimeout(resolve, 10) })
 
 check(
-  'registers two General-settings rows and the composer lane',
-  registrations.filter(entry => entry.definition.name === 'settings.general.item').length === 2
+  'registers three General-settings rows and the composer lane',
+  registrations.filter(entry => entry.definition.name === 'settings.general.item').length === 3
     && laneEntry !== undefined,
   String(registrations.length),
 )
@@ -243,7 +254,17 @@ check(
     && codeRow.definition.order === 11.6,
   JSON.stringify(codeRow?.definition),
 )
-check('each row renders a component', typeof bodyRow?.component === 'function' && typeof codeRow?.component === 'function')
+check(
+  'the lane row sits directly under those, in the same appearance group',
+  motionRow?.definition.name === 'settings.general.item'
+    && motionRow.definition.order === 11.7
+    && motionRow.definition.locale === 'settings.uiBeautify',
+  JSON.stringify(motionRow?.definition),
+)
+check(
+  'every row renders a component',
+  [bodyRow, codeRow, motionRow].every(row => typeof row?.component === 'function'),
+)
 
 const multiSheet = FONT_FACES.find(face => face.source.sheets.length > 1)
 check('the catalogue has a multi-sheet face to exercise', multiSheet !== undefined)
@@ -335,7 +356,7 @@ const t = (key, params) => params === undefined ? key : `${key}(${JSON.stringify
 const render = (entry) => {
   mount(`row-${entry.definition.id}`, entry.component, {
     t,
-    useFontSettings: selector => selector(snapshot()),
+    useBeautify: selector => selector(snapshot()),
     choose: () => {},
     refreshCache: () => {},
   })
@@ -444,10 +465,21 @@ const advance = (milliseconds, frames = 1) => {
     callback?.(clock.time)
   }
 }
-/** Lane-relative x the frame loop last wrote, in pixels. */
-const travelOf = node => Number(/translate3d\((-?[\d.]+)px/.exec(node.style.transform ?? '')?.[1] ?? Number.NaN)
-/** Wheel angle the frame loop last wrote, in degrees. */
-const turnOf = node => Number(/rotate\(([-\d.]+)/.exec(node.attributes.transform ?? '')?.[1] ?? Number.NaN)
+/**
+ * Lane-relative x the frame loop last wrote, in pixels.
+ *
+ * A stopped lane writes nothing at all, so an unwritten transform means the
+ * figure is still parked at the lane's leading edge — x 0, not "unknown".
+ */
+const travelOf = (node) => {
+  const written = /translate3d\((-?[\d.]+)px/.exec(node.style.transform ?? '')
+  return written === null ? 0 : Number(written[1])
+}
+/** Wheel angle the frame loop last wrote, in degrees; 0 while it writes none. */
+const turnOf = (node) => {
+  const written = /rotate\(([-\d.]+)/.exec(node.attributes.transform ?? '')
+  return written === null ? 0 : Number(written[1])
+}
 
 // An assistant step in flight: one text block growing as streamed chunks land.
 const step = { text: '' }
@@ -486,14 +518,25 @@ const turnedPerFrame = (wheel) => {
 const streamInto = (key, chunks) => {
   for (let chunk = 0; chunk < chunks; chunk += 1) {
     step.text += 'x'.repeat(60)
-    mount(key, laneEntry.component, { useChat: chatWith })
+    mount(key, laneEntry.component, laneProps())
     advance(16)
   }
 }
 
+/**
+ * Props for one lane render: the live Chat snapshot plus the shared settings
+ * snapshot the lane reads its motion answer from.
+ */
+function laneProps() {
+  return { useChat: chatWith, useBeautify: selector => selector(snapshot()) }
+}
+
+// The stored answer is what decides, so the lane runs under `always` here and
+// the browser preference is left out of it until the last section.
+setStored({ motion: 'always' })
 clock.time = 0
 step.text = ''
-mount('lane', laneEntry.component, { useChat: chatWith })
+mount('lane', laneEntry.component, laneProps())
 check('draws one lane', byClass('lane').length === 1)
 check('that assistive technology is told to skip', byClass('lane')[0]?.props['aria-hidden'] === 'true')
 check(
@@ -505,56 +548,138 @@ const idleRider = byClass('rider')[0].props.ref.current
 const idleWheel = byClass('wheel')[0].props.ref.current
 const idleTravel = travelled(idleRider, 8)
 const idleTurn = turnedPerFrame(idleWheel)
-check('loops even with nothing streaming', idleTravel > 0, String(idleTravel))
-check('rolling its wheels by the ground it covers', idleTurn > 0, String(idleTurn))
+check('stands still with nothing streaming', idleTravel === 0, String(idleTravel))
+check('with its wheels stopped', idleTurn === 0, String(idleTurn))
 check(
-  'and keeping both wheels on the lane',
+  'and both wheels on the lane',
   byClass('wheel').every(wheel => Number.isFinite(turnOf(wheel.props.ref.current))),
 )
 
-// The same frames against a stream have to cover more ground and spin the
-// wheels faster — that mapping is the whole point of reading the output rate.
+// The same frames against a stream have to cover ground and spin the wheels —
+// that mapping is the whole point of reading the output rate.
 clock.time = 0
 step.text = ''
-mount('sprint', laneEntry.component, { useChat: chatWith })
+mount('sprint', laneEntry.component, laneProps())
 const sprintRider = byClass('rider')[0].props.ref.current
 const sprintWheel = byClass('wheel')[0].props.ref.current
 streamInto('sprint', 12)
 const sprintTravel = travelled(sprintRider, 8)
 const sprintTurn = turnedPerFrame(sprintWheel)
-check('faster output covers more ground', sprintTravel > idleTravel * 2, `${sprintTravel} vs ${idleTravel}`)
-check('and spins the wheels faster', sprintTurn > idleTurn * 2, `${sprintTurn} vs ${idleTurn}`)
+check('a stream sets it moving', sprintTravel > 0, String(sprintTravel))
+check('and turns the wheels', sprintTurn > 0, String(sprintTurn))
 
-// A closed step takes the in-flight accumulator with it; the lane has to fall
-// back to its cruise rather than read the drop as negative speed.
+// A closed step takes the in-flight accumulator with it. The figure keeps the
+// speed it was carrying and bleeds it off over eight seconds, so it is still
+// rolling well after the writing stopped and only then comes to rest.
 clock.time = 0
 step.text = ''
-mount('settled', laneEntry.component, { useChat: chatWith })
+mount('settled', laneEntry.component, laneProps())
 const settledRider = byClass('rider')[0].props.ref.current
+const settledWheel = byClass('wheel')[0].props.ref.current
 streamInto('settled', 12)
 step.text = ''
-mount('settled', laneEntry.component, { useChat: chatWith })
-const settledTravel = travelled(settledRider, 8)
+mount('settled', laneEntry.component, laneProps())
+// 2s of no output: still coasting, over a distance a stopped figure cannot cover.
+const coasting = travelled(settledRider, 120)
+check('keeps rolling after the writing stops', coasting > 0, String(coasting))
+// Past the roll-out it is at rest, with the wheels stopped too.
+advance(16, 400)
 check(
-  'a closed step settles back to the cruise',
-  settledTravel > 0 && settledTravel < idleTravel * 1.5,
-  `${settledTravel} vs ${idleTravel}`,
+  'and comes to rest once the roll-out is spent',
+  travelled(settledRider, 8) === 0 && turnedPerFrame(settledWheel) === 0,
+  String(travelled(settledRider, 8)),
+)
+
+// A long ride must not jump back to the start while the figure is on the lane.
+// The traverse is a bike width longer than the lane at each end, so the wrap
+// happens with the figure outside both edges; a large move is only legitimate
+// when neither end of it shows most of the figure, which is what this measures.
+clock.time = 0
+step.text = ''
+mount('ride', laneEntry.component, laneProps())
+const rideRider = byClass('rider')[0].props.ref.current
+streamInto('ride', 6)
+const xs = []
+for (let frame = 0; frame < 400; frame += 1) {
+  if (frame % 4 === 0) {
+    step.text += 'x'.repeat(60)
+    mount('ride', laneEntry.component, laneProps())
+  }
+  advance(16)
+  xs.push(travelOf(rideRider))
+}
+/** Whether at least half of a figure whose left edge is at `x` is inside the lane. */
+const mostlyOnLane = x => x > -BIKE_WIDTH / 2 && x < LANE_WIDTH - BIKE_WIDTH / 2
+const biggestVisibleStep = Math.max(...xs.map((x, at) => {
+  if (at === 0) return 0
+  const from = xs[at - 1]
+  return mostlyOnLane(from) && mostlyOnLane(x) ? Math.abs(x - from) : 0
+}))
+check(
+  'never jumps back to the start while it is on the lane',
+  biggestVisibleStep < 20,
+  `largest on-lane move ${biggestVisibleStep.toFixed(1)}px`,
+)
+check(
+  'and completes the traverse',
+  Math.max(...xs) > LANE_WIDTH - BIKE_WIDTH && Math.min(...xs) < 0,
+  `${Math.min(...xs).toFixed(0)}..${Math.max(...xs).toFixed(0)}`,
+)
+
+console.log('the lane row owns the answer')
+reducedMotion = true
+setStored({ motion: 'system' })
+const laneRow = render(motionRow)
+check('the row names itself', laneRow.titles[0] === 'motionTitle', String(laneRow.titles[0]))
+check(
+  'offering all three answers',
+  laneRow.menu?.props.items.map(item => item.id).join(',') === 'system,always,off',
+  String(laneRow.menu?.props.items.length),
+)
+check(
+  'naming the reason the strip is empty',
+  laneRow.metas[0] === 'motionBlocked',
+  String(laneRow.metas[0]),
+)
+reducedMotion = false
+setStored({ motion: 'off' })
+check(
+  'and saying so when it is switched off here',
+  render(motionRow).metas[0] === 'motionOffNote',
+  String(render(motionRow).metas[0]),
 )
 
 console.log('a browser asking for no motion')
+// The default follows the browser: nothing renders and no frame is requested.
+setStored({ motion: 'system' })
 reducedMotion = true
-const quiet = []
-plugin.apply(makeCtx(quiet))
+clock.frame = null
+mount('quiet', laneEntry.component, laneProps())
+check('follows the browser by default and draws nothing', byClass('lane').length === 0, String(byClass('lane').length))
+check('without asking for a frame', clock.frame === null, String(clock.frame))
 check(
-  'leaves the strip empty',
-  quiet.every(entry => entry.definition.id !== 'ui-beautify-lane'),
-  JSON.stringify(quiet.map(entry => entry.definition.id)),
+  'while the entry itself is still registered, so the cause is discoverable',
+  registrations.some(entry => entry.definition.id === 'ui-beautify-lane'),
 )
+
+// The stored answer is the only thing that overrules it.
+setStored({ motion: 'always' })
+step.text = ''
+mount('override', laneEntry.component, laneProps())
 check(
-  'while still registering both font rows',
-  quiet.filter(entry => entry.definition.name === 'settings.general.item').length === 2,
-  String(quiet.length),
+  'and plays anyway once the user says so',
+  byClass('lane').length === 1 && clock.frame !== null,
+  `${byClass('lane').length}/${String(clock.frame)}`,
 )
+const overrideRider = byClass('rider')[0].props.ref.current
+streamInto('override', 12)
+check('actually moving', travelled(overrideRider, 4) > 0)
+
+setStored({ motion: 'off' })
+reducedMotion = false
+clock.frame = null
+mount('off', laneEntry.component, laneProps())
+check('switched off here draws nothing either', byClass('lane').length === 0 && clock.frame === null)
 
 for (const dispose of disposers) dispose()
 

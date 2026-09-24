@@ -32,17 +32,19 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import {
-  faceById, fontStack, resolveFontChoice, FONT_ROLES, type FontRole, type FontSettings,
+  faceById, fontStack, resolveFontChoice, FONT_ROLES, type BeautifySettings, type FontRole,
 } from '../fonts.ts'
 import { FONTS_ROUTE, FONT_SETTINGS_NS } from '../params.ts'
-import { BikeLane, motionAllowed } from './BikeLane.tsx'
+import { BikeLane } from './BikeLane.tsx'
 import { CodeFontRow, FontRow } from './FontRows.tsx'
-import { en, NS, zh, type FontRowKey } from './locales.ts'
-import { FontController } from './settings-controller.ts'
+import { en, NS, zh, type SettingsKey } from './locales.ts'
+import { MotionRow } from './MotionRow.tsx'
+import { SettingsController } from './settings-controller.ts'
 
 export type { BikeLaneProps } from './BikeLane.tsx'
 export type { CodeFontRowProps, FontRowProps } from './FontRows.tsx'
-export type { FontRowFace, FontRowState } from './settings-controller.ts'
+export type { MotionRowProps } from './MotionRow.tsx'
+export type { SettingsRowFace, SettingsRowState } from './settings-controller.ts'
 export { NS } from './locales.ts'
 
 /** Identity of this plugin's stylesheet links and its theme override layer. */
@@ -54,15 +56,19 @@ const ROLE_ORDER: readonly FontRole[] = ['body', 'code']
 /**
  * Row positions in the General section.
  *
- * `11.5` and `11.6` place both inside the appearance group: directly under the
- * interface font size (11), above the transcript row (12). Whole steps there
- * would push them past the end of that group, and the two belong next to each
- * other because they are the same kind of choice.
+ * `11.5` to `11.7` place all three inside the appearance group: directly under
+ * the interface font size (11), above the transcript row (12). Whole steps there
+ * would push them past the end of that group, and they belong next to each other
+ * because they are the same kind of choice.
  */
 const ROW_ORDER: Readonly<Record<FontRole, number>> = { body: 11.5, code: 11.6 }
 
 /** The row id each role registers under. */
 const ROW_ID: Readonly<Record<FontRole, string>> = { body: 'ui-beautify', code: 'ui-beautify-code' }
+
+/** The lane's settings row, directly under the two font rows. */
+const MOTION_ROW_ID = 'ui-beautify-motion'
+const MOTION_ROW_ORDER = 11.7
 
 /**
  * The lane's cell in the composer dock, and where it sits among the entries
@@ -77,7 +83,7 @@ const LANE_ORDER = 100
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
     /** This plugin's settings rows copy. */
-    'settings.uiBeautify': FontRowKey
+    'settings.uiBeautify': SettingsKey
   }
 }
 
@@ -89,14 +95,14 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export const inject = ['theme', 'slots', 'locale', 'configForms']
 
 /**
- * Client plugin body: register one preference row per role, keep the document in
- * sync with the stored choices, and put the lane in the composer dock.
+ * Client plugin body: register the preference rows, keep the document in sync
+ * with the stored choices, and put the lane in the composer dock.
  * @param ctx - client cordis context.
  */
 export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-beautify: dictionaries')
-  const scope = ctx.configForms.get<FontSettings>(FONT_SETTINGS_NS)
-  const controller = new FontController(scope)
+  const scope = ctx.configForms.get<BeautifySettings>(FONT_SETTINGS_NS)
+  const controller = new SettingsController(scope)
   ctx.effect(() => () => { controller.dispose() }, 'ui-beautify: settings form')
 
   ctx.effect(() => applyFonts(ctx, scope), 'ui-beautify: fonts')
@@ -107,17 +113,27 @@ export function apply(ctx: Context): void {
       id: ROW_ID[role],
       order: ROW_ORDER[role],
       locale: NS,
-      inject: () => controller.inject(role),
+      inject: () => controller.inject(),
     }, role === 'body' ? FontRow : CodeFontRow))
   }
 
-  if (motionAllowed()) {
-    ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
-      name: 'conversation.input.dock',
-      id: LANE_ID,
-      order: LANE_ORDER,
-    }, BikeLane))
-  }
+  ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+    name: 'settings.general.item',
+    id: MOTION_ROW_ID,
+    order: MOTION_ROW_ORDER,
+    locale: NS,
+    inject: () => controller.inject(),
+  }, MotionRow))
+
+  // Registered unconditionally, and given the stored answer rather than the
+  // browser's: a lane the user switched off is a lane they can switch back on,
+  // while a lane that never registered is indistinguishable from a broken one.
+  ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+    name: 'conversation.input.dock',
+    id: LANE_ID,
+    order: LANE_ORDER,
+    inject: () => controller.inject(),
+  }, BikeLane))
 }
 
 /**
@@ -138,7 +154,7 @@ export function apply(ctx: Context): void {
  * @param scope - the `ui-beautify` configuration form holding the choices.
  * @returns disposer removing the links, the overrides, and the subscription.
  */
-function applyFonts(ctx: Context, scope: ConfigForm<FontSettings>): () => void {
+function applyFonts(ctx: Context, scope: ConfigForm<BeautifySettings>): () => void {
   let applied: Record<FontRole, string> | undefined
   let releaseTokens: (() => void) | undefined
   let links: HTMLLinkElement[] = []

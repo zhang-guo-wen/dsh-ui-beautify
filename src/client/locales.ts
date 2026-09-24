@@ -1,14 +1,14 @@
 /**
- * Locale-owned copy for the body-font row in General settings.
+ * Locale-owned copy for this plugin's General-settings rows.
  *
- * Product-visible text lives here and reaches the component through the `t`
- * seat; the component itself carries no fallback strings. One name and one
+ * Product-visible text lives here and reaches the components through the `t`
+ * seat; the components themselves carry no fallback strings. One name and one
  * description per catalogue row, so adding a face means adding two keys here.
  *
  * @module @guowenzhang/dsh-ui-beautify/client/locales
  */
 
-/** Dictionary namespace owning this row's copy. */
+/** Dictionary namespace owning these rows' copy. */
 export const NS = 'settings.uiBeautify'
 
 /** English copy. */
@@ -70,6 +70,15 @@ export const en = {
   unavailable: 'The Host settings service is unavailable, so this choice cannot be saved.',
   readonly: 'The settings document is read-only, so this choice cannot be saved.',
   stale: 'The Host is still running an older build of this plugin, whose schema has no field for this row. Restart dsh, then reload this page.',
+  motionTitle: 'Composer lane',
+  motionSystem: 'Follow the browser',
+  motionSystemDesc: 'The lane plays unless the browser asks for reduced motion, in which case the strip above the message box stays empty.',
+  motionAlways: 'Always play',
+  motionAlwaysDesc: 'The lane plays even when the browser asks for reduced motion. Pick this if your browser reports that preference but you still want the animation.',
+  motionOff: 'Off',
+  motionOffDesc: 'The lane never appears and the strip above the message box stays empty.',
+  motionOffNote: 'Switched off here, so the lane is not shown.',
+  motionBlocked: 'Your browser reports prefers-reduced-motion: reduce, which is why the strip is empty. Pick “Always play” to override it.',
 }
 
 /** Chinese copy. */
@@ -131,7 +140,16 @@ export const zh: typeof en = {
   unavailable: '宿主设置服务不可用，该选择无法保存。',
   readonly: '设置文档为只读，该选择无法保存。',
   stale: '宿主仍在运行本插件的旧版本，它的配置里没有这一行对应的字段。重启 dsh 后再刷新本页。',
+  motionTitle: '输入框上方的动画',
+  motionSystem: '跟随浏览器',
+  motionSystemDesc: '默认播放；浏览器要求减少动效时不播放，输入框上方那条带子保持空白。',
+  motionAlways: '始终播放',
+  motionAlwaysDesc: '即使浏览器要求减少动效也照常播放。如果你的浏览器报告了这个偏好、但你就是想要这个动画，选它。',
+  motionOff: '关闭',
+  motionOffDesc: '完全不显示，输入框上方那条带子保持空白。',
+  motionOffNote: '已在这里关闭，因此不显示。',
+  motionBlocked: '你的浏览器报告 prefers-reduced-motion: reduce，这就是那条带子空白的原因。选「始终播放」即可无视它。',
 }
 
-/** Every key this row's copy may use. */
-export type FontRowKey = keyof typeof en
+/** Every key these rows' copy may use. */
+export type SettingsKey = keyof typeof en
