@@ -1,31 +1,46 @@
 /**
- * Serving the bundled font directory.
+ * The download route.
  *
- * The browser fetches the shards from the application origin, so this plugin
- * claims one `webServer` prefix instead of relying on any implicit asset
- * mapping. Every served path is resolved against the font root and rejected
- * unless it stays inside it, because the request path is untrusted input.
+ * The browser fetches a face's stylesheets and shards from the application
+ * origin, so this plugin claims one `webServer` prefix and resolves each path
+ * against the face catalogue. The route mirrors the npm package layout exactly,
+ * which is what the stylesheets assume: a path requested here is the path the
+ * package holds, so no CSS has to be rewritten on the way through.
+ *
+ * Request paths are untrusted input and the resolved file is written to disk,
+ * so a path outside the route, a path that names no face, and a path that would
+ * escape its own generation directory are three different answers rather than
+ * one lookup.
+ *
+ * @module @guowenzhang/dsh-ui-beautify/serve
  */
+
 import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
-import { extname, normalize, resolve, sep } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { extname } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { FACE_ID_PATTERN, faceById, type FontFace } from './fonts.ts'
 import { FONTS_ROUTE } from './params.ts'
+import { FontDownloadError } from './source.ts'
+import type { FontStore } from './store.ts'
 
-/** Absolute path of the font directory that ships beside this module. */
-const FONT_ROOT = resolve(fileURLToPath(new URL('../assets/fonts', import.meta.url)))
+/** Where one request under the font route points. */
+export type FontRoute =
+  | { kind: 'file'; face: FontFace; path: string }
+  | { kind: 'unknown-face'; id: string }
 
-/** Content types the font directory holds; anything else is served as bytes. */
+/** Content types the font packages hold; anything else is served as bytes. */
 const CONTENT_TYPES: Readonly<Record<string, string>> = {
   '.css': 'text/css; charset=utf-8',
   '.woff2': 'font/woff2',
 }
 
 /**
- * Cache policy per extension. The shard names are content-addressed by font
- * version, so a year is safe for them; the stylesheet keeps its name across
- * regenerations, so it must be revalidated or a font swap would stay invisible.
+ * Cache policy per extension.
+ *
+ * A shard's name carries the package version, so a year is safe for it. A
+ * stylesheet keeps its name across versions, and the pinned version can move
+ * under a running host, so the browser must revalidate it rather than keep it.
  */
 const CACHE_CONTROL: Readonly<Record<string, string>> = {
   '.css': 'no-cache',
@@ -33,30 +48,46 @@ const CACHE_CONTROL: Readonly<Record<string, string>> = {
 }
 
 /**
- * Resolve one request path to a file inside the font root.
+ * Resolve one request path to the face and package-relative file it names.
  * @param pathname - the decoded request pathname.
- * @returns the absolute file path, or undefined when it is outside this route.
+ * @returns the route, or undefined when the path is malformed or outside this route.
  */
-export function fontFileFor(pathname: string): string | undefined {
+export function fontRouteFor(pathname: string): FontRoute | undefined {
   if (!pathname.startsWith(`${FONTS_ROUTE}/`)) return undefined
-  const relative = pathname.slice(FONTS_ROUTE.length + 1)
-  if (relative === '') return undefined
   let decoded: string
   try {
-    decoded = decodeURIComponent(relative)
+    decoded = decodeURIComponent(pathname.slice(FONTS_ROUTE.length + 1))
   } catch {
     // A malformed percent sequence cannot name a file.
     return undefined
   }
-  // `normalize` collapses `..` before the containment check, so a traversal
-  // attempt either escapes the root and is rejected or resolves inside it.
-  const candidate = resolve(FONT_ROOT, normalize(decoded))
-  if (!candidate.startsWith(FONT_ROOT + sep)) return undefined
-  return candidate
+  const segments = decoded.split('/')
+  const id = segments.shift()
+  if (id === undefined || !FACE_ID_PATTERN.test(id)) return undefined
+  const path = segments.join('/')
+  if (!isServablePath(path)) return undefined
+  const face = faceById(id)
+  if (face === undefined) return { kind: 'unknown-face', id }
+  return { kind: 'file', face, path }
 }
 
 /**
- * Answer one request for a font file.
+ * Whether a package-relative path may be fetched and cached.
+ *
+ * Windows treats a backslash as a separator, so a path carrying one can climb
+ * out of the cache directory on that platform even though it looks inert here;
+ * it is refused as malformed rather than normalized.
+ * @param path - the path beneath the face id.
+ * @returns whether every segment is an ordinary name.
+ */
+function isServablePath(path: string): boolean {
+  if (path === '' || path.includes('\\') || path.includes('\0')) return false
+  if (path.startsWith('/')) return false
+  return path.split('/').every(segment => segment !== '' && segment !== '.' && segment !== '..')
+}
+
+/**
+ * Answer one request for a font file, downloading it when the cache is cold.
  *
  * A prefix route is consulted for everything under its path, including paths
  * whose `..` segments a client sent: URL parsing collapses those before this
@@ -64,12 +95,34 @@ export function fontFileFor(pathname: string): string | undefined {
  * Such a request is refused rather than answered with some other file.
  * @param req - the incoming request.
  * @param res - the response to own.
+ * @param store - the cache the file is read from or downloaded into.
  */
-export async function serveFontFile(req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function serveFontFile(
+  req: IncomingMessage,
+  res: ServerResponse,
+  store: FontStore,
+): Promise<void> {
   const pathname = new URL(req.url ?? '/', 'http://x').pathname
-  const file = fontFileFor(pathname)
-  if (file === undefined) {
+  const route = fontRouteFor(pathname)
+  if (route === undefined) {
     res.writeHead(403).end('forbidden')
+    return
+  }
+  if (route.kind === 'unknown-face') {
+    res.writeHead(404).end('not found')
+    return
+  }
+  let file: string
+  try {
+    file = await store.file(route.face, route.path)
+  } catch (error) {
+    if (error instanceof FontDownloadError && error.missing) {
+      res.writeHead(404).end('not found')
+      return
+    }
+    // Either no mirror answered or the answer could not be written to the
+    // cache. Both are retryable, so the response says so and is not cached.
+    res.writeHead(502, { 'cache-control': 'no-store' }).end('font source unavailable')
     return
   }
   let size: number

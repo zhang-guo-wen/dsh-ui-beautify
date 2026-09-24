@@ -11,8 +11,9 @@
  *    own sheet regardless of activation order.
  * 2. **The section** is the surface that writes that id.
  *
- * Only the chosen face's stylesheet is linked, so the browser never fetches the
- * shard layout of a face the user is not using.
+ * Only the chosen face's stylesheets are linked, so the browser never fetches
+ * the shard layout of a face the user is not using. The files behind them are
+ * downloaded by the Host on the first request and cached from then on.
  *
  * @module @guowenzhang/dsh-ui-beautify/client
  */
@@ -27,7 +28,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the ui-theme plugin's Context merge (ctx.theme).
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
-import { bundledFaceById, fontStack, resolveFontChoice, type FontSettings } from '../fonts.ts'
+import { faceById, fontStack, resolveFontChoice, type FontSettings } from '../fonts.ts'
 import { FONTS_ROUTE, FONT_SETTINGS_NS } from '../params.ts'
 import { FontSection } from './FontSection.tsx'
 import { en, NS, zh, type FontSectionKey } from './locales.ts'
@@ -80,7 +81,7 @@ export function apply(ctx: Context): void {
 /**
  * Point the document at the stored choice and keep it there.
  *
- * The stylesheet link and the token override are swapped together on every
+ * The stylesheet links and the token override are swapped together on every
  * committed change, so the document never references a family whose shards are
  * not being served. The system default applies neither: it drops both and lets
  * `--dsw-font-family` resolve to ui-theme's own declaration, which is the only
@@ -91,32 +92,42 @@ export function apply(ctx: Context): void {
  * durable value arrives.
  * @param ctx - client cordis context owning the effect.
  * @param scope - the `ui-beautify` configuration form holding the choice.
- * @returns disposer removing the link, the override, and the subscription.
+ * @returns disposer removing the links, the override, and the subscription.
  */
 function applyBodyFont(ctx: Context, scope: ConfigForm<FontSettings>): () => void {
-  const link = document.createElement('link')
-  link.rel = 'stylesheet'
-  link.dataset.plugin = PLUGIN_ID
-  document.head.appendChild(link)
-
   // The theme override layer is replaced wholesale on each change: the service
   // keeps one layer per source, so re-registering restacks rather than
   // accumulating, and the previous layer's disposer stops being meaningful.
   let applied: string | undefined
   let releaseTokens: (() => void) | undefined
+  let links: HTMLLinkElement[] = []
+
+  // Every change starts from nothing applied, so the system default needs no
+  // separate path: it simply stops before installing anything.
+  const detach = (): void => {
+    releaseTokens?.()
+    releaseTokens = undefined
+    for (const link of links) link.remove()
+    links = []
+  }
 
   const sync = (): void => {
     const choice = resolveFontChoice(scope.getSnapshot().value?.font)
     if (choice === applied) return
     applied = choice
-    // Every change starts from nothing applied, so the system default needs no
-    // separate path: it simply stops before installing anything.
-    releaseTokens?.()
-    releaseTokens = undefined
-    link.removeAttribute('href')
-    const face = bundledFaceById(choice)
+    detach()
+    const face = faceById(choice)
     if (face === undefined) return
-    link.href = `${FONTS_ROUTE}/${face.dir}/index.css`
+    // One link per sheet: a face may declare several weights, and each sheet
+    // carries its own `@font-face` rules and its own shard set.
+    links = face.source.sheets.map((sheet) => {
+      const link = document.createElement('link')
+      link.rel = 'stylesheet'
+      link.dataset.plugin = PLUGIN_ID
+      link.href = `${FONTS_ROUTE}/${face.id}/${sheet}`
+      document.head.appendChild(link)
+      return link
+    })
     // A font carries no colour scheme, so both modes take the same stack rather
     // than leaving one palette uncovered.
     releaseTokens = ctx.theme.overrideTokens(PLUGIN_ID, {
@@ -128,7 +139,6 @@ function applyBodyFont(ctx: Context, scope: ConfigForm<FontSettings>): () => voi
   const stop = scope.subscribe(sync)
   return () => {
     stop()
-    releaseTokens?.()
-    link.remove()
+    detach()
   }
 }

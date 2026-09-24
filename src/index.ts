@@ -1,12 +1,14 @@
 /**
  * @guowenzhang/dsh-ui-beautify — page beautification for the DSH Web GUI.
  *
- * The host half owns two things: the bundled font directories, and the settings
- * namespace that records which face the interface uses. The browser needs the
- * shards over the application origin, so this plugin claims a `webServer`
- * prefix; the client half links the chosen face's stylesheet, rebinds the body
- * font token, and renders the picker that writes the namespace. Nothing here is
- * model-facing.
+ * The host half owns one thing: the route the browser downloads font files
+ * from. No font ships in the package — a face is a `package@version` plus the
+ * package-relative stylesheets it declares, and the first request for a sheet
+ * or a shard fetches it from the configured mirrors into a local cache. The
+ * browser needs those bytes over the application origin, so this plugin claims
+ * a `webServer` prefix; the client half links the chosen face's stylesheets,
+ * rebinds the body font token, and renders the picker that writes the
+ * namespace. Nothing here is model-facing.
  * @module @guowenzhang/dsh-ui-beautify
  */
 import type { Context } from '@deepseek-ai/cordis'
@@ -15,6 +17,7 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import { FONTS_ROUTE } from './params.ts'
 import { serveFontFile } from './serve.ts'
 import { Config } from './settings.ts'
+import { FontStore, resolveCacheDir } from './store.ts'
 
 /** Loader row name for this plugin. */
 export const name = 'ui-beautify'
@@ -23,25 +26,40 @@ export const name = 'ui-beautify'
 export const inject = ['webServer']
 
 // Re-exported so the package's own tests can assert on the served route, the
-// choice table, and the namespace identity without reaching into internal module
-// paths. These are the only values published beyond the plugin surface.
+// catalogue, the cache layout, and the namespace identity without reaching into
+// internal module paths. These are the only values published beyond the plugin
+// surface.
 export { FONTS_ROUTE } from './params.ts'
 export {
-  BUNDLED_FACES, DEFAULT_FONT_ID, FONT_CHOICES, SYSTEM_FONT_ID,
-  bundledFaceById, fontStack, resolveFontChoice,
+  DEFAULT_FONT_ID, FACE_ID_PATTERN, FONT_CHOICES, FONT_FACES, SYSTEM_FONT_ID,
+  faceById, fontStack, resolveFontChoice,
 } from './fonts.ts'
-export { fontFileFor, serveFontFile } from './serve.ts'
+export type { FontFace, FontGroup, FontSource } from './fonts.ts'
+export { fontRouteFor, serveFontFile } from './serve.ts'
+export type { FontRoute } from './serve.ts'
 export { FONT_SETTINGS_NS } from './settings.ts'
+export { DEFAULT_MIRRORS, downloadFile, mirrorUrl } from './source.ts'
+export { FontStore, resolveCacheDir } from './store.ts'
 export { Config }
 
 /**
  * Host plugin body: claim the font directory's URL prefix. The chosen face
- * lives in this row's volatile Config, which the settings page edits directly.
+ * lives in this row's volatile Config, which the settings page edits directly;
+ * the mirrors and cache directory are read once here, at host start.
  * @param ctx - host cordis context.
+ * @param config - this row's parsed configuration.
  */
-export function apply(ctx: Context): void {
+export function apply(ctx: Context, config: Config): void {
+  const store = new FontStore({
+    cacheDir: resolveCacheDir(config.cacheDir),
+    mirrors: config.mirrors,
+  })
   ctx.effect(
-    () => ctx.webServer.register({ kind: 'prefix', path: FONTS_ROUTE, handler: serveFontFile }),
+    () => ctx.webServer.register({
+      kind: 'prefix',
+      path: FONTS_ROUTE,
+      handler: (req, res) => serveFontFile(req, res, store),
+    }),
     'ui-beautify: font assets',
   )
 }

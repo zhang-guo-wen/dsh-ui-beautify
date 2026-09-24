@@ -1,7 +1,7 @@
 {
   "name": "@guowenzhang/dsh-ui-beautify",
-  "description": "Page beautification for DeepSeek Harness: ship open-source CJK webfonts and let the Web GUI pick its body font",
-  "version": "0.1.1",
+  "description": "Page beautification for DeepSeek Harness: download open-source CJK webfonts on demand and let the Web GUI pick its body font",
+  "version": "0.2.0",
   "type": "module",
   "license": "Apache-2.0",
   "publishConfig": {
@@ -55,7 +55,6 @@
   "files": [
     "lib/index.mjs",
     "lib/client.js",
-    "assets/fonts",
     "cordis.patch.yml",
     "LICENSE",
     "NOTICE"
@@ -63,7 +62,8 @@
   "scripts": {
     "build": "tsdown -c tsdown.config.ts && node build-client.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node tests/smoke.mjs && node tests/http.mjs"
+    "test": "node tests/smoke.mjs && node tests/http.mjs && node tests/client.mjs",
+    "test:cdn": "node tests/cdn.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "*",

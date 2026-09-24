@@ -9,11 +9,13 @@ This product is a plugin for DeepSeek Harness
 (https://github.com/deepseek-ai/deepseek-harness). It links against DeepSeek
 Harness packages as peer dependencies; no DeepSeek Harness source is included.
 
-Bundled third-party web fonts under assets/fonts/ ship under their own
-licenses, kept beside each font:
+No font file is redistributed with this plugin. A face is a package name and a
+pinned version; the Host downloads its stylesheets and shards from the npm
+registries configured in `mirrors` and caches them on the machine it runs on.
+The fonts reachable this way keep their own licenses:
 
-- LXGW WenKai (assets/fonts/lxgw-wenkai) — SIL Open Font License 1.1; the
-  licence text, including the Klee One derivation it credits, is in
-  assets/fonts/lxgw-wenkai/LICENSE.
-- Noto Sans SC (assets/fonts/noto-sans-sc) — SIL Open Font License 1.1; the
-  licence text is in assets/fonts/noto-sans-sc/LICENSE.
+- Noto Sans SC, Noto Serif SC, Ma Shan Zheng, ZCOOL XiaoWei, ZCOOL KuaiLe and
+  Zhi Mang Xing — SIL Open Font License 1.1, packaged by Fontsource.
+- LXGW WenKai and LXGW WenKai TC — SIL Open Font License 1.1; the npm packages
+  that carry them, `lxgw-wenkai-webfont` and `lxgw-wenkai-tc-webfont`, are MIT.
+- Inter and Geist — SIL Open Font License 1.1, packaged by Fontsource.

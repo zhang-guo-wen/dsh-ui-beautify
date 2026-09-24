@@ -27,6 +27,13 @@
   overflow-wrap: anywhere;
 }
 
+/* One presented block: its label plus the cards under it. */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .groupLabel {
   margin: 4px 0 0;
   font-size: 11px;
