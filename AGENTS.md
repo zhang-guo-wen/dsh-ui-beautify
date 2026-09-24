@@ -21,15 +21,18 @@ src/
   settings.ts             Host：ui-beautify 命名空间（font / codeFont）与 mirrors/cacheDir 配置
   index.ts                Host：认领两个路由
   client/
-    index.ts              Client：注册两行偏好项 + 按角色应用所选字体
+    index.ts              Client：注册两行偏好项与 composer 车道 + 按角色应用所选字体
     FontRows.tsx          偏好行组件（标题 / 描述 / 缓存状态 + 下拉选择），两个角色共用
     FontRows.module.css
+    BikeLane.tsx          composer 卡片正上方的骑车小人：SVG 与逐帧驱动
+    BikeLane.module.css
+    output-rate.ts        输出速率（字符/秒）与「速率 → 车速」映射，纯函数
     settings-controller.ts 设置命名空间、缓存用量 ↔ 行快照
     locales.ts            中英文案
 tests/
   smoke.mjs               路由、两份字体表、路径解析、配置默认值（离线）
   http.mjs                桩镜像下的 HTTP 层：字节、缓存、并发、失败应答、离线、用量上报
-  client.mjs              加载 lib/client.js 驱动 apply() 并渲染两行：插槽、链接、两种 token、下拉与状态行
+  client.mjs              加载 lib/client.js 驱动 apply()：两行插槽、链接、两种 token、下拉、状态行，以及逐帧驱动的 composer 车道
   cdn.mjs                 联网逐字体（两个角色）校验镜像、分片与族名
 tools/
   probe-font.mjs          联网评估候选 npm 包：分片、族名、镜像可达、可直接粘贴的配置行
@@ -207,6 +210,29 @@ theme 服务每个来源只保留一层，所以两个角色的 token 必须在*
 - 集成终端（xterm 构造参数，不走 CSS）
 - 队列面板 `QueueDock.module.css` 里写死的 `Inter` 前缀
 
+## composer 上方的骑车道
+
+composer 卡片正上方那条整宽插槽是 `conversation.input.dock`（ui-conversation 声明，`kind: 'list'`、`scope: 'session'`），本插件在其中注册 `ui-beautify-lane`（order **100**）。同一插槽的既有占用者是 queue（20）、todo（0）与 goal，100 让小人排在它们之后、紧贴卡片。
+
+**速度读的是 `useChat(s => s.legacy.partial)` 的字符增长率，不是 `sessionStats`。** `sessionStats` 的 `decodeTokens` / `decodeMs` 在 `assistant/message` 才结算，一个 step 只有一个读数——那正是「刚才那一段有多快」，而动画要的是「此刻写多快」。Chat 目标的在途累加器随流式分片推进，是浏览器半边唯一能读到「还没结束的 step」的出口。`useChat` 是 ui-chat 通过 `ctx.uiSession.provide({ hooks: ['chat'] })` 提供的标准席位，session 作用域的插槽都能拿到。
+
+这条依赖**不需要运行时兜底**：`conversation.input.dock` 由 ui-conversation 声明，而 ui-conversation、ui-chat、ui-session 都是 `@deepseek-ai/dsh-web-app` bundle 里的行，本插件的 `cordis.patch.yml` 正是打进那一层——插槽存在就一定有 `useChat`。这是**组合事实**，不是同进程类型边界上的假设；若将来本插件要被别的组合复用，得重新核对，而不是加一个 `typeof useChat !== 'function'` 的分支把配置错误藏起来。
+
+单位是**字符**不是 token：provider 要到 step 结束才报 usage，在途输出根本没有 token 数，按模型猜一个分词器等于编造精度。曲线的形状才是重点，所以每个字符一视同仁。
+
+**两个时钟必须分开**，这是动画平滑的全部原因：
+
+- React 只在字符数变化时重渲染，把新读数折进样本窗口——频率跟着 transcript 自己的发布节奏走，不是帧率。
+- `requestAnimationFrame` 独占位移与车轮角，直接写 `transform` 与 SVG 的 `transform`/`points` 属性，**不 setState**。所以流停下来它照样按帧循环，这正是「不断循环」这条要求的实现方式。
+
+**车轮由位移驱动**（`角度 = 位移 / 轮半径`，滚动不打滑），不是第二条独立动画，因此不可能与地面脱节；曲柄再按 `GEAR_RATIO` 跟在车轮后面，腿随曲柄起落。
+
+`motionAllowed()` 在 `prefers-reduced-motion: reduce` 时**根本不注册这一条**：插槽回到原样，比渲染一辆停住的自行车更诚实，也省掉一个白跑的帧循环。
+
+`src/client/output-rate.ts` 里的观感常量（巡航 0.06、冲刺上界 0.5 条车道/秒、半速点 220 字符/秒、窗口 900ms）是设计值，不是配置项。速率→车速的曲线**饱和而不是截断**：更快的输出永远还能再快一点，快速流不会和「稍快一点」看起来一模一样。窗口的分母跑到 `now` 而不是最后一个样本，所以流停下时会衰减回巡航，而不是冻结在最后一次读数上。
+
+`BikeLane.module.css` 的 66×36px 与 `BikeLane.tsx` 的 `BIKE_WIDTH_PX` **必须一致**——轮半径由它推出，改一个不改另一个，车轮就会打滑。
+
 ## 设置与两个可配项
 
 选择行挂在 **设置 → 通用设置**（`settings.general.item`，order **11.5** 与 **11.6**）——即「外观」一组里**「字号大小」正下方**，「正文字体」在下、「代码字体」再下一行，两者都在工作过程展示上方。11.5/11.6 是因为整步会把它们挤出这一组；行 id 分别是 `ui-beautify` 与 `ui-beautify-code`。用的是 ui-settings-general 专门为「不需要独立页面的单个偏好」留的加性插槽，所以字体选择**不是独立页面**，侧边栏里也没有导航项。
@@ -259,6 +285,7 @@ npm run probe -- <包>  # 联网：评估一个候选 npm 包能不能当字体�
 - `tests/smoke.mjs`：mock ctx 调 `apply()`，断言路由注册、字体表完整性（id 字符集、包名版本、样式表路径）、路由解析与路径穿越防护、镜像模板拼接、缓存目录解析、设置 schema。
 - `tests/http.mjs`：**桩镜像**（`node:http`）+ 真实 `node:http` 服务器驱动插件 handler。断言响应头与字节、第二次请求走磁盘、并发冷请求只下载一次、三种失败应答（404 / 502 / 403）、镜像回退，最后**关掉桩镜像再请求一次**，证明缓存命中可离线工作。
 - `tests/client.mjs`：按浏览器加载器的姿势（`window.__ModuleLoader__.load`）加载**构建产物** `lib/client.js`，配一个假 ctx、DOM 桩与只记录调用的 React 桩驱动 `apply()` **并真的渲染那一行**，断言：注册进 `settings.general.item`（而非 `settings.section`）、order 11.5、每款字体链入的链接、系统默认时全部移除、`--dsw-font-family` 的重绑内容、下拉的分组与每项文案（`思源黑体 · 已缓存 4.3 MB`）、以及行内状态行由用量数据算出来。client 半边没有单元测试的其他覆盖，这条是「bundle 能不能加载、链接指向对不对、这一行显示什么」的唯一防线。
+  同一份桩还模拟了宿主 ref、commit 后 effect 与**可控时钟**，于是 composer 车道可以逐帧驱动：断言它注册进 `conversation.input.dock`、order 100、`aria-hidden`、空转时仍前进且车轮随位移转动、**输出越快走得越远且轮子转得越快**、step 结束后回落到巡航，以及 `prefers-reduced-motion` 时整条不注册。车轮角度的读取必须取模（`((to - from) % 360 + 360) % 360` 并只在单帧内测量）——绝对角度会绕圈，增量会因绕圈变成负数。
 - `tests/cdn.mjs`：对真实镜像逐个字体跑，除了 200 还检查两件容易踩的事——样式表里声明的 `font-family` 与表里写的一致，以及它**确实是 `unicode-range` 分片**而不是一个整字体文件。
 
 三个测试都从 `lib/index.mjs` / `lib/client.js` 读产物，所以改完源码先 `npm run build` 再测。
@@ -281,6 +308,7 @@ npm run probe -- <包>  # 联网：评估一个候选 npm 包能不能当字体�
   "client": {
     "inject": [
       "@deepseek-ai/dsh-api-gateway", "@deepseek-ai/dsh-client-store", "@deepseek-ai/dsh-client-locale",
+      "@deepseek-ai/dsh-client-ui-chat", "@deepseek-ai/dsh-client-ui-conversation",
       "@deepseek-ai/dsh-client-ui-primitives", "@deepseek-ai/dsh-client-ui-renderer",
       "@deepseek-ai/dsh-client-ui-settings", "@deepseek-ai/dsh-client-ui-slots", "@deepseek-ai/dsh-client-ui-theme"
     ],
@@ -334,7 +362,7 @@ npx @deepseek-ai/dsh plugin --profile web remove @guowenzhang/dsh-ui-beautify   
 
 `lib/` 是提交进仓库的，所以**发版 = 改版本号 + 构建 + 提交产物 + 打 tag**。别人按 tag 安装，`master` 上的临时提交不会被他们拿到。
 
-1. 改根 `package.json` 的 `version`（当前 `0.2.0`）。
+1. 改根 `package.json` 的 `version`（当前 `0.3.0`）。
 2. `npm run build`，确认 `lib/index.mjs` 与 `lib/client.js` 是最新。
 3. 提交源码与 `lib/`（不要把 `lib/` 落在外面的工作区）。
 4. 打带注释的 tag 并推送：
@@ -484,6 +512,8 @@ Get-ChildItem "$env:USERPROFILE\.dsh\cache\ui-beautify\fonts" -Recurse -File | S
 10. 两个角色的 token 分两次 `overrideTokens` 调用 → 第二次替换第一次，前一个角色的字体失效。
 11. CSS module 里 JSX 引用但 CSS 未定义的类 → `undefined`，静默无样式。
 12. `tests/client.mjs` 里没有桩的 bare specifier → 构建产物加载即失败；client 半边新增 import 要同步那份桩表。
+13. `BikeLane.tsx` 的 `BIKE_WIDTH_PX` 与 `BikeLane.module.css` 的 66×36px 不一致 → 车轮按错误的半径换算，看起来在打滑。
+14. 用「两帧角度相减」量车轮转速 → 越过 360° 会得到负数；只能在单帧内取模测量（`tests/client.mjs` 就是这么做的）。
 
 ## 接下来可以加的
 
@@ -493,3 +523,4 @@ Get-ChildItem "$env:USERPROFILE\.dsh\cache\ui-beautify\fonts" -Recurse -File | S
 - **跟随系统字体**：把 `system` 从「不覆盖」扩展成「跟随一个可配置的字体栈」。
 - **字号阶梯、行高、圆角、间距**：同一套行机制继续加行即可。
 - **自定义主题配色**：`ctx.theme.register` 可注册整套 alias token。
+- **车道可配**：目前车道总是开启（除非系统要求减弱动效）。要让它成为可选项或可调速度，加一个 `z.boolean().volatile()` 设置字段即可——但那是 Host schema 的改动，改完必须重启宿主才认（见「生效语义」）。

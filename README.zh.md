@@ -50,6 +50,16 @@ npx @deepseek-ai/dsh plugin --profile web add @guowenzhang/dsh-ui-beautify
 | The host machine has no outbound network | Downloads fail; the GUI keeps rendering with its fallback fonts |
 | The browser has network access but the host does not | Downloads still fail — the browser never contacts an external site |
 
+## 输入框上方的骑车道
+
+输入框正上方那条空白带里有一个骑车的小人：从左骑到右，页面开着就一直循环。它的速度和车轮转速跟着模型**此刻**写得多快走——输出快就飞快地穿过去，输出慢就慢慢巡航，没有输出时也保持低速绕圈。
+
+它是纯装饰，而且刻意做得很安静：
+
+- 它不读你输入的任何内容、不往任何地方发东西；它唯一测量的是已经到达的助手输出有多少。
+- 没有开关。想彻底去掉它，只能卸载插件。
+- 屏幕阅读器会跳过它（`aria-hidden`）；浏览器若设置了 `prefers-reduced-motion: reduce`，这一条根本不会注册，那条带子保持原样。
+
 ## 注意事项
 
 - **字体首次使用需要宿主机能联网。** 浏览器只跟 DSH 自己的源说话，取文件的是宿主。这是本插件唯一依赖宿主联网的地方，也是浏览器自己通网、首次使用却仍可能失败的唯一原因。
@@ -58,6 +68,7 @@ npx @deepseek-ai/dsh plugin --profile web add @guowenzhang/dsh-ui-beautify
 - **字体没下下来时界面不会坏。** 先用回退字体渲染，分片到位后再替换；彻底失败就一直用回退字体。
 - **有两处不认字体 token**，因为它们的字体是写死的：集成终端（xterm 构造参数，不走 CSS）和队列面板样式表里写死的 `Inter` 前缀。
 - **镜像列表与缓存目录是宿主启动时的配置**，不是实时设置——改完要重启宿主。
+- **骑车道是装饰，不是读数。** 它不显示数字、也没有开关，速度只是输出速度的近似，和状态栏里那个 `tok/s` 不是同一个数：step 还在流式输出时 provider 根本没报 token 数，所以车道量的是字符。
 - **字体不在本插件的许可范围内。** 每款字体各自保留自己的许可，见 [LICENSE](LICENSE) 与 [NOTICE](NOTICE)。
 
 ## 许可
@@ -68,6 +79,6 @@ npx @deepseek-ai/dsh plugin --profile web add @guowenzhang/dsh-ui-beautify
 
 ## 延伸阅读
 
-- [AGENTS.md](AGENTS.md) —— 完整字体表、下载链路、缓存布局、开发命令、加字体流程与排查。
+- [AGENTS.md](AGENTS.md) —— 完整字体表、下载链路、缓存布局、骑车道的机制、开发命令、加字体流程与排查。
 - [dsh-web-design](https://github.com/zhang-guo-wen/dsh-web-design) —— 姊妹插件，在 DSH 侧栏里预览与编辑 HTML。
 - [DeepSeek Harness 文档](https://deepseek-harness.github.io/deepseek-harness/)。

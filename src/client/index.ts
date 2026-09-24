@@ -1,8 +1,8 @@
 /**
- * Page beautification, browser half: register the preference rows and apply the
- * chosen faces to the document.
+ * Page beautification, browser half: register the preference rows, apply the
+ * chosen faces to the document, and run the composer dock's cyclist.
  *
- * Two responsibilities, in this order of importance:
+ * Three responsibilities, in this order of importance:
  *
  * 1. **Applying the faces** is the plugin's actual effect. Each role's
  *    stylesheet links and token overrides follow its stored id, and the override
@@ -10,6 +10,9 @@
  *    only layer that outranks the `:root` declaration in ui-theme's own sheet
  *    regardless of activation order.
  * 2. **The rows** are the surface that writes those ids.
+ * 3. **The lane** is decoration: a figure whose speed reports how fast the model
+ *    is writing. It is the one contribution that is skipped outright when the
+ *    browser asks for reduced motion.
  *
  * Only the chosen faces' stylesheets are linked, so the browser never fetches
  * the shard layout of a face the user is not using. The files behind them are
@@ -32,10 +35,12 @@ import {
   faceById, fontStack, resolveFontChoice, FONT_ROLES, type FontRole, type FontSettings,
 } from '../fonts.ts'
 import { FONTS_ROUTE, FONT_SETTINGS_NS } from '../params.ts'
+import { BikeLane, motionAllowed } from './BikeLane.tsx'
 import { CodeFontRow, FontRow } from './FontRows.tsx'
 import { en, NS, zh, type FontRowKey } from './locales.ts'
 import { FontController } from './settings-controller.ts'
 
+export type { BikeLaneProps } from './BikeLane.tsx'
 export type { CodeFontRowProps, FontRowProps } from './FontRows.tsx'
 export type { FontRowFace, FontRowState } from './settings-controller.ts'
 export { NS } from './locales.ts'
@@ -59,6 +64,16 @@ const ROW_ORDER: Readonly<Record<FontRole, number>> = { body: 11.5, code: 11.6 }
 /** The row id each role registers under. */
 const ROW_ID: Readonly<Record<FontRole, string>> = { body: 'ui-beautify', code: 'ui-beautify-code' }
 
+/**
+ * The lane's cell in the composer dock, and where it sits among the entries
+ * already there.
+ *
+ * Behind the shipped queue, todo, and goal docks, so the figure rides closest to
+ * the composer card whenever one of those cards is open.
+ */
+const LANE_ID = 'ui-beautify-lane'
+const LANE_ORDER = 100
+
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
     /** This plugin's settings rows copy. */
@@ -74,8 +89,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export const inject = ['theme', 'slots', 'locale', 'configForms']
 
 /**
- * Client plugin body: register one preference row per role and keep the
- * document in sync with the stored choices.
+ * Client plugin body: register one preference row per role, keep the document in
+ * sync with the stored choices, and put the lane in the composer dock.
  * @param ctx - client cordis context.
  */
 export function apply(ctx: Context): void {
@@ -94,6 +109,14 @@ export function apply(ctx: Context): void {
       locale: NS,
       inject: () => controller.inject(role),
     }, role === 'body' ? FontRow : CodeFontRow))
+  }
+
+  if (motionAllowed()) {
+    ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+      name: 'conversation.input.dock',
+      id: LANE_ID,
+      order: LANE_ORDER,
+    }, BikeLane))
   }
 }
 

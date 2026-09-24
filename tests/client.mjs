@@ -1,10 +1,10 @@
 // Client-half check: load the built handoff bundle exactly the way the browser
 // loader does — `window.__ModuleLoader__.load({ id, factory })` — then drive
-// `apply()` against a fake client context and a small DOM shim. Nothing renders
-// React here; what this covers is the part that would take the GUI down or
-// silently point at the wrong file: module evaluation, the two row
-// registrations, the stylesheet links and token overrides per role, and the text
-// each row produces.
+// `apply()` against a fake client context and a small DOM shim. React is stubbed
+// down to a call recorder rather than rendered; what this covers is the part
+// that would take the GUI down or silently point at the wrong file: module
+// evaluation, the row and dock registrations, the stylesheet links and token
+// overrides per role, the text each row produces, and the composer lane's motion.
 // Run with `node tests/client.mjs` (after `npm run build`).
 import { readFileSync } from 'node:fs'
 import { runInThisContext } from 'node:vm'
@@ -52,21 +52,86 @@ const stores = []
 // element tree it produced rather than as HTML. A function element is invoked
 // as well as recorded — the registered rows wrap a shared picker, and what the
 // assertions describe is what that picker produces.
+//
+// The composer lane drives its motion from an animation frame over host nodes,
+// so the stub models the three things that depends on: host refs, effects that
+// run after commit, and a clock the assertions can advance frame by frame.
 const elements = []
+/** Lane width the frame loop measures; the real value comes from layout. */
+const LANE_WIDTH = 800
+/** Host-node stand-in: enough for the frame loop to write to and be read back. */
+const makeNode = tag => ({
+  tag,
+  style: {},
+  clientWidth: LANE_WIDTH,
+  attributes: {},
+  setAttribute(name, value) { this.attributes[name] = value },
+})
 const record = (type, props) => {
   const element = { type, props }
   elements.push(element)
-  return typeof type === 'function' ? type(props) : element
+  if (typeof type === 'function') return type(props)
+  // React attaches a host ref when the node mounts and keeps that same node
+  // across re-renders, while the frame loop closes over it.
+  if (props?.ref !== undefined && props.ref.current === null) props.ref.current = makeNode(type)
+  return element
 }
 const Menu = () => null
 const IconChevronDownOutlineRegular = () => null
-const externals = {
-  react: {
-    // A row refreshes its cache reading from an effect; running it here is what
-    // a mount does.
-    useEffect: (effect) => { effect() },
-    useState: value => [value, () => {}],
+
+/** Hook slots of each mounted component, kept in call order across re-renders. */
+const instances = new Map()
+let hooks = []
+let cursor = 0
+let due = []
+/** Whether an effect's dependencies moved since the same slot last ran. */
+const depsMoved = (previous, next) => previous === undefined || next === undefined
+  || previous.length !== next.length
+  || previous.some((dep, at) => !Object.is(dep, next[at]))
+const reactStub = {
+  useEffect: (effect, deps) => {
+    const at = cursor++
+    if (!depsMoved(hooks[at], deps)) return
+    hooks[at] = deps
+    due.push(effect)
   },
+  useRef: (initial) => {
+    const at = cursor++
+    hooks[at] ??= { current: initial }
+    return hooks[at]
+  },
+  useState: (initial) => {
+    cursor++
+    return [initial, () => {}]
+  },
+}
+/**
+ * Render one registered component the way the renderer would: a fresh element
+ * tree, hooks carried over from this instance's previous render, then the
+ * effects React runs after commit.
+ */
+const mount = (key, component, props) => {
+  elements.length = 0
+  hooks = instances.get(key) ?? []
+  instances.set(key, hooks)
+  cursor = 0
+  due = []
+  component(props)
+  const pending = due
+  due = []
+  for (const effect of pending) effect()
+}
+
+// The animation frame is captured rather than run, so the lane can be stepped on
+// a clock the assertions own. `performance.now()` is that same clock: the frame
+// loop and the output samples have to agree on what time it is.
+const clock = { time: 0, frame: null }
+Object.defineProperty(globalThis, 'performance', { configurable: true, value: { now: () => clock.time } })
+globalThis.requestAnimationFrame = (callback) => { clock.frame = callback; return 1 }
+globalThis.cancelAnimationFrame = () => { clock.frame = null }
+
+const externals = {
+  react: reactStub,
   'react/jsx-runtime': { jsx: record, jsxs: record, Fragment: 'Fragment' },
   '@deepseek-ai/dsh-client-ui-primitives': { Menu, IconChevronDownOutlineRegular, Tag: () => null },
   '@deepseek-ai/dsh-client-store': {
@@ -89,6 +154,9 @@ globalThis.fetch = async (url) => {
   }
 }
 
+// `prefers-reduced-motion` is read once, when the plugin body runs; the last
+// section flips it and applies the plugin again.
+let reducedMotion = false
 let handoffId
 let plugin
 globalThis.window = {
@@ -101,6 +169,7 @@ globalThis.window = {
       })
     },
   },
+  matchMedia: () => ({ matches: reducedMotion }),
 }
 runInThisContext(readFileSync(bundle, 'utf8'), { filename: bundle.pathname })
 
@@ -124,7 +193,7 @@ const scope = {
   subscribe: (listener) => { subscribers.push(listener); return () => {} },
   set: async (key, value) => { stored = { ...stored, [key]: value } },
 }
-plugin.apply({
+const makeCtx = (into) => ({
   effect(fn) {
     const dispose = fn()
     if (typeof dispose === 'function') disposers.push(dispose)
@@ -140,11 +209,13 @@ plugin.apply({
   },
   slots: {
     inject: (_slot, register) => register(),
-    register(definition, component) { registrations.push({ definition, component }); return () => {} },
+    register(definition, component) { into.push({ definition, component }); return () => {} },
   },
 })
+plugin.apply(makeCtx(registrations))
 const bodyRow = registrations.find(entry => entry.definition.id === 'ui-beautify')
 const codeRow = registrations.find(entry => entry.definition.id === 'ui-beautify-code')
+const laneEntry = registrations.find(entry => entry.definition.id === 'ui-beautify-lane')
 const links = () => head.filter(element => element.rel === 'stylesheet')
 const hrefs = () => links().map(link => link.href)
 const setStored = (values) => {
@@ -154,7 +225,12 @@ const setStored = (values) => {
 const snapshot = () => stores.at(-1)?.get()
 const settle = () => new Promise(resolve => { setTimeout(resolve, 10) })
 
-check('registers two General-settings rows', registrations.length === 2, String(registrations.length))
+check(
+  'registers two General-settings rows and the composer lane',
+  registrations.filter(entry => entry.definition.name === 'settings.general.item').length === 2
+    && laneEntry !== undefined,
+  String(registrations.length),
+)
 check(
   'the body row sits under the interface font size',
   bodyRow?.definition.name === 'settings.general.item'
@@ -257,8 +333,7 @@ const byClass = name => elements.filter(element =>
 // which values each row asks it for.
 const t = (key, params) => params === undefined ? key : `${key}(${JSON.stringify(params)})`
 const render = (entry) => {
-  elements.length = 0
-  entry.component({
+  mount(`row-${entry.definition.id}`, entry.component, {
     t,
     useFontSettings: selector => selector(snapshot()),
     choose: () => {},
@@ -346,6 +421,140 @@ stored = fullValue
 for (const notify of subscribers) notify()
 const restored = render(codeRow)
 check('and goes back to normal once the Host exposes the field', restored.metas[0] !== 'stale', String(restored.metas[0]))
+
+console.log('the composer lane')
+check(
+  'rides in the strip above the composer card',
+  laneEntry?.definition.name === 'conversation.input.dock',
+  JSON.stringify(laneEntry?.definition),
+)
+check(
+  'behind the shipped docks, so it sits against the card',
+  laneEntry?.definition.order === 100,
+  JSON.stringify(laneEntry?.definition),
+)
+check('and renders a component', typeof laneEntry?.component === 'function')
+
+/** Step the captured animation frames on the shared clock. */
+const advance = (milliseconds, frames = 1) => {
+  for (let index = 0; index < frames; index += 1) {
+    clock.time += milliseconds
+    const callback = clock.frame
+    clock.frame = null
+    callback?.(clock.time)
+  }
+}
+/** Lane-relative x the frame loop last wrote, in pixels. */
+const travelOf = node => Number(/translate3d\((-?[\d.]+)px/.exec(node.style.transform ?? '')?.[1] ?? Number.NaN)
+/** Wheel angle the frame loop last wrote, in degrees. */
+const turnOf = node => Number(/rotate\(([-\d.]+)/.exec(node.attributes.transform ?? '')?.[1] ?? Number.NaN)
+
+// An assistant step in flight: one text block growing as streamed chunks land.
+const step = { text: '' }
+const chatWith = selector => selector({
+  legacy: {
+    partial: step.text === ''
+      ? null
+      : { turn: 1, step: 1, blocks: [{ kind: 'text', text: step.text }] },
+  },
+})
+/**
+ * Ground the cyclist covers over a window of frames.
+ *
+ * A delta, because x wraps at the end of the lane; every window used here is far
+ * shorter than one crossing, so it cannot wrap inside a window.
+ */
+const travelled = (rider, frames) => {
+  advance(16)
+  const from = travelOf(rider)
+  advance(16, frames)
+  return travelOf(rider) - from
+}
+/**
+ * Wheel rotation across one frame, modulo a full turn.
+ *
+ * One frame is the whole point: the angle wraps at 360°, and the fastest this
+ * geometry goes is roughly 55° per frame, so a single frame cannot wrap more
+ * than once and the modulo recovers the rotation exactly.
+ */
+const turnedPerFrame = (wheel) => {
+  const from = turnOf(wheel)
+  advance(16)
+  return ((turnOf(wheel) - from) % 360 + 360) % 360
+}
+/** Stream chunks into a mounted lane, one render and one frame each. */
+const streamInto = (key, chunks) => {
+  for (let chunk = 0; chunk < chunks; chunk += 1) {
+    step.text += 'x'.repeat(60)
+    mount(key, laneEntry.component, { useChat: chatWith })
+    advance(16)
+  }
+}
+
+clock.time = 0
+step.text = ''
+mount('lane', laneEntry.component, { useChat: chatWith })
+check('draws one lane', byClass('lane').length === 1)
+check('that assistive technology is told to skip', byClass('lane')[0]?.props['aria-hidden'] === 'true')
+check(
+  'with a cyclist, two wheels, and a pair of legs',
+  byClass('rider').length === 1 && byClass('wheel').length === 2 && byClass('leg').length === 2,
+  `${byClass('rider').length}/${byClass('wheel').length}/${byClass('leg').length}`,
+)
+const idleRider = byClass('rider')[0].props.ref.current
+const idleWheel = byClass('wheel')[0].props.ref.current
+const idleTravel = travelled(idleRider, 8)
+const idleTurn = turnedPerFrame(idleWheel)
+check('loops even with nothing streaming', idleTravel > 0, String(idleTravel))
+check('rolling its wheels by the ground it covers', idleTurn > 0, String(idleTurn))
+check(
+  'and keeping both wheels on the lane',
+  byClass('wheel').every(wheel => Number.isFinite(turnOf(wheel.props.ref.current))),
+)
+
+// The same frames against a stream have to cover more ground and spin the
+// wheels faster — that mapping is the whole point of reading the output rate.
+clock.time = 0
+step.text = ''
+mount('sprint', laneEntry.component, { useChat: chatWith })
+const sprintRider = byClass('rider')[0].props.ref.current
+const sprintWheel = byClass('wheel')[0].props.ref.current
+streamInto('sprint', 12)
+const sprintTravel = travelled(sprintRider, 8)
+const sprintTurn = turnedPerFrame(sprintWheel)
+check('faster output covers more ground', sprintTravel > idleTravel * 2, `${sprintTravel} vs ${idleTravel}`)
+check('and spins the wheels faster', sprintTurn > idleTurn * 2, `${sprintTurn} vs ${idleTurn}`)
+
+// A closed step takes the in-flight accumulator with it; the lane has to fall
+// back to its cruise rather than read the drop as negative speed.
+clock.time = 0
+step.text = ''
+mount('settled', laneEntry.component, { useChat: chatWith })
+const settledRider = byClass('rider')[0].props.ref.current
+streamInto('settled', 12)
+step.text = ''
+mount('settled', laneEntry.component, { useChat: chatWith })
+const settledTravel = travelled(settledRider, 8)
+check(
+  'a closed step settles back to the cruise',
+  settledTravel > 0 && settledTravel < idleTravel * 1.5,
+  `${settledTravel} vs ${idleTravel}`,
+)
+
+console.log('a browser asking for no motion')
+reducedMotion = true
+const quiet = []
+plugin.apply(makeCtx(quiet))
+check(
+  'leaves the strip empty',
+  quiet.every(entry => entry.definition.id !== 'ui-beautify-lane'),
+  JSON.stringify(quiet.map(entry => entry.definition.id)),
+)
+check(
+  'while still registering both font rows',
+  quiet.filter(entry => entry.definition.name === 'settings.general.item').length === 2,
+  String(quiet.length),
+)
 
 for (const dispose of disposers) dispose()
 

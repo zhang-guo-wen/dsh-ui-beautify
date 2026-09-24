@@ -1,0 +1,78 @@
+/* The composer dock lane: a cyclist crossing the strip directly above the
+   composer card.
+   Horizontal geometry matches the shipped docks (QueueDock/TodoPanel) so the
+   lane lines up with the card's edges, and the colour is an alias token so the
+   figure follows the active palette instead of naming a colour. */
+
+.lane {
+  position: relative;
+  width: calc(
+    100% - var(--dsh-composer-side-clearance) -
+    var(--dsh-composer-side-clearance) - var(--dsh-composer-dock-inset) -
+    var(--dsh-composer-dock-inset)
+  );
+  max-width: calc(
+    var(--dsh-composer-card-max-width) - var(--dsh-composer-dock-inset) -
+    var(--dsh-composer-dock-inset)
+  );
+  margin: 0 auto;
+  height: 36px;
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  /* Decorative: it must never intercept a click meant for the composer. */
+  pointer-events: none;
+}
+
+/* Positioned by the animation frame, which writes `transform` on this node.
+   Left at the lane's leading edge, one bike width clear of it. */
+.rider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 66px;
+  height: 36px;
+  will-change: transform;
+}
+
+/* Rendered size is mirrored by BIKE_WIDTH_PX in BikeLane.tsx, which derives the
+   wheel radius from it; changing one without the other makes the wheels slip. */
+.bike {
+  display: block;
+  width: 66px;
+  height: 36px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Spokes are what makes a wheel read as turning, so the rim stays thin and the
+   radial fill carries the stroke. */
+.wheel {
+  stroke-width: 1.5;
+}
+
+.frame {
+  stroke-width: 2.2;
+}
+
+/* The rider carries the heaviest stroke: at this size the figure has to read as
+   a person above the frame, and equal weights turn the two into one smudge. */
+.riderBody {
+  stroke-width: 3;
+}
+
+.crank {
+  stroke-width: 1.4;
+}
+
+.leg {
+  stroke-width: 2.2;
+}
+
+/* The far leg is held back so the pedalling pair reads as depth rather than as
+   one thick limb. */
+.legFar {
+  opacity: 0.5;
+}

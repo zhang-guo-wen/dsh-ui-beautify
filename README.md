@@ -50,6 +50,16 @@ Downloads happen per shard, not as a whole package. A selected face's stylesheet
 | The host machine has no outbound network | Downloads fail; the GUI keeps rendering with its fallback fonts |
 | The browser has network access but the host does not | Downloads still fail — the browser never contacts an external site |
 
+## The composer lane
+
+The strip directly above the message box carries a cyclist that crosses it from left to right and loops for as long as the page is open. Speed and wheel rotation follow how fast the model is writing right now: a fast stream sends it across quickly, a slow stream lets it cruise, and it keeps looping at that cruise while nothing is being produced.
+
+It is decoration, and it is deliberately quiet about it:
+
+- It reads nothing you type and sends nothing anywhere; the only thing it measures is how much assistant output has arrived.
+- There is no setting for it. Removing it means removing the plugin.
+- Screen readers skip it (`aria-hidden`), and a browser set to `prefers-reduced-motion: reduce` never gets it at all — that strip stays exactly as it was.
+
 ## Notes and caveats
 
 - **The host machine must reach the network for a font's first use.** The browser only talks to the DSH origin; the host does the fetching. This is the one place the plugin depends on host connectivity, and it is the only reason a first use can fail while the browser itself is online.
@@ -58,6 +68,7 @@ Downloads happen per shard, not as a whole package. A selected face's stylesheet
 - **A missing font never breaks the interface.** Text renders first with the fallback font and swaps in when the shard arrives; if the download fails for good, the fallback simply stays.
 - **Two places ignore the font tokens** because they hardcode their own font: the integrated terminal (an xterm constructor argument, not CSS) and a hardcoded `Inter` prefix in the queue panel's stylesheet.
 - **The mirror list and cache directory are host-start configuration**, not live settings — changing them requires restarting the host.
+- **The composer lane is decoration, not a read-out.** It has no number and no toggle, and its speed is an approximation of output speed, not the same figure as the `tok/s` in the status bar: while a step is still streaming the provider has reported no token count, so the lane measures characters instead.
 - **Fonts are not covered by this plugin's license.** Each font keeps its own; see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 ## License
@@ -68,6 +79,6 @@ The plugin itself is Apache-2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 ## Further reading
 
-- [AGENTS.md](AGENTS.md) — the full font catalogue, the download pipeline, the cache layout, developer commands, the add-a-font procedure, and troubleshooting.
+- [AGENTS.md](AGENTS.md) — the full font catalogue, the download pipeline, the cache layout, the composer lane's mechanics, developer commands, the add-a-font procedure, and troubleshooting.
 - [dsh-web-design](https://github.com/zhang-guo-wen/dsh-web-design) — a sibling plugin that previews and edits HTML in the DSH Sidebar.
 - [DeepSeek Harness documentation](https://deepseek-harness.github.io/deepseek-harness/).
