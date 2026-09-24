@@ -69,6 +69,7 @@ export const en = {
   unitGb: 'GB',
   unavailable: 'The Host settings service is unavailable, so this choice cannot be saved.',
   readonly: 'The settings document is read-only, so this choice cannot be saved.',
+  stale: 'The Host is still running an older build of this plugin, whose schema has no field for this row. Restart dsh, then reload this page.',
 }
 
 /** Chinese copy. */
@@ -129,6 +130,7 @@ export const zh: typeof en = {
   unitGb: 'GB',
   unavailable: '宿主设置服务不可用，该选择无法保存。',
   readonly: '设置文档为只读，该选择无法保存。',
+  stale: '宿主仍在运行本插件的旧版本，它的配置里没有这一行对应的字段。重启 dsh 后再刷新本页。',
 }
 
 /** Every key this row's copy may use. */

@@ -11,7 +11,9 @@ DeepSeek Harness 的**页面美化插件**。目前的能力：在「设置 → 
 
 字体通过**主题服务的覆盖层**（`ctx.theme.overrideTokens`）生效——它写成 `body` 的行内样式，优先级高于 `:root`，因此不受插件激活顺序影响，卸载时自动回滚。
 
-选择行挂在 **设置 → 通用设置**（`settings.general.item`，order **11.5** 与 **11.6**）——即「外观」一组里**「字号大小」正下方**，「正文字体」在下、「代码字体」再下一行，两者都在工作过程展示上方。用的是 ui-settings-general 专门为「不需要独立页面的单个偏好」留的加性插槽，所以字体选择**不是独立页面**，侧边栏里也没有导航项。选择写进 `~/.dsh/settings.yaml` 的 `ui-beautify` 分节（`font` / `codeFont` 两个字段），改完立即生效、无需重启。
+选择行挂在 **设置 → 通用设置**（`settings.general.item`，order **11.5** 与 **11.6**）——即「外观」一组里**「字号大小」正下方**，「正文字体」在下、「代码字体」再下一行，两者都在工作过程展示上方。用的是 ui-settings-general 专门为「不需要独立页面的单个偏好」留的加性插槽，所以字体选择**不是独立页面**，侧边栏里也没有导航项。选择写进**当前 profile 的配置文件** `$DSH_HOME/profiles/<profile>/cordis.patch.yml` 里 `ui-beautify` 行的 `config`（`font` / `codeFont` 两个字段），改完立即生效、无需重启。
+
+> 更早的 DSH 版本把选择写在 `$DSH_HOME/settings.yaml`；该文件已被 DSH 迁移进 profile 的补丁文件并重命名为 `settings.yaml.imported`。现在手工改设置要改的是 profile 补丁。
 
 ## 可选字体
 
@@ -261,7 +263,7 @@ chinese-simplified-400.css   registry.npmmirror.com=200 cdn.jsdelivr.net=200
 
 ## 排查：装了但字体没变
 
-按顺序查这六处。
+按顺序查这七处。
 
 **1. 插件在不在 profile 清单里。** `dsh plugin add` 之后如果还有别的插件管理操作（GUI 插件页、并发的 `dsh plugin` 命令），新装的 bundle **可能被基于旧快照的重写挤掉**——实测装完 50 秒后另一次 profile 写入就会把它覆盖：
 
@@ -281,16 +283,31 @@ curl.exe -s -o NUL -w "%{http_code}`n" http://127.0.0.1:3080/plugins/dsh-ui-beau
 
 **3. 命名空间有没有暴露。** 那一行读的是 Host 注册的 `ui-beautify` 命名空间；若状态行显示「宿主设置服务不可用」，说明没有挂载 settings 提供方（`dsh-settings-file`），选择无法保存。
 
-**4. 那一行在不在。** 它注册进的是 `settings.general.item`——由 **ui-settings-general** 声明。若宿主里没有这个包（老版本或裁剪过的组合），`ctx.slots.inject` 会一直等这个声明，**这一行不出现，但字体照常应用**；此时只能改 `~/.dsh/settings.yaml` 手工选。设置里搜「正文字体」，位置在「外观」一组的「字号大小」正下方。
+**4. 那一行在不在。** 它注册进的是 `settings.general.item`——由 **ui-settings-general** 声明。若宿主里没有这个包（老版本或裁剪过的组合），`ctx.slots.inject` 会一直等这个声明，**这一行不出现，但字体照常应用**；此时只能改当前 profile 的 `cordis.patch.yml` 手工选。设置里搜「正文字体」，位置在「外观」一组的「字号大小」正下方。
 
-**5. Client 半边跑没跑。** 浏览器 Console：
+**5. 点了没反应。** 先看那一行的状态行有没有写「**宿主仍在运行本插件的旧版本，它的配置里没有这一行对应的字段**」——写了就是下面这个情况，**必须重启 dsh**：
+
+**宿主半边和浏览器半边不是一起更新的。** `lib/client.js` 由浏览器在每次加载页面时从磁盘重新取，所以**改完 client 产物只需硬刷新**；而 `lib/index.mjs`（Host 半边）是**每个进程只 import 一次**，它的配置 schema 就是启动那一刻的那份。于是升级插件后可能出现：浏览器已经渲染出新的行，宿主的 schema 里却没有对应的设置字段——写进去会被拒，控件看着可点，实际什么都不会发生。
+
+判据很直接，比对三个时间：
+
+```powershell
+(Get-Process -Id <dsh 宿主 pid>).StartTime                                  # 宿主何时启动
+(Get-Item "$env:USERPROFILE\.dsh\profiles\web\cordis.patch.yml").LastWriteTime  # 设置何时写入
+(Get-Item C:\02-codespace\deepseek-harness\dsh-ui-beautify\lib\index.mjs).LastWriteTime  # 插件何时构建
+```
+
+宿主启动时间**早于**插件构建时间，就需要重启。重启后 Host 重新 import，schema 里就有了新字段；浏览器再硬刷新一次即可。
+
+**6. Client 半边跑没跑。** 浏览器 Console：
 
 ```js
 document.querySelectorAll('link[data-plugin*="ui-beautify"]').length   // 选中内置字体时应为 1，霞鹜文楷为 2
 getComputedStyle(document.body).getPropertyValue('--dsw-font-family')
+getComputedStyle(document.body).getPropertyValue('--ds-font-family-code')
 ```
 
-第二项应输出以当前所选字体族名开头的字体栈。
+第三项应输出以当前所选代码字体族名开头的等宽栈（选 `system` 时是 ui-theme 的默认值）。
 
 **Host 通了但 client 没跑**：浏览器还持有旧的 boot 图，硬刷新（Ctrl+F5）。改过 `lib/client.js` 后同理——`HANDOFF_ID` 没变时浏览器会继续跑旧 bundle，这是最容易被忽略的一步。
 
@@ -302,7 +319,7 @@ document.fonts.check('14px "LXGW WenKai"')   // true = 该字体已加载
 
 或在 DevTools 的 Elements → Computed → Rendered Fonts 里看实际渲染用的字体；在 Network 里筛 `fonts/` 能看到哪些分片被拉取、哪些来自 `(disk cache)`。
 
-**6. 缓存里到底有没有东西。** 通用设置里那一行的状态行就会写；要命令行确认，缓存目录默认在 `$DSH_HOME/cache/ui-beautify/fonts`（Windows 上是 `C:\Users\<你>\.dsh\cache\ui-beautify\fonts`），每个字体一个目录，里面一个 generation 目录：
+**7. 缓存里到底有没有东西。** 通用设置里那一行的状态行就会写；要命令行确认，缓存目录默认在 `$DSH_HOME/cache/ui-beautify/fonts`（Windows 上是 `C:\Users\<你>\.dsh\cache\ui-beautify\fonts`），每个字体一个目录，里面一个 generation 目录：
 
 ```powershell
 curl.exe -s http://127.0.0.1:3080/plugins/dsh-ui-beautify/cache

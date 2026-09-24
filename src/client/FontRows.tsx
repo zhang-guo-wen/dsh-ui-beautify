@@ -157,6 +157,7 @@ function cacheDetail(t: Translate, usage: FontCacheUsage | undefined): string {
 function detailLine(t: Translate, role: FontRole, state: FontRowState): string {
   if (!state.available) return t('unavailable')
   if (!state.writable) return t('readonly')
+  if (!state.fields[role]) return t('stale')
   const choice = state[FONT_ROLES[role].key]
   if (choice === SYSTEM_FONT_ID) return ''
   return cacheDetail(t, state.cache[choice])
@@ -228,7 +229,7 @@ function FontPicker({ role, ...props }: FontRowProps & { role: FontRole }): Reac
             className={css.selector}
             aria-haspopup="menu"
             aria-expanded={open}
-            disabled={!state.available || !state.writable}
+            disabled={!state.available || !state.writable || !state.fields[role]}
             onClick={() => { setOpen(previous => !previous) }}
           >
             {selected === undefined ? t(ROW_TITLE[role]) : t(selected.name)}

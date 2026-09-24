@@ -329,6 +329,24 @@ check(
   `${String(snapshot()?.font)} / ${String(snapshot()?.codeFont)}`,
 )
 
+console.log('a Host that predates a field')
+// The running Host imports the plugin once per process, so its schema can lack
+// a field this bundle knows about. What a row must not do then is look live:
+// the write would be refused and nothing would happen.
+const fullValue = stored
+stored = { font: fullValue.font }
+for (const notify of subscribers) notify()
+const staleCode = render(codeRow)
+check('the code row reports the stale Host', staleCode.metas[0] === 'stale', String(staleCode.metas[0]))
+check('and disables its selector', staleCode.selector?.props.disabled === true)
+const liveBody = render(bodyRow)
+check('the row whose field does exist stays usable', liveBody.metas[0] !== 'stale' && liveBody.selector?.props.disabled === false, String(liveBody.metas[0]))
+
+stored = fullValue
+for (const notify of subscribers) notify()
+const restored = render(codeRow)
+check('and goes back to normal once the Host exposes the field', restored.metas[0] !== 'stale', String(restored.metas[0]))
+
 for (const dispose of disposers) dispose()
 
 if (failures.length > 0) {

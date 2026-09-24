@@ -38,6 +38,17 @@ export interface FontRowState {
   available: boolean
   /** Whether the Host document accepts writes. */
   writable: boolean
+  /**
+   * Whether the Host's namespace exposes each role's field at all.
+   *
+   * A field the bundled client knows about but the running Host does not is the
+   * signature of a Host half that predates it: the plugin module is imported
+   * once per process, so replacing `lib/` updates the browser half on the next
+   * page load while the Host keeps the schema it loaded at start. Writes to a
+   * field its schema lacks are refused, which otherwise looks like a dead
+   * control.
+   */
+  fields: Readonly<Record<FontRole, boolean>>
   /** Id of the body face currently stored. */
   font: string
   /** Id of the code face currently stored. */
@@ -134,13 +145,17 @@ export class FontController {
 
   private projection(): FontRowState {
     const snapshot = this.scope.getSnapshot()
+    // Partial, because this reads presence: a field the Host's schema lacks is
+    // absent from the section it sends, whatever this bundle expects.
+    const value: Partial<FontSettings> | undefined = snapshot.value
     return {
       available: snapshot.status === 'ready',
       writable: snapshot.writable,
+      fields: { body: value?.font !== undefined, code: value?.codeFont !== undefined },
       // The document is hand-editable, so an unknown stored value must show as
       // the choice actually in effect rather than as nothing selected.
-      font: resolveFontChoice(snapshot.value?.font, 'body'),
-      codeFont: resolveFontChoice(snapshot.value?.codeFont, 'code'),
+      font: resolveFontChoice(value?.font, 'body'),
+      codeFont: resolveFontChoice(value?.codeFont, 'code'),
       cache: this.cache,
     }
   }
