@@ -1,0 +1,147 @@
+{
+  "name": "@guowenzhang/dsh-ui-beautify",
+  "description": "Page beautification for DeepSeek Harness: download open-source CJK webfonts on demand and let the Web GUI pick its body font",
+  "version": "1.0.0",
+  "type": "module",
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhang-guo-wen/dsh-ui-beautify.git"
+  },
+  "homepage": "https://github.com/zhang-guo-wen/dsh-ui-beautify#readme",
+  "bugs": {
+    "url": "https://github.com/zhang-guo-wen/dsh-ui-beautify/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "fonts",
+    "webfonts",
+    "cjk"
+  ],
+  "main": "lib/index.mjs",
+  "exports": {
+    ".": {
+      "default": "./lib/index.mjs"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "engines": {
+    "dsh": ">=0.1.7-0"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-api-gateway",
+        "@deepseek-ai/dsh-client-store",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-chat",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-theme"
+      ],
+      "platform": "web"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "files": [
+    "lib/index.mjs",
+    "lib/client.js",
+    "cordis.patch.yml",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "tsdown -c tsdown.config.ts && node build-client.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node tests/smoke.mjs && node tests/http.mjs && node tests/client.mjs",
+    "test:cdn": "node tests/cdn.mjs",
+    "probe": "node tools/probe-font.mjs"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-client-locale": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-store": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-ui-chat": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-ui-conversation": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-ui-primitives": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-ui-renderer": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-ui-theme": ">=0.1.7-0",
+    "@deepseek-ai/schemastery": "*",
+    "react": "*"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-locale": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-store": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-chat": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-conversation": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-primitives": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-renderer": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-settings": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-slots": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-theme": {
+      "optional": true
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.3",
+    "@deepseek-ai/dsh-api-gateway": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-locale": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-store": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-ui-chat": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-ui-conversation": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-ui-primitives": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-ui-renderer": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-ui-theme": ">=0.1.7-0",
+    "@deepseek-ai/dsh-host-webserver": ">=0.1.7-0",
+    "@deepseek-ai/schemastery": "^3.18.3",
+    "@types/node": "^26.5.0",
+    "@types/react": "~18.3.1",
+    "lightningcss": "^1.32.0",
+    "rolldown": "^1.0.0",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3"
+  }
+}
