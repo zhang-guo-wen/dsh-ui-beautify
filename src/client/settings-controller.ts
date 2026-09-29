@@ -60,6 +60,10 @@ export interface SettingsRowState {
   codeFont: string
   /** Motion answer currently stored, already resolved to a choice. */
   motion: MotionChoice
+  logo: string
+  brandIcon: string
+  brandName: string
+  tagline: string
   /** What each face holds in the local cache; a face absent from it has downloaded nothing. */
   cache: FontCacheReport
 }
@@ -165,12 +169,20 @@ export class SettingsController {
         font: value?.font !== undefined,
         codeFont: value?.codeFont !== undefined,
         motion: value?.motion !== undefined,
+        logo: value?.logo !== undefined,
+        brandIcon: value?.brandIcon !== undefined,
+        brandName: value?.brandName !== undefined,
+        tagline: value?.tagline !== undefined,
       },
       // The document is hand-editable, so an unknown stored value must show as
       // the choice actually in effect rather than as nothing selected.
       font: resolveFontChoice(value?.font, 'body'),
       codeFont: resolveFontChoice(value?.codeFont, 'code'),
       motion: resolveMotionChoice(value?.motion),
+      logo: value?.logo ?? '',
+      brandIcon: value?.brandIcon ?? '',
+      brandName: value?.brandName ?? '',
+      tagline: value?.tagline ?? '',
       cache: this.cache,
     }
   }

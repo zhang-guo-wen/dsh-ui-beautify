@@ -14,10 +14,11 @@
 import type { Context } from '@deepseek-ai/cordis'
 // Type-only: pulls the webserver plugin's Context merge (ctx.webServer).
 import type {} from '@deepseek-ai/dsh-host-webserver'
-import { CACHE_ROUTE, FONTS_ROUTE } from './params.ts'
+import { BRAND_ROUTE, CACHE_ROUTE, FONTS_ROUTE } from './params.ts'
+import { serveBrandAsset } from './brand-assets.ts'
 import { serveCacheUsage, serveFontFile } from './serve.ts'
 import { Config } from './settings.ts'
-import { FontStore, resolveCacheDir } from './store.ts'
+import { FontStore, resolveBrandDir, resolveCacheDir } from './store.ts'
 
 /** Loader row name for this plugin. */
 export const name = 'ui-beautify'
@@ -29,7 +30,8 @@ export const inject = ['webServer']
 // catalogue, the cache layout, and the namespace identity without reaching into
 // internal module paths. These are the only values published beyond the plugin
 // surface.
-export { CACHE_ROUTE, FONTS_ROUTE } from './params.ts'
+export { BRAND_ROUTE, CACHE_ROUTE, FONTS_ROUTE, MAX_BRAND_IMAGE_BYTES } from './params.ts'
+export { imageType, saveBrandImage, serveBrandAsset } from './brand-assets.ts'
 export {
   anyFaceById, choicesFor, CODE_FACES, CODE_FALLBACK_STACK, CODE_FONT_CHOICES,
   DEFAULT_CODE_FONT_ID, DEFAULT_FONT_ID, FACE_ID_PATTERN, FONT_CHOICES, FONT_FACES,
@@ -44,7 +46,7 @@ export { FONT_SETTINGS_NS } from './settings.ts'
 export { DEFAULT_MIRRORS, downloadFile, mirrorUrl } from './source.ts'
 export { DEFAULT_MOTION_CHOICE, MOTION_CHOICE_IDS, resolveMotionChoice } from './motion.ts'
 export type { MotionChoice } from './motion.ts'
-export { FontStore, resolveCacheDir } from './store.ts'
+export { FontStore, resolveBrandDir, resolveCacheDir } from './store.ts'
 export { Config }
 
 /**
@@ -75,5 +77,14 @@ export function apply(ctx: Context, config: Config): void {
       handler: (req, res) => serveCacheUsage(req, res, store),
     }),
     'ui-beautify: cache read-out',
+  )
+  const brandDir = resolveBrandDir()
+  ctx.effect(
+    () => ctx.webServer.register({
+      kind: 'prefix',
+      path: BRAND_ROUTE,
+      handler: (req, res) => serveBrandAsset(req, res, brandDir),
+    }),
+    'ui-beautify: brand images',
   )
 }

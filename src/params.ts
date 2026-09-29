@@ -24,6 +24,12 @@ export const FONTS_ROUTE = '/plugins/dsh-ui-beautify/fonts'
  */
 export const CACHE_ROUTE = '/plugins/dsh-ui-beautify/cache'
 
+/** Uploaded branding images are written and served by the Host. */
+export const BRAND_ROUTE = '/plugins/dsh-ui-beautify/brand'
+
+/** Maximum bytes accepted for one uploaded brand image. */
+export const MAX_BRAND_IMAGE_BYTES = 2 * 1024 * 1024
+
 /**
  * Settings namespace owned by this plugin.
  *

@@ -1,0 +1,32 @@
+/* Quick replies: the row of tags in the strip below the composer card.
+   `Pill` owns the capsule itself, so only the row's own arrangement — wrapping
+   instead of squeezing, and the smaller gap a group of tags wants — lives
+   here. Colors come from the --dsw-* alias tokens through the pill. */
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* A tag never shrinks: at the dock's width the row wraps to a second line
+   rather than clipping a phrase down to an ellipsis, which would hide the
+   message a click sends. */
+.tag {
+  flex: none;
+}
+
+/* A submission in flight locks the editor; the tags stay on screen, so they
+   read as closed rather than as buttons that quietly do nothing. */
+.tag:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.tag:disabled:hover {
+  background: var(--dsw-alias-bg-layer-2);
+}

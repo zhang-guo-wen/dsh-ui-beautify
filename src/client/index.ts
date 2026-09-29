@@ -1,16 +1,19 @@
 /**
- * Page beautification, browser half: register the preference rows, apply the
- * chosen faces to the document, and run the composer dock's cyclist.
+ * Page beautification, browser half: register the settings page, apply the
+ * chosen faces to the document, and fill the composer's two strips — the lane
+ * above the card and the quick replies below it.
  *
- * Three responsibilities, in this order of importance:
+ * Four responsibilities, in this order of importance:
  *
  * 1. **Applying the faces** is the plugin's actual effect. Each role's
  *    stylesheet links and token overrides follow its stored id, and the override
  *    rides the theme service — which writes it as an inline style on `body`, the
  *    only layer that outranks the `:root` declaration in ui-theme's own sheet
  *    regardless of activation order.
- * 2. **The rows** are the surface that writes those ids.
- * 3. **The lane** is decoration: a figure whose speed reports how fast the model
+ * 2. **The settings page** writes the font, motion, and branding choices.
+ * 3. **The quick replies** are the composer's submit plane offered as one click
+ *    per common answer; they send the phrase the tag carries.
+ * 4. **The lane** is decoration: a figure whose speed reports how fast the model
  *    is writing. It is the one contribution that is skipped outright when the
  *    browser asks for reduced motion.
  *
@@ -26,6 +29,8 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: the configuration-form service merge (ctx.configForms) and slot types.
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
+// Type-only: the composer-dock SlotMap entry the quick replies register into.
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 // Type-only: the slot registry Context merge (ctx.slots).
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the ui-theme plugin's Context merge (ctx.theme).
@@ -36,14 +41,17 @@ import {
 } from '../fonts.ts'
 import { FONTS_ROUTE, FONT_SETTINGS_NS } from '../params.ts'
 import { BikeLane } from './BikeLane.tsx'
-import { CodeFontRow, FontRow } from './FontRows.tsx'
+import { BeautifySection } from './BeautifySection.tsx'
+import { applyBranding } from './branding.tsx'
 import { en, NS, zh, type SettingsKey } from './locales.ts'
-import { MotionRow } from './MotionRow.tsx'
+import { QuickReplies } from './QuickReplies.tsx'
 import { SettingsController } from './settings-controller.ts'
+import { applyTagline } from './tagline.ts'
 
 export type { BikeLaneProps } from './BikeLane.tsx'
 export type { CodeFontRowProps, FontRowProps } from './FontRows.tsx'
 export type { MotionRowProps } from './MotionRow.tsx'
+export type { QuickRepliesProps } from './QuickReplies.tsx'
 export type { SettingsRowFace, SettingsRowState } from './settings-controller.ts'
 export { NS } from './locales.ts'
 
@@ -52,23 +60,6 @@ const PLUGIN_ID = '@guowenzhang/dsh-ui-beautify'
 
 /** The roles, in the order their rows appear and their tokens are installed. */
 const ROLE_ORDER: readonly FontRole[] = ['body', 'code']
-
-/**
- * Row positions in the General section.
- *
- * `11.5` to `11.7` place all three inside the appearance group: directly under
- * the interface font size (11), above the transcript row (12). Whole steps there
- * would push them past the end of that group, and they belong next to each other
- * because they are the same kind of choice.
- */
-const ROW_ORDER: Readonly<Record<FontRole, number>> = { body: 11.5, code: 11.6 }
-
-/** The row id each role registers under. */
-const ROW_ID: Readonly<Record<FontRole, string>> = { body: 'ui-beautify', code: 'ui-beautify-code' }
-
-/** The lane's settings row, directly under the two font rows. */
-const MOTION_ROW_ID = 'ui-beautify-motion'
-const MOTION_ROW_ORDER = 11.7
 
 /**
  * The lane's cell in the composer dock, and where it sits among the entries
@@ -80,9 +71,20 @@ const MOTION_ROW_ORDER = 11.7
 const LANE_ID = 'ui-beautify-lane'
 const LANE_ORDER = 100
 
+/**
+ * The quick replies' cell in the strip *below* the composer card, and where it
+ * sits among the entries already there.
+ *
+ * That strip is `conversation.composer.dock`, whose other occupant is the
+ * session-stats pills; order 1 puts the tags directly after them, with the
+ * context meter that the composer itself renders last.
+ */
+const REPLIES_ID = 'ui-beautify-replies'
+const REPLIES_ORDER = 1
+
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
-    /** This plugin's settings rows copy. */
+    /** This plugin's settings-row and quick-reply copy. */
     'settings.uiBeautify': SettingsKey
   }
 }
@@ -95,7 +97,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export const inject = ['theme', 'slots', 'locale', 'configForms']
 
 /**
- * Client plugin body: register the preference rows, keep the document in sync
+ * Client plugin body: register the settings page, keep the document in sync
  * with the stored choices, and put the lane in the composer dock.
  * @param ctx - client cordis context.
  */
@@ -106,24 +108,14 @@ export function apply(ctx: Context): void {
   ctx.effect(() => () => { controller.dispose() }, 'ui-beautify: settings form')
 
   ctx.effect(() => applyFonts(ctx, scope), 'ui-beautify: fonts')
-
-  for (const role of ROLE_ORDER) {
-    ctx.slots.inject('settings.general.item', () => ctx.slots.register({
-      name: 'settings.general.item',
-      id: ROW_ID[role],
-      order: ROW_ORDER[role],
-      locale: NS,
-      inject: () => controller.inject(),
-    }, role === 'body' ? FontRow : CodeFontRow))
-  }
-
-  ctx.slots.inject('settings.general.item', () => ctx.slots.register({
-    name: 'settings.general.item',
-    id: MOTION_ROW_ID,
-    order: MOTION_ROW_ORDER,
-    locale: NS,
+  ctx.effect(() => applyTagline(scope), 'ui-beautify: tagline')
+  applyBranding(ctx, scope)
+  const t = ctx.locale.bind(NS)
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section', id: 'ui-beautify', order: 40,
+    label: () => t('nav'), locale: NS,
     inject: () => controller.inject(),
-  }, MotionRow))
+  }, BeautifySection))
 
   // Registered unconditionally, and given the stored answer rather than the
   // browser's: a lane the user switched off is a lane they can switch back on,
@@ -134,6 +126,15 @@ export function apply(ctx: Context): void {
     order: LANE_ORDER,
     inject: () => controller.inject(),
   }, BikeLane))
+
+  // No business face: the session's input actions and the draft's phase are
+  // standard props every session-scope entry receives.
+  ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
+    name: 'conversation.composer.dock',
+    id: REPLIES_ID,
+    order: REPLIES_ORDER,
+    locale: NS,
+  }, QuickReplies))
 }
 
 /**

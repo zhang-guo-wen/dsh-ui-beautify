@@ -1,0 +1,27 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 8px 0 24px;
+}
+
+.heading {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.intro {
+  margin: 0 0 20px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.groupTitle {
+  margin: 16px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}

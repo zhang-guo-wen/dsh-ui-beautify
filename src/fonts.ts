@@ -300,6 +300,14 @@ export interface BeautifySettings {
   codeFont: string
   /** One of {@link MOTION_CHOICE_IDS}. */
   motion: string
+  /** Image URL for the welcome-page logo; empty keeps the built-in mark. */
+  logo: string
+  /** Image URL for the upper-left sidebar icon; empty keeps the built-in mark. */
+  brandIcon: string
+  /** Upper-left sidebar name; empty keeps the built-in name. */
+  brandName: string
+  /** Blank-session headline; empty keeps the host's localized slogan. */
+  tagline: string
 }
 
 /**

@@ -6,7 +6,7 @@
 import { existsSync } from 'node:fs'
 import {
   apply, faceById, fontRouteFor, fontStack, mirrorUrl, resolveCacheDir, resolveFontChoice,
-  resolveMotionChoice, CACHE_ROUTE, CODE_FACES, CODE_FONT_CHOICES, Config, DEFAULT_CODE_FONT_ID,
+  resolveMotionChoice, BRAND_ROUTE, CACHE_ROUTE, CODE_FACES, CODE_FONT_CHOICES, Config, DEFAULT_CODE_FONT_ID,
   DEFAULT_FONT_ID, DEFAULT_MIRRORS, DEFAULT_MOTION_CHOICE, FACE_ID_PATTERN, FONT_CHOICES,
   FONT_FACES, FONT_ROLES, FONTS_ROUTE, FONT_SETTINGS_NS, MOTION_CHOICE_IDS, SYSTEM_FONT_ID,
 } from '../lib/index.mjs'
@@ -39,13 +39,16 @@ apply({
 }, config)
 const fontRoute = routes.find(route => route.path === FONTS_ROUTE)
 const cacheRoute = routes.find(route => route.path === CACHE_ROUTE)
-check('claims exactly two routes', routes.length === 2, routes.map(route => route.path).join(', '))
+const brandRoute = routes.find(route => route.path === BRAND_ROUTE)
+check('claims three routes', routes.length === 3, routes.map(route => route.path).join(', '))
 check('the font route is a prefix route', fontRoute?.kind === 'prefix', String(fontRoute?.kind))
 check('the font route carries a request handler', typeof fontRoute?.handler === 'function')
 check('the cache read-out is an exact route', cacheRoute?.kind === 'exact', String(cacheRoute?.kind))
 check('the cache read-out carries a request handler', typeof cacheRoute?.handler === 'function')
+check('the brand-image route is a prefix route', brandRoute?.kind === 'prefix')
+check('the brand-image route carries a request handler', typeof brandRoute?.handler === 'function')
 check('the two routes do not overlap', !CACHE_ROUTE.startsWith(`${FONTS_ROUTE}/`), CACHE_ROUTE)
-check('registers one explicit effect per route', disposers.length === 2, String(disposers.length))
+check('registers one explicit effect per route', disposers.length === 3, String(disposers.length))
 
 console.log('face catalogue')
 check('offers several body faces', FONT_FACES.length >= 6, String(FONT_FACES.length))
@@ -185,6 +188,10 @@ check('the namespace is the loader row id', FONT_SETTINGS_NS === 'ui-beautify', 
 check('declares the body field live', Config.dict.font.meta.volatile === true)
 check('declares the code field live', Config.dict.codeFont.meta.volatile === true)
 check('declares the motion field live', Config.dict.motion.meta.volatile === true)
+for (const field of ['logo', 'brandIcon', 'brandName', 'tagline']) {
+  check(`declares ${field} live`, Config.dict[field].meta.volatile === true)
+  check(`defaults ${field} to the host content`, Config({})[field].get() === '')
+}
 check('defaults to the default body face', Config({}).font.get() === DEFAULT_FONT_ID, String(Config({}).font.get()))
 check('defaults the code face to the built-in stack', Config({}).codeFont.get() === DEFAULT_CODE_FONT_ID, String(Config({}).codeFont.get()))
 check('defaults the lane to following the browser', Config({}).motion.get() === DEFAULT_MOTION_CHOICE, String(Config({}).motion.get()))

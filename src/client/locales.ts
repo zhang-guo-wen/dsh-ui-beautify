@@ -1,9 +1,14 @@
 /**
- * Locale-owned copy for this plugin's General-settings rows.
+ * Locale-owned copy for this plugin's two surfaces: the General-settings rows
+ * and the composer dock's quick replies.
  *
  * Product-visible text lives here and reaches the components through the `t`
  * seat; the components themselves carry no fallback strings. One name and one
  * description per catalogue row, so adding a face means adding two keys here.
+ *
+ * The quick replies are copy for the same reason the rest is: the phrase on a
+ * tag is a message the user sends, and the row reads it in the active locale
+ * rather than showing one language's phrases to everybody.
  *
  * @module @guowenzhang/dsh-ui-beautify/client/locales
  */
@@ -13,6 +18,11 @@ export const NS = 'settings.uiBeautify'
 
 /** English copy. */
 export const en = {
+  nav: 'UI Beautify',
+  pageTitle: 'UI Beautify',
+  pageIntro: 'Choose fonts, motion, and the images and text shown in the interface.',
+  appearanceGroup: 'Appearance',
+  brandingGroup: 'Branding',
   title: 'Body font',
   groupSystem: 'Baseline',
   groupCjk: 'Chinese faces',
@@ -79,10 +89,38 @@ export const en = {
   motionOffDesc: 'The lane never appears and the strip above the message box stays empty.',
   motionOffNote: 'Switched off here, so the lane is not shown.',
   motionBlocked: 'Your browser reports prefers-reduced-motion: reduce, which is why the strip is empty. Pick “Always play” to override it.',
+  logoTitle: 'Welcome logo',
+  logoDesc: 'Image shown on the blank conversation page. Upload PNG, JPEG, WebP, or GIF (up to 2 MB).',
+  brandIconTitle: 'Top-left icon',
+  brandIconDesc: 'Sidebar icon in expanded and collapsed views. Upload PNG, JPEG, WebP, or GIF (up to 2 MB).',
+  brandNameTitle: 'Top-left name',
+  brandNameDesc: 'Name beside the sidebar icon. Leave empty for the built-in name.',
+  taglineTitle: 'Welcome tagline',
+  taglineDesc: 'Headline on the blank conversation page. Leave empty for the built-in tagline.',
+  taglinePlaceholder: 'Into the Unknown',
+  invalidImageUrl: 'The saved image address is invalid; choose a new image.',
+  chooseImage: 'Choose image',
+  uploading: 'Uploading…',
+  restoreDefault: 'Restore default',
+  uploadFailed: 'Upload failed. Try another image.',
+  imageTooLarge: 'The image must be 2 MB or smaller.',
+  namePlaceholder: 'Built-in name',
+  quickTitle: 'Quick replies',
+  quickSend: 'Send “{text}”',
+  quickContinue: 'Continue',
+  quickOk: 'OK',
+  quickGood: 'Sounds good',
+  quickRetry: 'Retry',
+  quickDetail: 'Explain in detail',
 }
 
 /** Chinese copy. */
 export const zh: typeof en = {
+  nav: '界面美化',
+  pageTitle: '界面美化',
+  pageIntro: '在这里统一设置字体、动效，以及界面中的图片和文字。',
+  appearanceGroup: '外观',
+  brandingGroup: '品牌',
   title: '正文字体',
   groupSystem: '基准',
   groupCjk: '中文字体',
@@ -149,6 +187,29 @@ export const zh: typeof en = {
   motionOffDesc: '完全不显示，输入框上方那条带子保持空白。',
   motionOffNote: '已在这里关闭，因此不显示。',
   motionBlocked: '你的浏览器报告 prefers-reduced-motion: reduce，这就是那条带子空白的原因。选「始终播放」即可无视它。',
+  logoTitle: '欢迎页 Logo',
+  logoDesc: '空白会话页显示的图片。可上传 PNG、JPEG、WebP 或 GIF，最大 2 MB。',
+  brandIconTitle: '左上角图标',
+  brandIconDesc: '侧栏展开和折叠时显示的图标。可上传 PNG、JPEG、WebP 或 GIF，最大 2 MB。',
+  brandNameTitle: '左上角名称',
+  brandNameDesc: '侧栏图标旁的名称；留空使用内置名称。',
+  taglineTitle: '欢迎页标语',
+  taglineDesc: '空白会话页的标题；留空使用内置标语。',
+  taglinePlaceholder: '探索未至之境',
+  invalidImageUrl: '已保存的图片地址无效，请重新选择图片。',
+  chooseImage: '选择图片',
+  uploading: '上传中…',
+  restoreDefault: '恢复默认',
+  uploadFailed: '上传失败，请换一张图片重试。',
+  imageTooLarge: '图片不能超过 2 MB。',
+  namePlaceholder: '内置名称',
+  quickTitle: '快捷回复',
+  quickSend: '发送「{text}」',
+  quickContinue: '继续',
+  quickOk: 'OK',
+  quickGood: '好的',
+  quickRetry: '重试',
+  quickDetail: '详细说说',
 }
 
 /** Every key these rows' copy may use. */

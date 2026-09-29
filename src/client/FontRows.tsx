@@ -19,7 +19,7 @@ import { useEffect, useState } from 'react'
 import {
   IconChevronDownOutlineRegular, Menu, type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   FONT_ROLES, SYSTEM_FONT_ID, type FontCacheUsage, type FontRole,
 } from '../fonts.ts'
@@ -30,8 +30,7 @@ import css from './SettingRow.module.css'
 
 /** Full component props, shared by both font rows. */
 export type FontRowProps =
-  PropsRuntime<'settings.general.item'>
-  & PropsLocale<typeof NS>
+  PropsLocale<typeof NS>
   & InjectFace<SettingsRowFace>
 
 /** The code row takes the same props; the name exists so both reads alike. */

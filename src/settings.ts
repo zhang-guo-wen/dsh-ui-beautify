@@ -13,7 +13,7 @@
  * namespace fall back to its last good value — so an unknown id must resolve to
  * the role's default at the read site instead of failing the section.
  *
- * Only the three choices are volatile. The mirrors and the cache directory are
+ * The six user choices are volatile. The mirrors and the cache directory are
  * deployment choices that the route reads once at host start, so presenting them
  * as live fields would promise an effect a settings write cannot deliver; they
  * are set in the plugin row like any other fixed configuration.
@@ -38,6 +38,10 @@ export interface Config {
   codeFont: Volatile<BeautifySettings['codeFont']>
   /** Whether the composer lane animates: one of the motion choices. */
   motion: Volatile<BeautifySettings['motion']>
+  logo: Volatile<BeautifySettings['logo']>
+  brandIcon: Volatile<BeautifySettings['brandIcon']>
+  brandName: Volatile<BeautifySettings['brandName']>
+  tagline: Volatile<BeautifySettings['tagline']>
   /** Registries a font file is downloaded from, tried in order. */
   mirrors: string[]
   /** Directory caching downloaded files; empty follows `$DSH_HOME`, then `~/.dsh`. */
@@ -50,6 +54,10 @@ export const Config = z.object({
   font: z.string().default(DEFAULT_FONT_ID).volatile(),
   codeFont: z.string().default(DEFAULT_CODE_FONT_ID).volatile(),
   motion: z.string().default(DEFAULT_MOTION_CHOICE).volatile(),
+  logo: z.string().default('').volatile(),
+  brandIcon: z.string().default('').volatile(),
+  brandName: z.string().default('').volatile(),
+  tagline: z.string().default('').volatile(),
   mirrors: z.array(z.string()).default([...DEFAULT_MIRRORS]),
   cacheDir: z.string().default(''),
 })

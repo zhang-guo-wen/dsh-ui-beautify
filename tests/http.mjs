@@ -107,7 +107,7 @@ async function startPlugin(options) {
       },
     },
   }, Config(options))
-  if (handlers.size !== 2) throw new Error(`the plugin registered ${String(handlers.size)} routes`)
+  if (handlers.size !== 3) throw new Error(`the plugin registered ${String(handlers.size)} routes`)
   // The same dispatch the real webserver performs: exact table first, then the
   // prefix table.
   const exact = handlers.get(CACHE_ROUTE)

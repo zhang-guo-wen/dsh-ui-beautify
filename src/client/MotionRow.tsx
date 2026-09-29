@@ -18,7 +18,7 @@ import { useState } from 'react'
 import {
   IconChevronDownOutlineRegular, Menu, type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { MOTION_CHOICE_IDS, prefersReducedMotion, type MotionChoice } from '../motion.ts'
 import type { SettingsRowFace, SettingsRowState } from './settings-controller.ts'
 import type { SettingsKey } from './locales.ts'
@@ -27,8 +27,7 @@ import css from './SettingRow.module.css'
 
 /** Full component props. */
 export type MotionRowProps =
-  PropsRuntime<'settings.general.item'>
-  & PropsLocale<typeof NS>
+  PropsLocale<typeof NS>
   & InjectFace<SettingsRowFace>
 
 /** The name and description each choice shows. */

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-本仓 `dsh-ui-beautify` 是**独立于 harness monorepo** 的 DeepSeek Harness (DSH) 插件：把 Web GUI 的正文与代码字体做成「设置 → 通用设置」里的两行下拉选择。
+本仓 `dsh-ui-beautify` 是**独立于 harness monorepo** 的 DeepSeek Harness (DSH) 插件：在「设置 → 界面美化」独立页面提供字体、动效与品牌设置，并给 composer 上下各加一件——上方是骑车道，下方是快捷回复标签。
 字体**不随包分发**——包里只有 npm 包名、锁定版本与包内样式表路径，字体在首次使用时由 Host 从镜像下载到本机缓存，之后完全离线可用。
 它不打包 `@deepseek-ai/*`，运行时从宿主 harness 解析这些包。
 
@@ -19,22 +19,29 @@ src/
   source.ts               镜像模板、带超时/体积上限/内容校验的下载
   store.ts                磁盘缓存（generation、原子写入、并发合并、过期清理、用量统计）
   serve.ts                两个 HTTP 面：字体文件应答（404/502）与缓存用量 JSON
-  settings.ts             Host：ui-beautify 命名空间（font / codeFont / motion）与 mirrors/cacheDir 配置
-  index.ts                Host：认领两个路由
+  settings.ts             Host：ui-beautify 命名空间（字体 / 动效 / 品牌）与 mirrors/cacheDir 配置
+  brand-assets.ts         Host：图片上传校验、持久化与图片应答
+  index.ts                Host：认领字体、缓存与品牌图片三个路由
   client/
-    index.ts              Client：注册三行偏好项与 composer 车道 + 按角色应用所选字体
+    index.ts              Client：注册独立设置页、composer 上下的车道与快捷回复 + 按角色应用所选字体
+    BeautifySection.tsx   字体、动效与品牌的独立设置页面
+    BrandRows.tsx         欢迎页 Logo、侧栏图标的上传控件与名称输入
+    branding.tsx          仅在设置非空时接管宿主品牌插槽
     FontRows.tsx          字体偏好行组件（标题 / 描述 / 缓存状态 + 下拉选择），两个角色共用
     MotionRow.tsx         车道那一行：三选一，并写出「为什么带子是空的」
-    SettingRow.module.css 三行共用的偏好行样式
+    SettingRow.module.css 六项设置共用的行样式
     BikeLane.tsx          composer 卡片正上方的骑车小人：SVG 与逐帧驱动
     BikeLane.module.css
+    QuickReplies.tsx      composer 卡片正下方的快捷回复标签：短语 → 草稿 → 提交
+    QuickReplies.module.css
     output-rate.ts        输出速率（字符/秒）与「速率 → 车速」映射，纯函数
-    settings-controller.ts 设置命名空间、缓存用量 ↔ 行快照，三行共用一份
-    locales.ts            中英文案
+    settings-controller.ts 设置命名空间、缓存用量 ↔ 行快照，独立页面共用一份
+    locales.ts            中英文案（设置行 + 快捷回复短语）
 tests/
   smoke.mjs               路由、两份字体表、路径解析、配置默认值（离线）
   http.mjs                桩镜像下的 HTTP 层：字节、缓存、并发、失败应答、离线、用量上报
-  client.mjs              加载 lib/client.js 驱动 apply()：两行插槽、链接、两种 token、下拉、状态行，以及逐帧驱动的 composer 车道
+  client.mjs              加载 lib/client.js 驱动 apply()：独立设置页、品牌插槽、链接、两种 token、下拉、状态行、快捷回复的插槽与一次点击，以及逐帧驱动的 composer 车道
+  brand.mjs               图片上传、拒绝无效文件、持久化和读取的 HTTP 测试
   cdn.mjs                 联网逐字体（两个角色）校验镜像、分片与族名
 tools/
   probe-font.mjs          联网评估候选 npm 包：分片、族名、镜像可达、可直接粘贴的配置行
@@ -47,7 +54,7 @@ tools/
 
 ## 字体表
 
-两款字体**各自独立配置**：正文字体与代码字体，各占通用设置里的一行，互不影响。
+两款字体**各自独立配置**：正文字体与代码字体各占插件独立设置页面里的一行，互不影响。
 路由按 face id 解析、不区分角色（`anyFaceById`），所以**所有 id 在两份表之间必须唯一**。
 
 ### 正文字体（`system` 之外 14 款）
@@ -106,14 +113,15 @@ tools/
 
 浏览器请求 `/plugins/dsh-ui-beautify/fonts/<face>/<包内路径>`，Host 半边按这个路径去镜像取文件、落盘、再回给浏览器。**路由直接镜像 npm 包的目录结构**，所以样式表里那些 `url(./files/x.woff2)` 相对路径原样成立，Host 不需要改写一个字节的 CSS（`tests/http.mjs` 断言了「逐字节相同」）。
 
-### 两个路由
+### 三个路由
 
 | 路由 | 类型 | 职责 |
 |---|---|---|
 | `/plugins/dsh-ui-beautify/fonts` | `webServer` prefix | 字体文件应答：命中缓存读盘、未命中下载，畸形路径 403、未知 face 404、镜像失败 502 |
 | `/plugins/dsh-ui-beautify/cache` | `webServer` exact | 缓存用量 JSON（`no-store`，只读；只收 GET/HEAD，其他方法 405） |
+| `/plugins/dsh-ui-beautify/brand` | `webServer` prefix | 上传并持久化品牌图片，按内容哈希提供图片读取 |
 
-两条都在 `src/index.ts` 里用 `ctx.effect(() => ctx.webServer.register(...))` 注册，`inject: ['webServer']`。
+三条都在 `src/index.ts` 里用 `ctx.effect(() => ctx.webServer.register(...))` 注册，`inject: ['webServer']`。
 路由挂在 `/plugins` 下，因为那是应用已经用来提供插件自有资源的源；`webServer` 按最长前缀优先解析，所以它赢过 `/plugins` 上的 client-modules bundle 路由。
 `fontRouteFor` 把请求路径解析成 face + 包内相对路径，`isServablePath` 拒绝空段、`.`、`..`、反斜杠与 NUL——Windows 把反斜杠当分隔符，带反斜杠的路径能爬出缓存目录，所以一律按畸形拒绝而不是归一化。
 
@@ -256,11 +264,29 @@ composer 卡片正上方那条整宽插槽是 `conversation.input.dock`（ui-con
 
 `.lane` 用 `margin-bottom: calc(2px - var(--dsh-composer-stack-gap, 6px))` 把 `composerStack` 的 6px 行距吃掉大半：小人要看起来**坐在输入框上**，而不是和下方面板一样属于上方那组卡片。留 2px 免得贴死。用变量而不是写死 -4px，是为了 stack 行距变了这里跟着变。
 
-## 设置与三个可配项
+## composer 下方的快捷回复
 
-选择行挂在 **设置 → 通用设置**（`settings.general.item`，order **11.5** / **11.6** / **11.7**）——即「外观」一组里**「字号大小」正下方**：「正文字体」、「代码字体」、「输入框上方的动画」，三者都在工作过程展示上方。11.5–11.7 是因为整步会把它们挤出这一组；行 id 分别是 `ui-beautify`、`ui-beautify-code`、`ui-beautify-motion`。用的是 ui-settings-general 专门为「不需要独立页面的单个偏好」留的加性插槽，所以这些选择**不是独立页面**，侧边栏里也没有导航项。三行共用 `MotionRow`/`FontRows` 与 `SettingRow.module.css`，也共用 `SettingsController` 的一份快照——同一个命名空间拆三次订阅只会得到三份会互相打架的视图。
+composer 卡片正下方那条整宽插槽是 `conversation.composer.dock`（同样由 ui-conversation 声明，`kind: 'list'`、`scope: 'session'`），本插件在其中注册 `ui-beautify-replies`（order **1**）。同一插槽的既有占用者是 ui-chat 的会话统计胶囊（order 0），1 让标签排在它后面；`ContextMeter` 由 composer 自己渲染，在整条带子的最后。
 
-选择写进**当前 profile 的配置文件** `$DSH_HOME/profiles/<profile>/cordis.patch.yml` 里 `ui-beautify` 行的 `config`（`font` / `codeFont` / `motion` 三个字段），改完立即生效、无需重启。**`motion` 是 0.4.0 新增的字段**：升级后宿主仍跑着旧 schema 时，这一行会写「宿主仍在运行本插件的旧版本」并禁用——这是设计好的提示，重启 dsh 即可。
+**一次点击 = 写草稿 + 提交**，走的是 session 标准席位里的 `inputActions`：`insertText(短语, captureInsertion())` 然后 `submit()`。是**在光标处插入**而不是 `setDraft` 顶掉整份草稿——用户打了一半的消息不会被误点清空，而草稿为空时两者是同一件事。`insertText` 返回 false（编辑器已锁、或点击与插入之间草稿变了）就**不提交**：否则发出去的是草稿里原有的内容，而不是点中的那句话。
+
+`InputActions.submit()` 是无参版本，固定按 `queue` 投递，模型还在跑时消息排到下一轮，和 composer 自己的默认发送一致。要跟随设置里的「忙碌时回车」偏好，得先把投递模式放进公共席位——插件不越界去读 composer 的内部状态。
+
+短语**就是发出去的消息**，所以它们进 locale 字典（`quickContinue` / `quickOk` / `quickGood` / `quickRetry` / `quickDetail`）而不是写成组件里的字面量：中文界面发中文。顺序与清单在 `QuickReplies.tsx` 的 `PHRASES` 里，加一句 = 加一个字典键 + 在 `PHRASES` 里加一项，别处没有第二份枚举。
+
+标签用 ui-primitives 的 `Pill`：胶囊几何与配色由它给，行内只留自己的排布——`flex-wrap`（宁可换行也不把短语截成省略号，否则「这一点发出去的是什么」就看不见了）、6px 间距、以及禁用时的降透明度。`Pill` 已经被视图切换与终端块用着，所以它的样式一直在 shell 的 CSS 里，不存在「引用了没样式的原子」这种情况。
+
+无障碍的三个字段都是必须的：外层 `role="group"` + `aria-label` 说明这是一组快捷回复，每个标签自己的 `aria-label` 写成「发送「继续」」——按钮上的字就是消息本身，所以两处文案都只从字典取。
+
+**空白会话（hero）里不会有这排标签**：`conversation.composer.dock` 只在 `variant === 'composer'` 时渲染，这是 ui-conversation 的行为，不是插件没注册。
+
+## 设置与六个可配项
+
+插件注册一个 `settings.section`（id `ui-beautify`，order 40），在「设置 → 界面美化」页面显示正文字体、代码字体、输入框动效与品牌四项。`BeautifySection` 复用 `FontRows`、`MotionRow`、`BrandRows` 和 `SettingsController` 的一份快照。
+
+品牌四项在动效行之后。`logo` 对应空白会话页标志，`brandIcon` 和 `brandName` 对应侧栏左上角，`tagline` 对应空白会话页标语。图片通过 `POST /plugins/dsh-ui-beautify/brand/upload/{logo|brandIcon}` 上传，限 2 MB 的 PNG/JPEG/WebP/GIF，按内容哈希保存到 `$DSH_HOME/assets/ui-beautify`，由同一路由下的 `assets/<sha>.<ext>` 读取。设置中仅保存图片 URL；留空时不注册品牌插槽，宿主默认内容继续显示。自定义侧栏插槽使用 priority -1 覆盖官方插件的 priority 0。标语当前由宿主组件直接渲染、无插槽；客户端以 DOM 观察同步可见文案，清空后恢复宿主文案。Electron 安装版的原生首次引导不加载浏览器插件。
+
+选择写进**当前 profile 的配置文件** `$DSH_HOME/profiles/<profile>/cordis.patch.yml` 里 `ui-beautify` 行的 `config`（`font` / `codeFont` / `motion` / `logo` / `brandIcon` / `brandName` / `tagline`），改完立即生效、无需重启。新增字段在宿主仍跑着旧 schema 时会显示旧版本提示并禁用；重启 dsh 即可。
 
 > 更早的 DSH 版本把选择写在 `$DSH_HOME/settings.yaml`；该文件已被 DSH 迁移进 profile 的补丁文件并重命名为 `settings.yaml.imported`。现在手工改设置要改的是 profile 补丁。
 
@@ -280,7 +306,7 @@ composer 卡片正上方那条整宽插槽是 `conversation.input.dock`（ui-con
 
 `cacheDir` 留空时的解析顺序：`$DSH_HOME`（非空时）→ `~/.dsh`，再拼 `cache/ui-beautify/fonts`。插件自己展开 `~` / `~/` / `~\` 前缀，因为 `@deepseek-ai/dsh-home-paths` 是 harness 内部包，loader 从 profile 解析本插件的 import，那里没装它。填了值就 `resolve()` 成绝对路径，所以**相对路径按宿主进程的 cwd 解析**，不是 profile 目录。
 
-设置 schema 只做「读时校验」：`font` / `codeFont` / `motion` 都是 `z.string().volatile()`，未知值在读取处（`resolveFontChoice` / `resolveMotionChoice`）回落到该项的默认值，而不是让整个命名空间回退到上一个好值；`mirrors` / `cacheDir` 有默认值但不是 volatile，不出现在设置页。
+六个可配字段都是 `z.string().volatile()`；字体和动效的未知值在读取处回落到默认值，图片地址在使用时检查。`mirrors` / `cacheDir` 有默认值但不是 volatile，不出现在设置页。
 
 ## 构建
 
@@ -307,9 +333,10 @@ npm run probe -- <包>  # 联网：评估一个候选 npm 包能不能当字体�
 
 - `tests/smoke.mjs`：mock ctx 调 `apply()`，断言路由注册、字体表完整性（id 字符集、包名版本、样式表路径）、路由解析与路径穿越防护、镜像模板拼接、缓存目录解析、设置 schema。
 - `tests/http.mjs`：**桩镜像**（`node:http`）+ 真实 `node:http` 服务器驱动插件 handler。断言响应头与字节、第二次请求走磁盘、并发冷请求只下载一次、三种失败应答（404 / 502 / 403）、镜像回退，最后**关掉桩镜像再请求一次**，证明缓存命中可离线工作。
-- `tests/client.mjs`：按浏览器加载器的姿势（`window.__ModuleLoader__.load`）加载**构建产物** `lib/client.js`，配一个假 ctx、DOM 桩与只记录调用的 React 桩驱动 `apply()` **并真的渲染那一行**，断言：注册进 `settings.general.item`（而非 `settings.section`）、order 11.5、每款字体链入的链接、系统默认时全部移除、`--dsw-font-family` 的重绑内容、下拉的分组与每项文案（`思源黑体 · 已缓存 4.3 MB`）、以及行内状态行由用量数据算出来。client 半边没有单元测试的其他覆盖，这条是「bundle 能不能加载、链接指向对不对、这一行显示什么」的唯一防线。
+- `tests/client.mjs`：按浏览器加载器的姿势加载**构建产物** `lib/client.js`，用假 ctx、DOM 桩与 React 桩驱动 `apply()`，断言独立 `settings.section` 的注册、字体链接和 token、设置页控件、品牌图片上传写入与默认值恢复，以及 composer 车道和快捷回复。
   同一份桩还模拟了宿主 ref、commit 后 effect 与**可控时钟**，于是 composer 车道可以逐帧驱动：断言它注册进 `conversation.input.dock`、order 100、`aria-hidden`、**没有输出时位移与轮转都精确为 0**、有输出时前进并转轮、**输出停下后仍滑行 2 秒、8 秒后才完全停住**、以及**在车道上时从不跳回起点**（换行只允许发生在两端都基本在画面外的那一帧）；再加上三种动效选择的行为——`system` + 浏览器要求减少动效时不渲染也不申请帧、`always` 时照常播放并在动、`off` 时什么都不画。车道那一行也在这里渲染：三选一的选项、以及状态行写出「为什么带子是空的」。两个测量辅助函数把「没写过 transform」当成停住（0），而不是 `NaN`——停住的车道**什么都不写**，用 `NaN` 会让停住的断言全部假失败；`travelOf` / `turnOf` 读的是像素，所以「没跳回起点」要按**可见性**判断（换行那一帧两端都在画面外，DOM 上却是一次 800px 的跳跃）。车轮角度必须取模（`((to - from) % 360 + 360) % 360` 并只在单帧内测量）——绝对角度会绕圈，增量会因绕圈变成负数。
 - `tests/cdn.mjs`：对真实镜像逐个字体跑，除了 200 还检查两件容易踩的事——样式表里声明的 `font-family` 与表里写的一致，以及它**确实是 `unicode-range` 分片**而不是一个整字体文件。
+- 快捷回复在同一份 `tests/client.mjs` 里断言：注册进 `conversation.composer.dock`（不是 `settings.general.item`）、order 1、五个短语按字典顺序各占一个标签、外层的 `role="group"` 与 `aria-label`、每个标签自己的 `aria-label`、点击后先按捕获到的光标位置 `insertText` 再 `submit`、**插入被拒时一次都不提交**、以及 `submitting` 相位下全部禁用。`Pill` 是为此加进桩表的——client 半边新增 import 同样要同步那一张（见易崩清单 12）。
 
 三个测试都从 `lib/index.mjs` / `lib/client.js` 读产物，所以改完源码先 `npm run build` 再测。
 `tools/probe-font.mjs` 同样 `import { DEFAULT_MIRRORS } from '../lib/index.mjs'`，跑 probe 之前也要有 `lib/`。
@@ -476,7 +503,7 @@ curl.exe -s -o NUL -w "%{http_code}`n" http://127.0.0.1:3080/plugins/dsh-ui-beau
 
 **3. 命名空间有没有暴露。** 那一行读的是 Host 注册的 `ui-beautify` 命名空间；若状态行显示「宿主设置服务不可用」，说明没有挂载 settings 提供方（`dsh-settings-file`），选择无法保存。
 
-**4. 那一行在不在。** 它注册进的是 `settings.general.item`——由 **ui-settings-general** 声明。若宿主里没有这个包（老版本或裁剪过的组合），`ctx.slots.inject` 会一直等这个声明，**这一行不出现，但字体照常应用**；此时只能改当前 profile 的 `cordis.patch.yml` 手工选。设置里搜「正文字体」，位置在「外观」一组的「字号大小」正下方。
+**4. 设置页在不在。** 它注册进的是 `settings.section`——由 **ui-settings-general** 声明。若宿主里没有这个包（老版本或裁剪过的组合），`ctx.slots.inject` 会一直等这个声明，**界面美化页面不出现，但字体照常应用**；此时只能改当前 profile 的 `cordis.patch.yml` 手工选。
 
 **5. 点了没反应。** 先看那一行的状态行有没有写「**宿主仍在运行本插件的旧版本，它的配置里没有这一行对应的字段**」——写了就是下面这个情况，**必须重启 dsh**：
 
@@ -512,7 +539,7 @@ document.fonts.check('14px "LXGW WenKai"')   // true = 该字体已加载
 
 或在 DevTools 的 Elements → Computed → Rendered Fonts 里看实际渲染用的字体；在 Network 里筛 `fonts/` 能看到哪些分片被拉取、哪些来自 `(disk cache)`。
 
-**7. 缓存里到底有没有东西。** 通用设置里那一行的状态行就会写；要命令行确认，缓存目录默认在 `$DSH_HOME/cache/ui-beautify/fonts`（Windows 上是 `C:\Users\<你>\.dsh\cache\ui-beautify\fonts`），每个字体一个目录，里面一个 generation 目录：
+**7. 缓存里到底有没有东西。** 界面美化页的字体状态行就会写；要命令行确认，缓存目录默认在 `$DSH_HOME/cache/ui-beautify/fonts`（Windows 上是 `C:\Users\<你>\.dsh\cache\ui-beautify\fonts`），每个字体一个目录，里面一个 generation 目录：
 
 ```powershell
 curl.exe -s http://127.0.0.1:3080/plugins/dsh-ui-beautify/cache
@@ -545,9 +572,10 @@ Get-ChildItem "$env:USERPROFILE\.dsh\cache\ui-beautify\fonts" -Recurse -File | S
 
 - **第三个角色**：整个机制已经是「角色表」——加一行 `FONT_ROLES` 条目（key、tokens、fallback、faces、defaultId）就多一个可独立配置的字体位，比如标题字体、终端字体（终端需要先支持通过 CSS 变量传字体）。
 - **镜像自动测速**：启动时对 `mirrors` 各探一次，把最快的排到前面，而不是固定顺序。
-- **缓存管理**：通用设置里再加一行，显示每款字体的缓存占用并提供「清理」——`FontStore` 已经有 generation 概念，加上 enumerating 与 `rm` 即可；`GET /plugins/dsh-ui-beautify/cache` 已经在报这份数据。
+- **缓存管理**：界面美化页面显示每款字体的缓存占用并提供「清理」——`FontStore` 已经有 generation 概念，加上 enumerating 与 `rm` 即可；`GET /plugins/dsh-ui-beautify/cache` 已经在报这份数据。
 - **跟随系统字体**：把 `system` 从「不覆盖」扩展成「跟随一个可配置的字体栈」。
 - **字号阶梯、行高、圆角、间距**：同一套行机制继续加行即可。
 - **自定义主题配色**：`ctx.theme.register` 可注册整套 alias token。
 - **车道的外观**：车速曲线的常量在 `src/client/output-rate.ts`，尺寸常量在 `BikeLane.tsx`/`.module.css`（改尺寸要同时改两处）。想让它更小、更淡或换形象，只动这三处。
 - **车道可调速度**：加第二个 `z.number().volatile()` 字段做倍率即可，`SettingsController` 与 `MotionRow` 的写法可以照抄。
+- **快捷回复可配置**：短语现在内置在 `PHRASES` 与字典里。要做成可编辑，就在 `ui-beautify` 命名空间加一个 `z.array(z.string()).volatile()` 字段、在独立设置页面加一行（`Input` + 回车/失焦提交），并记得新字段要**重启宿主**才认（见「设置与六个可配项」）。

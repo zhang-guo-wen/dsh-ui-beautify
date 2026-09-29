@@ -8,12 +8,7 @@ DeepSeek Harness (`dsh`) is the open-source agent harness from DeepSeek AI, wher
 
 ## The problem this plugin solves
 
-The Web GUI body and code fonts were whatever the system fell back to and could not be changed; this plugin adds one font picker row for each under **设置 → 通用设置** and downloads a face on first use.
-
-## Screenshots
-
-![The two font rows](docs/images/font-rows.png)
-设置 → 通用设置: the **正文字体** and **代码字体** rows sit directly under **字号大小**, each showing the selected face's description and its cache status.
+This plugin adds its own **Settings → UI Beautify** page for body and code fonts, composer motion, and branding. Font files download on first use; uploaded brand images stay on the Host.
 
 ## Install
 
@@ -25,13 +20,17 @@ From the npm registry: <https://www.npmjs.com/package/@guowenzhang/dsh-ui-beauti
 
 ## Usage
 
+### Change the logo and top-left brand
+
+Under **Settings → UI Beautify**, choose **Welcome logo** and **Top-left icon** from your computer. PNG, JPEG, WebP, and GIF files up to 2 MB are uploaded to the Host and previewed on the page. The logo appears on the blank conversation page; the icon appears in both sidebar views. Edit **Top-left name** beside the expanded sidebar icon, and **Welcome tagline** on the blank conversation page. **Restore default** clears an image choice; clearing a text field restores the built-in text. Uploaded files are stored under `$DSH_HOME/assets/ui-beautify`. Restart the Host once after upgrading, then refresh the page. The native first-run welcome window in the Electron installer is packaged separately and does not load this plugin.
+
 ### Pick a body font
 
-**Settings → 通用设置**, under **字号大小**: the **正文字体** row. Open the pill on the right and choose a face; the page restyles on selection with no confirmation step, and the choice is written to the current profile's settings file.
+Open **Settings → UI Beautify → Body font** and choose a face. The page restyles on selection with no confirmation step, and the choice is written to the current profile's settings file.
 
 ### Pick a code font
 
-The **代码字体** row, one line below the body font and above the work-process display. It defaults to `system`, so a fresh install changes nothing about how code looks until you choose otherwise.
+The **Code font** row is on the same page. It defaults to `system`, so a fresh install changes nothing about how code looks until you choose otherwise.
 
 ### Understand what `system` means
 
@@ -50,6 +49,16 @@ Downloads happen per shard, not as a whole package. A selected face's stylesheet
 | The host machine has no outbound network | Downloads fail; the GUI keeps rendering with its fallback fonts |
 | The browser has network access but the host does not | Downloads still fail — the browser never contacts an external site |
 
+## Quick replies
+
+The strip directly below the message box carries tags — **Continue**, **OK**, **Sounds good**, **Retry**, **Explain in detail**. One click sends that phrase as your message: the tag writes it into the composer and submits, which is the same path typing the same text and pressing Enter takes.
+
+- The phrases follow the interface language, because the phrase on a tag *is* the message that goes out.
+- A click inserts at the caret instead of replacing the draft, so a half-typed message is never thrown away by a stray click. Over an empty composer the two are the same thing.
+- While a submission is in flight the composer has locked its editor, and the tags close with it rather than looking clickable.
+- Sending queues: if the agent is still working, the message waits for its own turn, exactly like a normal send.
+- The list is built in. Changing it means changing `PHRASES` in `src/client/QuickReplies.tsx` and the dictionaries in `src/client/locales.ts`.
+
 ## The composer lane
 
 The strip directly above the message box carries a cyclist. It moves while the model is writing and rolls to a halt when it isn't: a fast stream sends it across quickly, a slow one lets it crawl, and once the output stops it keeps the speed it had and bleeds it off over eight seconds before coming to rest. It is a report of output, not a looping decoration.
@@ -61,7 +70,7 @@ It is decoration, and it is deliberately quiet about it:
 
 ### Turning it on or off
 
-**设置 → 通用设置 → 输入框上方的动画**, the row directly under the two font rows:
+**Settings → UI Beautify → Composer lane**, directly below the two font rows:
 
 | Choice | What it does |
 |---|---|

@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs'
 import { runInThisContext } from 'node:vm'
 import {
-  CACHE_ROUTE, CODE_FACES, CODE_FONT_CHOICES, FONT_CHOICES, FONT_FACES, FONTS_ROUTE,
+  BRAND_ROUTE, CACHE_ROUTE, CODE_FACES, CODE_FONT_CHOICES, FONT_CHOICES, FONT_FACES, FONTS_ROUTE,
   FONT_SETTINGS_NS, SYSTEM_FONT_ID,
 } from '../lib/index.mjs'
 
@@ -27,6 +27,14 @@ const bundle = new URL('../lib/client.js', import.meta.url)
 
 console.log('module evaluation')
 const head = []
+const headline = { textContent: '探索未至之境' }
+let headlineObserver
+globalThis.MutationObserver = class {
+  constructor(callback) { this.callback = callback; headlineObserver = this }
+  observe() {}
+  disconnect() {}
+  notify() { this.callback() }
+}
 /** A <link> or <style> stand-in that knows how to remove itself from the head. */
 const makeElement = tag => ({
   tag,
@@ -40,8 +48,10 @@ const makeElement = tag => ({
   },
 })
 globalThis.document = {
+  body: {},
   head: { appendChild(element) { head.push(element) } },
   querySelector: () => null,
+  querySelectorAll: selector => selector === '[class*="_headline"] [class*="_titleGroup"] > span:first-child' ? [headline] : [],
   createElement: tag => makeElement(tag),
 }
 
@@ -85,6 +95,10 @@ const record = (type, props) => {
 }
 const Menu = () => null
 const IconChevronDownOutlineRegular = () => null
+// The quick replies' tag is a primitive: recorded as its own element type so the
+// assertions can read the props (the click handler, the label) the primitive
+// would have turned into a button.
+const Pill = props => record('pill', props)
 
 /** Hook slots of each mounted component, kept in call order across re-renders. */
 const instances = new Map()
@@ -143,7 +157,7 @@ globalThis.cancelAnimationFrame = () => { clock.frame = null }
 const externals = {
   react: reactStub,
   'react/jsx-runtime': { jsx: record, jsxs: record, Fragment: 'Fragment' },
-  '@deepseek-ai/dsh-client-ui-primitives': { Menu, IconChevronDownOutlineRegular, Tag: () => null },
+  '@deepseek-ai/dsh-client-ui-primitives': { Menu, IconChevronDownOutlineRegular, Pill, Tag: () => null },
   '@deepseek-ai/dsh-client-store': {
     createSnapshotStore: (initial) => {
       let current = initial
@@ -157,6 +171,10 @@ const externals = {
 // The Host answers the cache read-out; the plugin body only ever reads it.
 const cacheRequests = []
 globalThis.fetch = async (url) => {
+  if (String(url).startsWith(`${BRAND_ROUTE}/upload/`)) return {
+    ok: true,
+    json: async () => ({ url: `${BRAND_ROUTE}/assets/${'a'.repeat(64)}.png` }),
+  }
   cacheRequests.push(String(url))
   return {
     ok: true,
@@ -192,7 +210,7 @@ check(
 )
 
 console.log('registration and application')
-let stored = { font: 'lxgw-wenkai', codeFont: SYSTEM_FONT_ID }
+let stored = { font: 'lxgw-wenkai', codeFont: SYSTEM_FONT_ID, logo: '', brandIcon: '', brandName: '', tagline: '' }
 const subscribers = []
 const disposers = []
 const registrations = []
@@ -219,14 +237,17 @@ const makeCtx = (into) => ({
   },
   slots: {
     inject: (_slot, register) => register(),
-    register(definition, component) { into.push({ definition, component }); return () => {} },
+    register(definition, component) {
+      const entry = { definition, component }
+      into.push(entry)
+      return () => { const index = into.indexOf(entry); if (index >= 0) into.splice(index, 1) }
+    },
   },
 })
 plugin.apply(makeCtx(registrations))
-const bodyRow = registrations.find(entry => entry.definition.id === 'ui-beautify')
-const codeRow = registrations.find(entry => entry.definition.id === 'ui-beautify-code')
-const motionRow = registrations.find(entry => entry.definition.id === 'ui-beautify-motion')
+const pageEntry = registrations.find(entry => entry.definition.name === 'settings.section')
 const laneEntry = registrations.find(entry => entry.definition.id === 'ui-beautify-lane')
+const repliesEntry = registrations.find(entry => entry.definition.id === 'ui-beautify-replies')
 const links = () => head.filter(element => element.rel === 'stylesheet')
 const hrefs = () => links().map(link => link.href)
 const setStored = (values) => {
@@ -235,36 +256,75 @@ const setStored = (values) => {
 }
 const snapshot = () => stores.at(-1)?.get()
 const settle = () => new Promise(resolve => { setTimeout(resolve, 10) })
+mount('beautify-page', pageEntry.component, {
+  t: key => key,
+  useBeautify: selector => selector(snapshot()),
+  choose: () => {}, refreshCache: () => {}, close: () => {},
+})
+const pageComponents = new Map(elements.filter(element => typeof element.type === 'function')
+  .map(element => [element.type.name, element.type]))
+const row = (name, id) => ({ definition: { id }, component: pageComponents.get(name) })
+const bodyRow = row('FontRow', 'ui-beautify-font')
+const codeRow = row('CodeFontRow', 'ui-beautify-code')
+const motionRow = row('MotionRow', 'ui-beautify-motion')
 
 check(
-  'registers three General-settings rows and the composer lane',
-  registrations.filter(entry => entry.definition.name === 'settings.general.item').length === 3
-    && laneEntry !== undefined,
+  'registers one settings page, the quick replies, and the composer lane',
+  registrations.filter(entry => entry.definition.name === 'settings.section').length === 1
+    && registrations.every(entry => entry.definition.name !== 'settings.general.item')
+    && laneEntry !== undefined
+    && repliesEntry !== undefined,
   String(registrations.length),
 )
 check(
-  'the body row sits under the interface font size',
-  bodyRow?.definition.name === 'settings.general.item'
-    && bodyRow.definition.order === 11.5,
-  JSON.stringify(bodyRow?.definition),
+  'the plugin owns its own navigation entry',
+  pageEntry?.definition.id === 'ui-beautify' && pageEntry.definition.label() === 'nav'
+    && pageEntry.definition.locale === 'settings.uiBeautify',
+  JSON.stringify(pageEntry?.definition),
 )
 check(
-  'the code row sits directly under it',
-  codeRow?.definition.name === 'settings.general.item'
-    && codeRow.definition.order === 11.6,
-  JSON.stringify(codeRow?.definition),
+  'the page includes both font controls and the lane control',
+  [bodyRow, codeRow, motionRow].every(entry => typeof entry.component === 'function'),
 )
 check(
-  'the lane row sits directly under those, in the same appearance group',
-  motionRow?.definition.name === 'settings.general.item'
-    && motionRow.definition.order === 11.7
-    && motionRow.definition.locale === 'settings.uiBeautify',
-  JSON.stringify(motionRow?.definition),
+  'the page includes the four branding controls',
+  ['LogoRow', 'BrandIconRow', 'BrandNameRow', 'TaglineRow'].every(name => pageComponents.has(name)),
 )
-check(
-  'every row renders a component',
-  [bodyRow, codeRow, motionRow].every(row => typeof row?.component === 'function'),
-)
+check('the built-in tagline stays untouched by default', headline.textContent === '探索未至之境')
+setStored({ tagline: '探索未知之境' })
+check('the configured tagline appears on the blank conversation page', headline.textContent === '探索未知之境')
+headline.textContent = 'Into the Unknown'
+headlineObserver?.notify()
+check('the custom tagline survives a locale rerender', headline.textContent === '探索未知之境')
+setStored({ tagline: '' })
+check('clearing the tagline restores the current host text', headline.textContent === 'Into the Unknown')
+check('default brand leaves the host slots free', !registrations.some(entry =>
+  ['conversation.hero.brand.mark', 'sidebar.brand.mark', 'sidebar.brand.name'].includes(entry.definition.name)))
+setStored({ logo: 'https://example.com/logo.png', brandIcon: '/images/icon.svg', brandName: 'My DSH' })
+for (const slot of ['conversation.hero.brand.mark', 'sidebar.brand.mark', 'sidebar.brand.name']) {
+  check(`custom ${slot} shadows the built-in occupant`, registrations.some(entry =>
+    entry.definition.name === slot && entry.definition.priority === -1))
+}
+const customHero = registrations.find(entry => entry.definition.name === 'conversation.hero.brand.mark')
+mount('custom-hero', customHero.component, { size: 34, className: 'hero-mark' })
+check('welcome logo uses its configured image and host geometry', elements.some(element =>
+  element.type === 'img' && element.props.src === 'https://example.com/logo.png'
+    && element.props.className === 'hero-mark' && element.props.style.width === 34))
+const customIcon = registrations.find(entry => entry.definition.name === 'sidebar.brand.mark')
+mount('custom-icon', customIcon.component, { size: 24 })
+check('sidebar icon uses its configured image at the requested size', elements.some(element =>
+  element.type === 'img' && element.props.src === '/images/icon.svg' && element.props.style.width === 24))
+const customName = registrations.find(entry => entry.definition.name === 'sidebar.brand.name')
+mount('custom-name', customName.component, {})
+check('sidebar name shows the configured text', elements.some(element =>
+  element.type === 'span' && element.props.children === 'My DSH'))
+setStored({ logo: '', brandIcon: '', brandName: '' })
+check('clearing the brand restores the host slots', !registrations.some(entry =>
+  ['conversation.hero.brand.mark', 'sidebar.brand.mark', 'sidebar.brand.name'].includes(entry.definition.name)))
+setStored({ logo: 'javascript:alert(1)', brandIcon: 'file:///secret.png' })
+check('unsafe image URLs are not registered', !registrations.some(entry =>
+  ['conversation.hero.brand.mark', 'sidebar.brand.mark'].includes(entry.definition.name)))
+setStored({ logo: '', brandIcon: '' })
 
 const multiSheet = FONT_FACES.find(face => face.source.sheets.length > 1)
 check('the catalogue has a multi-sheet face to exercise', multiSheet !== undefined)
@@ -333,7 +393,7 @@ check('the code default drops only the code link', hrefs().join(',') === `${FONT
 check('and leaves the body token in place', tokens?.table['--dsw-font-family'] !== undefined)
 
 console.log('cache read-out')
-const bodyFace = bodyRow.definition.inject()
+const bodyFace = pageEntry.definition.inject()
 check('a row can ask for a fresh reading', typeof bodyFace.refreshCache === 'function')
 bodyFace.refreshCache()
 await settle()
@@ -417,6 +477,47 @@ check(
   String(code.menu?.props.items.find(item => item.id === 'maple-mono-cn')?.label),
 )
 check('the code default carries no cache line', code.metas[0] === 'cacheAbsent · cacheHint' || code.metas[0] === '', String(code.metas[0]))
+
+console.log('brand settings rows')
+const writes = []
+const brandRows = [
+  ['LogoRow', 'logo', 'logoTitle'],
+  ['BrandIconRow', 'brandIcon', 'brandIconTitle'],
+]
+for (const [componentName, field, title] of brandRows) {
+  mount(`row-${field}`, pageComponents.get(componentName), {
+    t,
+    useBeautify: selector => selector(snapshot()),
+    choose: (key, value) => { writes.push([key, value]) },
+  })
+  const input = elements.find(element => element.type === 'input')
+  check(`${field} opens a labelled image picker`, input?.props.type === 'file'
+    && input?.props['aria-label'] === title && input?.props.disabled === false)
+  input?.props.onChange({ currentTarget: { files: [{ size: 1024, type: 'image/png' }], value: 'chosen.png' } })
+  await settle()
+  check(`${field} saves the uploaded URL`, writes.at(-1)?.join(':') ===
+    `${field}:${BRAND_ROUTE}/assets/${'a'.repeat(64)}.png`)
+}
+mount('row-brand-name', pageComponents.get('BrandNameRow'), {
+  t, useBeautify: selector => selector(snapshot()),
+  choose: (key, value) => { writes.push([key, value]) },
+})
+const nameInput = elements.find(element => element.type === 'input')
+check('the sidebar name remains a text field', nameInput?.props.type === 'text')
+nameInput?.props.onBlur({ currentTarget: { value: '  New name  ' } })
+check('the sidebar name saves trimmed text', writes.at(-1)?.join(':') === 'brandName:New name')
+mount('row-tagline', pageComponents.get('TaglineRow'), {
+  t, useBeautify: selector => selector(snapshot()),
+  choose: (key, value) => { writes.push([key, value]) },
+})
+const taglineInput = elements.find(element => element.type === 'input')
+check('the welcome tagline remains a text field', taglineInput?.props.type === 'text')
+taglineInput?.props.onBlur({ currentTarget: { value: '  探索未知之境  ' } })
+check('the welcome tagline saves trimmed text', writes.at(-1)?.join(':') === 'tagline:探索未知之境')
+setStored({ logo: 'javascript:alert(1)' })
+const badLogoRow = render(row('LogoRow', 'ui-beautify-logo'))
+check('an invalid image address is explained in its row', badLogoRow.metas[0] === 'invalidImageUrl')
+setStored({ logo: '' })
 
 setStored({ font: 'not-a-face', codeFont: 'not-a-code-face' })
 check(
@@ -680,6 +781,78 @@ reducedMotion = false
 clock.frame = null
 mount('off', laneEntry.component, laneProps())
 check('switched off here draws nothing either', byClass('lane').length === 0 && clock.frame === null)
+
+console.log('quick replies below the composer')
+check(
+  'sit in the strip under the composer card',
+  repliesEntry?.definition.name === 'conversation.composer.dock',
+  JSON.stringify(repliesEntry?.definition),
+)
+check(
+  'directly after the shipped stats pills',
+  repliesEntry?.definition.order === 1,
+  String(repliesEntry?.definition.order),
+)
+check('and render a component', typeof repliesEntry?.component === 'function')
+
+/** Every phrase the tags typed, in order, with the span it claimed. */
+const typed = []
+let submissions = 0
+const inputActions = {
+  captureInsertion: () => 'caret-span',
+  insertText: (text, span) => { typed.push({ text, span }); return true },
+  submit: () => { submissions += 1 },
+}
+/** Mount the row against one input phase and return its tags. */
+const renderReplies = (key, phase, actions) => {
+  mount(key, repliesEntry.component, {
+    t,
+    useInput: selector => selector({ phase }),
+    inputActions: actions,
+  })
+  return elements.filter(element => element.type === 'pill')
+}
+const tags = renderReplies('replies', 'plain', inputActions)
+check(
+  'offering every built-in phrase as its own tag',
+  tags.map(tag => tag.props.children).join(',')
+    === 'quickContinue,quickOk,quickGood,quickRetry,quickDetail',
+  tags.map(tag => tag.props.children).join(','),
+)
+check(
+  'labelled as the group they answer for',
+  byClass('row')[0]?.props.role === 'group' && byClass('row')[0]?.props['aria-label'] === 'quickTitle',
+  String(byClass('row')[0]?.props['aria-label']),
+)
+check(
+  'each naming the message it sends',
+  tags[0].props['aria-label'] === 'quickSend({"text":"quickContinue"})',
+  String(tags[0].props['aria-label']),
+)
+check('usable while the draft is editable', tags.every(tag => tag.props.disabled === false))
+
+tags[0].props.onClick()
+check(
+  'a click types the phrase into the draft at its caret',
+  typed.at(-1)?.text === 'quickContinue' && typed.at(-1)?.span === 'caret-span',
+  JSON.stringify(typed.at(-1)),
+)
+check('and submits it in the same click', submissions === 1, String(submissions))
+
+// A locked editor refuses the insertion. Submitting anyway would send whatever
+// the draft already held — the one thing a click on a phrase must not do.
+const refusals = {
+  captureInsertion: () => 'caret-span',
+  insertText: () => false,
+  submit: () => { submissions += 1 },
+}
+renderReplies('refused', 'plain', refusals)[1].props.onClick()
+check('a refused insertion sends nothing', submissions === 1, String(submissions))
+
+check(
+  'closed while a submission is in flight',
+  renderReplies('busy', 'submitting', inputActions).every(tag => tag.props.disabled === true),
+)
 
 for (const dispose of disposers) dispose()
 

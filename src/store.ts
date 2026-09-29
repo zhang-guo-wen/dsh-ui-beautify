@@ -51,9 +51,18 @@ export interface FontStoreOptions {
  */
 export function resolveCacheDir(configured: string): string {
   if (configured.trim() !== '') return resolve(expandHome(configured))
+  return resolve(resolveHarnessHome(), ...CACHE_SEGMENTS)
+}
+
+/** Stable storage for user-uploaded branding images, outside the font cache. */
+export function resolveBrandDir(): string {
+  return resolve(resolveHarnessHome(), 'assets', 'ui-beautify')
+}
+
+function resolveHarnessHome(): string {
   const fromEnv = process.env.DSH_HOME
   const home = fromEnv !== undefined && fromEnv.trim() !== '' ? expandHome(fromEnv) : join(homedir(), '.dsh')
-  return resolve(home, ...CACHE_SEGMENTS)
+  return resolve(home)
 }
 
 /**

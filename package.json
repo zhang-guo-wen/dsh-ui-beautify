@@ -1,6 +1,6 @@
 {
   "name": "@guowenzhang/dsh-ui-beautify",
-  "description": "Page beautification for DeepSeek Harness: download open-source CJK webfonts on demand and let the Web GUI pick its body font",
+  "description": "UI settings for DeepSeek Harness fonts, composer motion, and uploaded branding images",
   "version": "1.0.0",
   "type": "module",
   "license": "Apache-2.0",
@@ -48,6 +48,7 @@
         "@deepseek-ai/dsh-client-ui-primitives",
         "@deepseek-ai/dsh-client-ui-renderer",
         "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-sidebar",
         "@deepseek-ai/dsh-client-ui-slots",
         "@deepseek-ai/dsh-client-ui-theme"
       ],
@@ -67,7 +68,7 @@
   "scripts": {
     "build": "tsdown -c tsdown.config.ts && node build-client.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node tests/smoke.mjs && node tests/http.mjs && node tests/client.mjs",
+    "test": "node tests/smoke.mjs && node tests/http.mjs && node tests/brand.mjs && node tests/client.mjs",
     "test:cdn": "node tests/cdn.mjs",
     "probe": "node tools/probe-font.mjs"
   },
@@ -80,6 +81,7 @@
     "@deepseek-ai/dsh-client-ui-primitives": ">=0.1.7-0",
     "@deepseek-ai/dsh-client-ui-renderer": ">=0.1.7-0",
     "@deepseek-ai/dsh-client-ui-settings": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-ui-sidebar": ">=0.1.7-0",
     "@deepseek-ai/dsh-client-ui-slots": ">=0.1.7-0",
     "@deepseek-ai/dsh-client-ui-theme": ">=0.1.7-0",
     "@deepseek-ai/schemastery": "*",
@@ -110,6 +112,9 @@
     "@deepseek-ai/dsh-client-ui-settings": {
       "optional": true
     },
+    "@deepseek-ai/dsh-client-ui-sidebar": {
+      "optional": true
+    },
     "@deepseek-ai/dsh-client-ui-slots": {
       "optional": true
     },
@@ -133,6 +138,7 @@
     "@deepseek-ai/dsh-client-ui-primitives": ">=0.1.7-0",
     "@deepseek-ai/dsh-client-ui-renderer": ">=0.1.7-0",
     "@deepseek-ai/dsh-client-ui-settings": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-ui-sidebar": "^0.1.7-rc.2",
     "@deepseek-ai/dsh-client-ui-slots": ">=0.1.7-0",
     "@deepseek-ai/dsh-client-ui-theme": ">=0.1.7-0",
     "@deepseek-ai/dsh-host-webserver": ">=0.1.7-0",
