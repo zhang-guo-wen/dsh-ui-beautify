@@ -8,7 +8,8 @@ import {
   apply, faceById, fontRouteFor, fontStack, mirrorUrl, resolveCacheDir, resolveFontChoice,
   resolveMotionChoice, BRAND_ROUTE, CACHE_ROUTE, CODE_FACES, CODE_FONT_CHOICES, Config, DEFAULT_CODE_FONT_ID,
   DEFAULT_FONT_ID, DEFAULT_MIRRORS, DEFAULT_MOTION_CHOICE, FACE_ID_PATTERN, FONT_CHOICES,
-  FONT_FACES, FONT_ROLES, FONTS_ROUTE, FONT_SETTINGS_NS, MOTION_CHOICE_IDS, SYSTEM_FONT_ID,
+  FONT_FACES, FONT_ROLES, FONTS_ROUTE, FONT_SETTINGS_NS, MAX_QUICK_REPLIES, MAX_QUICK_REPLY_LENGTH,
+  MOTION_CHOICE_IDS, SYSTEM_FONT_ID, quickReplySlots, visibleQuickReplies,
 } from '../lib/index.mjs'
 
 const failures = []
@@ -195,6 +196,12 @@ for (const field of ['logo', 'brandIcon', 'brandName', 'tagline']) {
 check('defaults to the default body face', Config({}).font.get() === DEFAULT_FONT_ID, String(Config({}).font.get()))
 check('defaults the code face to the built-in stack', Config({}).codeFont.get() === DEFAULT_CODE_FONT_ID, String(Config({}).codeFont.get()))
 check('defaults the lane to following the browser', Config({}).motion.get() === DEFAULT_MOTION_CHOICE, String(Config({}).motion.get()))
+check('declares the quick-reply list live', Config.dict.quickReplies.meta.volatile === true)
+check(
+  'defaults the quick replies to the built-in phrases',
+  Config({}).quickReplies.get().length === 0,
+  JSON.stringify(Config({}).quickReplies.get()),
+)
 check('defaults the mirrors to the built-in registries', Config({}).mirrors.join(',') === DEFAULT_MIRRORS.join(','))
 check('defaults the cache directory to the harness home', Config({}).cacheDir === '', String(Config({}).cacheDir))
 check(
@@ -216,6 +223,34 @@ check('an undefined value resolves to the default', resolveMotionChoice(undefine
 check(
   'every offered answer resolves to itself',
   MOTION_CHOICE_IDS.every(choice => resolveMotionChoice(choice) === choice),
+)
+
+console.log('the quick-reply slots')
+check('offers four slots', MAX_QUICK_REPLIES === 4, String(MAX_QUICK_REPLIES))
+check(
+  'an absent value means "not customized"',
+  quickReplySlots(undefined).length === 0 && visibleQuickReplies(undefined).length === 0,
+)
+check('trimming each slot rather than the list', visibleQuickReplies(['  继续 ', 'OK']).join(',') === '继续,OK')
+check(
+  'keeping a blank slot in place',
+  quickReplySlots(['', 'OK']).join('|') === '|OK',
+  quickReplySlots(['', 'OK']).join('|'),
+)
+check(
+  'dropping trailing blanks so an all-blank list is empty',
+  quickReplySlots(['OK', '', '   ']).join('|') === 'OK' && quickReplySlots(['', '']).length === 0,
+  quickReplySlots(['OK', '', '   ']).join('|'),
+)
+check(
+  'capping a hand-edited list at the offered number of slots',
+  quickReplySlots(['一', '二', '三', '四', '五']).length === MAX_QUICK_REPLIES,
+  String(quickReplySlots(['一', '二', '三', '四', '五']).length),
+)
+check(
+  'capping an over-long phrase at the field limit',
+  visibleQuickReplies(['x'.repeat(200)])[0]?.length === MAX_QUICK_REPLY_LENGTH,
+  String(visibleQuickReplies(['x'.repeat(200)])[0]?.length),
 )
 
 if (failures.length > 0) {

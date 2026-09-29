@@ -109,9 +109,12 @@ export const en = {
   quickSend: 'Send “{text}”',
   quickContinue: 'Continue',
   quickOk: 'OK',
-  quickGood: 'Sounds good',
-  quickRetry: 'Retry',
-  quickDetail: 'Explain in detail',
+  quickNoUnderstand: 'I don’t understand',
+  quickStatus: 'What’s going on now',
+  quickReplyTitle: 'Quick replies',
+  quickReplyDesc: 'Up to 4 phrases, and what a tag shows is what it sends. Click a tag to edit it. A grey tag is a slot that sends nothing: its text is the built-in phrase, and clicking it opens that phrase for editing — Enter or clicking away switches it on. Clearing the text switches the slot off again.',
+  quickReplyTag: 'Edit “{text}”',
+  quickReplyInput: 'Quick reply text',
 }
 
 /** Chinese copy. */
@@ -207,10 +210,25 @@ export const zh: typeof en = {
   quickSend: '发送「{text}」',
   quickContinue: '继续',
   quickOk: 'OK',
-  quickGood: '好的',
-  quickRetry: '重试',
-  quickDetail: '详细说说',
+  quickNoUnderstand: '没有理解',
+  quickStatus: '现在什么情况',
+  quickReplyTitle: '快捷回复',
+  quickReplyDesc: '最多 4 条，标签上写的就是发出去的原文。点标签即可改字。灰色的格子不发标签：灰字是它对应的内置短语，点开回车即启用该条；清空文字又变回灰色。',
+  quickReplyTag: '编辑「{text}」',
+  quickReplyInput: '快捷回复内容',
 }
 
 /** Every key these rows' copy may use. */
 export type SettingsKey = keyof typeof en
+
+/**
+ * The built-in phrases, one per quick-reply slot, in the order they appear.
+ *
+ * Both surfaces read this list rather than a copy each: the dock falls back to it
+ * when the settings hold no phrases of their own, and the settings row shows each
+ * entry as its slot's placeholder. The copy itself stays in the dictionaries, so
+ * an uncustomized install speaks the active locale.
+ */
+export const QUICK_REPLY_PHRASE_KEYS: readonly SettingsKey[] = [
+  'quickContinue', 'quickOk', 'quickNoUnderstand', 'quickStatus',
+]

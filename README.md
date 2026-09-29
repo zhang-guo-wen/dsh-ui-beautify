@@ -51,13 +51,16 @@ Downloads happen per shard, not as a whole package. A selected face's stylesheet
 
 ## Quick replies
 
-The strip directly below the message box carries tags — **Continue**, **OK**, **Sounds good**, **Retry**, **Explain in detail**. One click sends that phrase as your message: the tag writes it into the composer and submits, which is the same path typing the same text and pressing Enter takes.
+The strip directly below the message box carries tags — **Continue**, **OK**, **I don’t understand**, **What’s going on now** by default. One click sends that phrase as your message: the tag writes it into the composer and submits, which is the same path typing the same text and pressing Enter takes.
 
 - The phrases follow the interface language, because the phrase on a tag *is* the message that goes out.
 - A click inserts at the caret instead of replacing the draft, so a half-typed message is never thrown away by a stray click. Over an empty composer the two are the same thing.
 - While a submission is in flight the composer has locked its editor, and the tags close with it rather than looking clickable.
 - Sending queues: if the agent is still working, the message waits for its own turn, exactly like a normal send.
-- The list is built in. Changing it means changing `PHRASES` in `src/client/QuickReplies.tsx` and the dictionaries in `src/client/locales.ts`.
+
+### The phrases are built in
+
+This version has **no editor for them in Settings**: the row shows the four built-in phrases and follows the interface language. The plugin already carries the machinery for custom phrases — a `quickReplies` field the dock reads — but the presentation is still undecided, so the settings row is not mounted. To customize in the meantime, edit `quickReplies` on the `ui-beautify` row of the current profile's `cordis.patch.yml` and reload the page.
 
 ## The composer lane
 

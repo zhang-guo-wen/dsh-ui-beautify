@@ -308,6 +308,13 @@ export interface BeautifySettings {
   brandName: string
   /** Blank-session headline; empty keeps the host's localized slogan. */
   tagline: string
+  /**
+   * Phrases the composer dock offers, one per tag, in order.
+   *
+   * Positional and capped at the shared `MAX_QUICK_REPLIES`; an empty list keeps
+   * the built-in phrases of the active locale.
+   */
+  quickReplies: string[]
 }
 
 /**

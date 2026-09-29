@@ -102,6 +102,73 @@
   gap: 8px;
 }
 
+/* The quick-reply slots: one capsule per slot, wrapping rather than squeezing —
+   a phrase has to stay legible, because it is what the dock will send. */
+.replyControl {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  width: min(360px, 55%);
+}
+
+.replyTag {
+  max-width: 100%;
+  padding: 6px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.replyTag:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.replyTag:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Grey and dashed means "this slot sends nothing"; the text is the built-in
+   phrase clicking it would switch on. */
+.replyTagGhost {
+  border-style: dashed;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* The tag while it is being edited: same capsule, same size class of text, so
+   clicking one changes its contents rather than the shape of the row. */
+.replyInput {
+  width: 140px;
+  box-sizing: border-box;
+  padding: 6px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.replyInput:disabled {
+  opacity: 0.6;
+}
+
+.replyInput::placeholder {
+  color: var(--dsw-alias-label-tertiary);
+}
+
 .fileInput {
   display: none;
 }

@@ -10,9 +10,11 @@
  *    rides the theme service — which writes it as an inline style on `body`, the
  *    only layer that outranks the `:root` declaration in ui-theme's own sheet
  *    regardless of activation order.
- * 2. **The settings page** writes the font, motion, and branding choices.
+ * 2. **The settings page** writes the font, motion, quick-reply, and branding
+ *    choices.
  * 3. **The quick replies** are the composer's submit plane offered as one click
- *    per common answer; they send the phrase the tag carries.
+ *    per common answer; they send the phrase the tag carries, which is the
+ *    user's own text once they have customized the row.
  * 4. **The lane** is decoration: a figure whose speed reports how fast the model
  *    is writing. It is the one contribution that is skipped outright when the
  *    browser asks for reduced motion.
@@ -127,13 +129,16 @@ export function apply(ctx: Context): void {
     inject: () => controller.inject(),
   }, BikeLane))
 
-  // No business face: the session's input actions and the draft's phase are
-  // standard props every session-scope entry receives.
+  // No business face of its own — the session's input actions and the draft's
+  // phase are standard props every session-scope entry receives — but the
+  // phrases it offers are the user's, so it reads the same settings snapshot the
+  // rows do.
   ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
     name: 'conversation.composer.dock',
     id: REPLIES_ID,
     order: REPLIES_ORDER,
     locale: NS,
+    inject: () => controller.inject(),
   }, QuickReplies))
 }
 

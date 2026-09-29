@@ -1,6 +1,6 @@
 # AGENTS.md
 
-本仓 `dsh-ui-beautify` 是**独立于 harness monorepo** 的 DeepSeek Harness (DSH) 插件：在「设置 → 界面美化」独立页面提供字体、动效与品牌设置，并给 composer 上下各加一件——上方是骑车道，下方是快捷回复标签。
+本仓 `dsh-ui-beautify` 是**独立于 harness monorepo** 的 DeepSeek Harness (DSH) 插件：在「设置 → 界面美化」独立页面提供字体、动效与品牌设置（快捷回复的设置行**暂时不挂载**，组件留在仓库里），并给 composer 上下各加一件——上方是骑车道，下方是快捷回复标签（内置四条，可经手改配置替换）。
 字体**不随包分发**——包里只有 npm 包名、锁定版本与包内样式表路径，字体在首次使用时由 Host 从镜像下载到本机缓存，之后完全离线可用。
 它不打包 `@deepseek-ai/*`，运行时从宿主 harness 解析这些包。
 
@@ -16,20 +16,22 @@ src/
   params.ts               两半边共用的路由（字体前缀 + 缓存精确路由）与命名空间常量
   fonts.ts                角色表（正文 / 代码）、两份字体表、字体栈、缓存用量类型、命名空间值的类型
   motion.ts               车道的动效选择（跟随浏览器 / 始终播放 / 关闭）与 prefers-reduced-motion 读取
+  quick-replies.ts        快捷回复的槽位模型：最多几条、空槽怎么算、超长怎么截，两半边共用
   source.ts               镜像模板、带超时/体积上限/内容校验的下载
   store.ts                磁盘缓存（generation、原子写入、并发合并、过期清理、用量统计）
   serve.ts                两个 HTTP 面：字体文件应答（404/502）与缓存用量 JSON
-  settings.ts             Host：ui-beautify 命名空间（字体 / 动效 / 品牌）与 mirrors/cacheDir 配置
+  settings.ts             Host：ui-beautify 命名空间（字体 / 动效 / 快捷回复 / 品牌）与 mirrors/cacheDir 配置
   brand-assets.ts         Host：图片上传校验、持久化与图片应答
   index.ts                Host：认领字体、缓存与品牌图片三个路由
   client/
     index.ts              Client：注册独立设置页、composer 上下的车道与快捷回复 + 按角色应用所选字体
-    BeautifySection.tsx   字体、动效与品牌的独立设置页面
+    BeautifySection.tsx   字体、动效与品牌的独立设置页面（快捷回复那一行暂不挂载）
     BrandRows.tsx         欢迎页 Logo、侧栏图标的上传控件与名称输入
     branding.tsx          仅在设置非空时接管宿主品牌插槽
     FontRows.tsx          字体偏好行组件（标题 / 描述 / 缓存状态 + 下拉选择），两个角色共用
     MotionRow.tsx         车道那一行：三选一，并写出「为什么带子是空的」
-    SettingRow.module.css 六项设置共用的行样式
+    QuickReplyRow.tsx     快捷回复那一行（**暂不挂载**）：4 个槽位标签，点开就地编辑
+    SettingRow.module.css 七项设置共用的行样式
     BikeLane.tsx          composer 卡片正上方的骑车小人：SVG 与逐帧驱动
     BikeLane.module.css
     QuickReplies.tsx      composer 卡片正下方的快捷回复标签：短语 → 草稿 → 提交
@@ -38,9 +40,9 @@ src/
     settings-controller.ts 设置命名空间、缓存用量 ↔ 行快照，独立页面共用一份
     locales.ts            中英文案（设置行 + 快捷回复短语）
 tests/
-  smoke.mjs               路由、两份字体表、路径解析、配置默认值（离线）
+  smoke.mjs               路由、两份字体表、路径解析、配置默认值、快捷回复槽位（离线）
   http.mjs                桩镜像下的 HTTP 层：字节、缓存、并发、失败应答、离线、用量上报
-  client.mjs              加载 lib/client.js 驱动 apply()：独立设置页、品牌插槽、链接、两种 token、下拉、状态行、快捷回复的插槽与一次点击，以及逐帧驱动的 composer 车道
+  client.mjs              加载 lib/client.js 驱动 apply()：独立设置页、品牌插槽、链接、两种 token、下拉、状态行、快捷回复的默认与自定义短语，以及逐帧驱动的 composer 车道
   brand.mjs               图片上传、拒绝无效文件、持久化和读取的 HTTP 测试
   cdn.mjs                 联网逐字体（两个角色）校验镜像、分片与族名
 tools/
@@ -272,21 +274,45 @@ composer 卡片正下方那条整宽插槽是 `conversation.composer.dock`（同
 
 `InputActions.submit()` 是无参版本，固定按 `queue` 投递，模型还在跑时消息排到下一轮，和 composer 自己的默认发送一致。要跟随设置里的「忙碌时回车」偏好，得先把投递模式放进公共席位——插件不越界去读 composer 的内部状态。
 
-短语**就是发出去的消息**，所以它们进 locale 字典（`quickContinue` / `quickOk` / `quickGood` / `quickRetry` / `quickDetail`）而不是写成组件里的字面量：中文界面发中文。顺序与清单在 `QuickReplies.tsx` 的 `PHRASES` 里，加一句 = 加一个字典键 + 在 `PHRASES` 里加一项，别处没有第二份枚举。
+短语**就是发出去的消息**，所以内置短语留在 locale 字典（`quickContinue` / `quickOk` / `quickNoUnderstand` / `quickStatus`）里而不是写成组件里的字面量：中文界面发中文，英文界面发英文。顺序与清单在 `locales.ts` 的 `QUICK_REPLY_PHRASE_KEYS` 里，加一句 = 加一个字典键 + 在那一项里加一条，别处没有第二份枚举。
+
+### 短语是可自定义的
+
+用户写的短语存在设置里（`quickReplies`，`z.array(z.string()).volatile()`，默认 `[]`），所以这排标签是"用户自己的话"，内置的四条只是全新安装时的默认值。两半边共用 `src/quick-replies.ts` 的槽位模型：
+
+| 规则 | 位置 |
+|---|---|
+| 最多 4 条 | `MAX_QUICK_REPLIES` |
+| 单条最长 40 字 | `MAX_QUICK_REPLY_LENGTH`（输入框的 `maxLength` 与读取时的截断） |
+| 空槽不显示标签 | `visibleQuickReplies()` 过滤空串 |
+| 四个都空 = 用内置短语 | 读出来是空列表，`QuickReplies` 回落到字典 |
+| 手改文档写了 10 条 | `quickReplySlots()` 截到前 4 条，而不是让整份设置回落 |
+
+**位置是保留的**：`quickReplySlots()` 只裁掉尾部空槽，中间的空槽留在原位，所以设置行里第 3 个标签永远对应第 3 个槽位，一次回写不会把半路改了一半的短语挪到别的格子里。写入走 `SettingsRowFace.choose('quickReplies', slots)`——同一个 `choose` 既写字符串也写数组，`sameValue()` 对数组逐项比较，避免写入一份相等列表又白白发布一次快照。
+
+**这一行目前不挂载**：`BeautifySection` 没有渲染 `QuickReplyRow`，因为它的呈现方式还没定（组件文件头有一段 Parked 说明）。组件、文案、样式、`quickReplies` 字段、dock 的读取逻辑，以及下面这些交互规则都原样留着——**在动效行之后加回一行 `<QuickReplyRow {...props} />`（连 import）即恢复**。`tests/client.mjs` 里那一整块断言由 `pageComponents.has('QuickReplyRow')` 守卫：页面不挂载时整块跳过并打一行 parked，挂载即 24 条全部重跑，不需要改测试。
+
+设置行是 `QuickReplyRow.tsx`：**4 个胶囊标签**，一格一个槽位，显示方式与 dock 一致——有短语的是实心标签，空槽是灰色虚线标签并写着该槽的内置短语（一句话同时回答「这一格现在不发标签」和「点它会启用什么」）。
+
+**点标签就地变成输入框**（`autoFocus`），灰色标签的那一下点击本身就把内置短语写进这一格，所以点完直接回车即启用；实心标签只打开、不写入。回车或失焦保存并去掉首尾空白，清空即关闭这一格，Esc 写回点击前的值。`cancelled` 这个 ref 挡住「卸载时浏览器可能补发的 blur」——否则取消反而会把空值提交上去；**每次 `edit()` 都先把它清掉**，因为浏览器对被移除的输入框并不保证补发 blur，留着标记会把下一次编辑的第一次失焦吞掉（`tests/client.mjs` 有这条回归）。编辑态是这一行**唯一**的本地状态（`useState`），短语本身仍以 store 为准，store 一变标签就跟着变。全部为空时不显示「恢复默认」按钮。
+
+`conversation.composer.dock` 的注册因此补上了 `inject: () => controller.inject()`：短语来自设置，不再是常量。
 
 标签用 ui-primitives 的 `Pill`：胶囊几何与配色由它给，行内只留自己的排布——`flex-wrap`（宁可换行也不把短语截成省略号，否则「这一点发出去的是什么」就看不见了）、6px 间距、以及禁用时的降透明度。`Pill` 已经被视图切换与终端块用着，所以它的样式一直在 shell 的 CSS 里，不存在「引用了没样式的原子」这种情况。
 
-无障碍的三个字段都是必须的：外层 `role="group"` + `aria-label` 说明这是一组快捷回复，每个标签自己的 `aria-label` 写成「发送「继续」」——按钮上的字就是消息本身，所以两处文案都只从字典取。
+无障碍的三个字段都是必须的：外层 `role="group"` + `aria-label` 说明这是一组快捷回复，每个标签自己的 `aria-label` 写成「发送「继续」」——按钮上的字就是消息本身，所以两处文案都只从字典取。设置行里每个标签的 `aria-label` 是「编辑「<它现在显示的字>」」（灰色标签用的是内置短语，正好等于点它会启用什么），打开后的输入框是「快捷回复内容」。
 
 **空白会话（hero）里不会有这排标签**：`conversation.composer.dock` 只在 `variant === 'composer'` 时渲染，这是 ui-conversation 的行为，不是插件没注册。
 
-## 设置与六个可配项
+## 设置与七个可配项
 
-插件注册一个 `settings.section`（id `ui-beautify`，order 40），在「设置 → 界面美化」页面显示正文字体、代码字体、输入框动效与品牌四项。`BeautifySection` 复用 `FontRows`、`MotionRow`、`BrandRows` 和 `SettingsController` 的一份快照。
+插件注册一个 `settings.section`（id `ui-beautify`，order 40），在「设置 → 界面美化」页面显示正文字体、代码字体、输入框动效与品牌四项。`BeautifySection` 复用 `FontRows`、`MotionRow`、`BrandRows` 和 `SettingsController` 的一份快照；快捷回复那一行**暂时不挂载**（呈现方式未定，见「短语是可自定义的」），所以页面上目前看不到它。
 
-品牌四项在动效行之后。`logo` 对应空白会话页标志，`brandIcon` 和 `brandName` 对应侧栏左上角，`tagline` 对应空白会话页标语。图片通过 `POST /plugins/dsh-ui-beautify/brand/upload/{logo|brandIcon}` 上传，限 2 MB 的 PNG/JPEG/WebP/GIF，按内容哈希保存到 `$DSH_HOME/assets/ui-beautify`，由同一路由下的 `assets/<sha>.<ext>` 读取。设置中仅保存图片 URL；留空时不注册品牌插槽，宿主默认内容继续显示。自定义侧栏插槽使用 priority -1 覆盖官方插件的 priority 0。标语当前由宿主组件直接渲染、无插槽；客户端以 DOM 观察同步可见文案，清空后恢复宿主文案。Electron 安装版的原生首次引导不加载浏览器插件。
+快捷回复的字段与 dock 的读取逻辑照旧，只是暂时没有 UI 去写它——要自定义就手改 profile 补丁里的 `quickReplies`；要恢复设置行，把 `<QuickReplyRow {...props} />` 加回动效行之后即可。
 
-选择写进**当前 profile 的配置文件** `$DSH_HOME/profiles/<profile>/cordis.patch.yml` 里 `ui-beautify` 行的 `config`（`font` / `codeFont` / `motion` / `logo` / `brandIcon` / `brandName` / `tagline`），改完立即生效、无需重启。新增字段在宿主仍跑着旧 schema 时会显示旧版本提示并禁用；重启 dsh 即可。
+品牌四项在它之后。`logo` 对应空白会话页标志，`brandIcon` 和 `brandName` 对应侧栏左上角，`tagline` 对应空白会话页标语。图片通过 `POST /plugins/dsh-ui-beautify/brand/upload/{logo|brandIcon}` 上传，限 2 MB 的 PNG/JPEG/WebP/GIF，按内容哈希保存到 `$DSH_HOME/assets/ui-beautify`，由同一路由下的 `assets/<sha>.<ext>` 读取。设置中仅保存图片 URL；留空时不注册品牌插槽，宿主默认内容继续显示。自定义侧栏插槽使用 priority -1 覆盖官方插件的 priority 0。标语当前由宿主组件直接渲染、无插槽；客户端以 DOM 观察同步可见文案，清空后恢复宿主文案。Electron 安装版的原生首次引导不加载浏览器插件。
+
+选择写进**当前 profile 的配置文件** `$DSH_HOME/profiles/<profile>/cordis.patch.yml` 里 `ui-beautify` 行的 `config`（`font` / `codeFont` / `motion` / `quickReplies` / `logo` / `brandIcon` / `brandName` / `tagline`），改完立即生效、无需重启。新增字段在宿主仍跑着旧 schema 时会显示旧版本提示并禁用；重启 dsh 即可。
 
 > 更早的 DSH 版本把选择写在 `$DSH_HOME/settings.yaml`；该文件已被 DSH 迁移进 profile 的补丁文件并重命名为 `settings.yaml.imported`。现在手工改设置要改的是 profile 补丁。
 
@@ -306,7 +332,7 @@ composer 卡片正下方那条整宽插槽是 `conversation.composer.dock`（同
 
 `cacheDir` 留空时的解析顺序：`$DSH_HOME`（非空时）→ `~/.dsh`，再拼 `cache/ui-beautify/fonts`。插件自己展开 `~` / `~/` / `~\` 前缀，因为 `@deepseek-ai/dsh-home-paths` 是 harness 内部包，loader 从 profile 解析本插件的 import，那里没装它。填了值就 `resolve()` 成绝对路径，所以**相对路径按宿主进程的 cwd 解析**，不是 profile 目录。
 
-六个可配字段都是 `z.string().volatile()`；字体和动效的未知值在读取处回落到默认值，图片地址在使用时检查。`mirrors` / `cacheDir` 有默认值但不是 volatile，不出现在设置页。
+七个可配字段都是 volatile：字体、动效、品牌五项是 `z.string().volatile()`，快捷回复是 `z.array(z.string()).volatile()`（默认 `[]`，不写 `.max()`——schema 拒绝一个字段会让整份命名空间回落到上一个好值，超长列表在读取处裁掉，见「短语是可自定义的」）。字体和动效的未知值在读取处回落到默认值，图片地址、短语列表在使用时检查。`mirrors` / `cacheDir` 有默认值但不是 volatile，不出现在设置页。
 
 ## 构建
 
@@ -336,7 +362,7 @@ npm run probe -- <包>  # 联网：评估一个候选 npm 包能不能当字体�
 - `tests/client.mjs`：按浏览器加载器的姿势加载**构建产物** `lib/client.js`，用假 ctx、DOM 桩与 React 桩驱动 `apply()`，断言独立 `settings.section` 的注册、字体链接和 token、设置页控件、品牌图片上传写入与默认值恢复，以及 composer 车道和快捷回复。
   同一份桩还模拟了宿主 ref、commit 后 effect 与**可控时钟**，于是 composer 车道可以逐帧驱动：断言它注册进 `conversation.input.dock`、order 100、`aria-hidden`、**没有输出时位移与轮转都精确为 0**、有输出时前进并转轮、**输出停下后仍滑行 2 秒、8 秒后才完全停住**、以及**在车道上时从不跳回起点**（换行只允许发生在两端都基本在画面外的那一帧）；再加上三种动效选择的行为——`system` + 浏览器要求减少动效时不渲染也不申请帧、`always` 时照常播放并在动、`off` 时什么都不画。车道那一行也在这里渲染：三选一的选项、以及状态行写出「为什么带子是空的」。两个测量辅助函数把「没写过 transform」当成停住（0），而不是 `NaN`——停住的车道**什么都不写**，用 `NaN` 会让停住的断言全部假失败；`travelOf` / `turnOf` 读的是像素，所以「没跳回起点」要按**可见性**判断（换行那一帧两端都在画面外，DOM 上却是一次 800px 的跳跃）。车轮角度必须取模（`((to - from) % 360 + 360) % 360` 并只在单帧内测量）——绝对角度会绕圈，增量会因绕圈变成负数。
 - `tests/cdn.mjs`：对真实镜像逐个字体跑，除了 200 还检查两件容易踩的事——样式表里声明的 `font-family` 与表里写的一致，以及它**确实是 `unicode-range` 分片**而不是一个整字体文件。
-- 快捷回复在同一份 `tests/client.mjs` 里断言：注册进 `conversation.composer.dock`（不是 `settings.general.item`）、order 1、五个短语按字典顺序各占一个标签、外层的 `role="group"` 与 `aria-label`、每个标签自己的 `aria-label`、点击后先按捕获到的光标位置 `insertText` 再 `submit`、**插入被拒时一次都不提交**、以及 `submitting` 相位下全部禁用。`Pill` 是为此加进桩表的——client 半边新增 import 同样要同步那一张（见易崩清单 12）。
+- 快捷回复在同一份 `tests/client.mjs` 里断言：注册进 `conversation.composer.dock`（不是 `settings.general.item`）、order 1、四个内置短语按字典顺序各占一个标签、外层的 `role="group"` 与 `aria-label`、每个标签自己的 `aria-label`、点击后先按捕获到的光标位置 `insertText` 再 `submit`、**插入被拒时一次都不提交**、以及 `submitting` 相位下全部禁用。再加上自定义那一段：存的短语整排顶替内置、空槽不占标签、超过 4 条被截断、四个都空回落内置、点击发的是自定义文本。设置行单独走一遍**点击 → 编辑 → 保存**：4 个标签按字典显示内置短语且都是灰的、`aria-label` 是「编辑「<显示的字>」」、点灰标签写入该内置短语并把这一格换成输入框（`defaultValue`/`placeholder`/`autoFocus`）、失焦写回裁剪后的文字、清空把这一格关掉、Esc 写回点击前的值并关掉输入框、点实心标签本身不写入、点「恢复默认」写入空列表、宿主 schema 缺字段时显示 `stale` 且标签禁用。**测试桩的 `useState` 会跨 mount 保留值**，所以「点击 → 再 mount 同一实例」就是一次重渲染。`src/quick-replies.ts` 的纯函数（裁剪、去空、保位）在 `tests/smoke.mjs` 里断言。设置行那一整块断言由 `pageComponents.has('QuickReplyRow')` 守卫：这一行现在不挂载，所以整块跳过并打一行 parked；把它挂回页面即 24 条全部重跑，不需要改测试。`Pill` 是为此加进桩表的——client 半边新增 import 同样要同步那一张（见易崩清单 12）。
 
 三个测试都从 `lib/index.mjs` / `lib/client.js` 读产物，所以改完源码先 `npm run build` 再测。
 `tools/probe-font.mjs` 同样 `import { DEFAULT_MIRRORS } from '../lib/index.mjs'`，跑 probe 之前也要有 `lib/`。
@@ -567,6 +593,7 @@ Get-ChildItem "$env:USERPROFILE\.dsh\cache\ui-beautify\fonts" -Recurse -File | S
 15. 把 `charsPerSecond` 的分母改回 `now` → 分片之间减速、分片一到猛跳，动画立刻变成一顿一顿的（详见「骑车道」一节）。
 16. 把车道位置按**像素**记而不是按行程比例记 → 车道一变窄就提前取模，车凭空跳回左边，看起来像「重置」。
 17. 把动画状态放进 effect 闭包而不是 ref → effect 一重跑，车就从起点重新出发。
+18. `MAX_QUICK_REPLIES` 与 `QUICK_REPLY_PHRASE_KEYS` 的条数不一致 → 设置行按字典渲染标签（再按常量截断），槽位模型按常量裁剪：字典比常量**少**时后面那几个槽位在界面上没有标签，用户改不到，也不会有报错。加短语时两处一起改。
 
 ## 接下来可以加的
 
@@ -578,4 +605,5 @@ Get-ChildItem "$env:USERPROFILE\.dsh\cache\ui-beautify\fonts" -Recurse -File | S
 - **自定义主题配色**：`ctx.theme.register` 可注册整套 alias token。
 - **车道的外观**：车速曲线的常量在 `src/client/output-rate.ts`，尺寸常量在 `BikeLane.tsx`/`.module.css`（改尺寸要同时改两处）。想让它更小、更淡或换形象，只动这三处。
 - **车道可调速度**：加第二个 `z.number().volatile()` 字段做倍率即可，`SettingsController` 与 `MotionRow` 的写法可以照抄。
-- **快捷回复可配置**：短语现在内置在 `PHRASES` 与字典里。要做成可编辑，就在 `ui-beautify` 命名空间加一个 `z.array(z.string()).volatile()` 字段、在独立设置页面加一行（`Input` + 回车/失焦提交），并记得新字段要**重启宿主**才认（见「设置与六个可配项」）。
+- **把快捷回复的设置行挂回来**：`QuickReplyRow.tsx`（4 个槽位标签、点开就地编辑）、它的文案与样式、`quickReplies` 字段与 dock 的读取、以及 `tests/client.mjs` 里那 24 条断言都还在仓库里；`BeautifySection` 加一行 `<QuickReplyRow {...props} />`（连 import）即恢复，测试块由 `pageComponents.has('QuickReplyRow')` 守卫、会自动重跑。呈现方式想好了再挂。
+- **关掉这排快捷回复**：四条全空是"用内置短语"，所以现在没有"一条都不显示"的状态。要加就在同一命名空间加一个布尔字段，让 `QuickReplies` 在它打开时渲染空行（注册照常，只在组件里收窄——见骑车道那节的教训）。

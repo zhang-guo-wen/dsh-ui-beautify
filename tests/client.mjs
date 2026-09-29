@@ -125,8 +125,14 @@ const reactStub = {
     return hooks[at]
   },
   useState: (initial) => {
-    cursor++
-    return [initial, () => {}]
+    // State survives across mounts of the same instance, like React's does, so a
+    // handler that sets state plus a following mount models a re-render. The
+    // setter records the value and returns; the assertions drive the next mount.
+    const at = cursor++
+    hooks[at] ??= { value: typeof initial === 'function' ? initial() : initial }
+    return [hooks[at].value, (next) => {
+      hooks[at].value = typeof next === 'function' ? next(hooks[at].value) : next
+    }]
   },
 }
 /**
@@ -808,6 +814,7 @@ const renderReplies = (key, phase, actions) => {
   mount(key, repliesEntry.component, {
     t,
     useInput: selector => selector({ phase }),
+    useBeautify: selector => selector(snapshot()),
     inputActions: actions,
   })
   return elements.filter(element => element.type === 'pill')
@@ -816,7 +823,7 @@ const tags = renderReplies('replies', 'plain', inputActions)
 check(
   'offering every built-in phrase as its own tag',
   tags.map(tag => tag.props.children).join(',')
-    === 'quickContinue,quickOk,quickGood,quickRetry,quickDetail',
+    === 'quickContinue,quickOk,quickNoUnderstand,quickStatus',
   tags.map(tag => tag.props.children).join(','),
 )
 check(
@@ -853,6 +860,211 @@ check(
   'closed while a submission is in flight',
   renderReplies('busy', 'submitting', inputActions).every(tag => tag.props.disabled === true),
 )
+
+console.log('custom quick replies')
+setStored({ quickReplies: [' 甲 ', '乙'] })
+const customTags = renderReplies('custom', 'plain', inputActions)
+check(
+  'the stored phrases replace the built-in row',
+  customTags.map(tag => tag.props.children).join(',') === '甲,乙',
+  customTags.map(tag => tag.props.children).join(','),
+)
+check(
+  'and each tag still names the message it sends',
+  customTags[1].props['aria-label'] === 'quickSend({"text":"乙"})',
+  String(customTags[1].props['aria-label']),
+)
+customTags[1].props.onClick()
+check(
+  'so a customized phrase is what a click types',
+  typed.at(-1)?.text === '乙',
+  JSON.stringify(typed.at(-1)),
+)
+
+// The document is hand-editable: a fifth phrase and a blank slot are both real
+// inputs, and neither may produce a tag the dock cannot show.
+setStored({ quickReplies: ['一', '', '三', '四', '五'] })
+const cappedTags = renderReplies('capped', 'plain', inputActions).map(tag => tag.props.children)
+check(
+  'a blank slot shows no tag and an over-long list is capped',
+  cappedTags.join(',') === '一,三,四',
+  cappedTags.join(','),
+)
+setStored({ quickReplies: ['', '   '] })
+const blankTags = renderReplies('blank', 'plain', inputActions).map(tag => tag.props.children)
+check(
+  'an all-blank list keeps the built-in phrases',
+  blankTags.join(',') === 'quickContinue,quickOk,quickNoUnderstand,quickStatus',
+  blankTags.join(','),
+)
+
+// The quick-reply row is parked: BeautifySection no longer mounts it, so this
+// block is skipped — and re-runs untouched the moment the page mounts the row
+// again, which is also when this file stops saying that it is parked.
+if (pageComponents.has('QuickReplyRow')) {
+  console.log('the quick-reply settings row')
+  const replyRow = row('QuickReplyRow', 'ui-beautify-reply')
+  check('the page includes the quick-reply row', typeof replyRow.component === 'function')
+  /** Every write this row commits, as [field, value] pairs. */
+  const replyWrites = []
+  const chooseReply = (key, value) => { replyWrites.push([key, value]) }
+  /** Whether a tag carries the grey "this slot is off" style. */
+  const isGhost = tag => String(tag.props.className).split(/\s+/).some(token => token.endsWith('_replyTagGhost'))
+  /**
+   * Render — or, with the same key, re-render — the row over the stored value and
+   * return what it produced. Re-rendering is how a click's state change is
+   * observed: the stub's setter records the value, this call reads it back.
+   */
+  const showReplies = key => {
+    mount(key, replyRow.component, {
+      t, useBeautify: selector => selector(snapshot()), choose: chooseReply,
+    })
+    return {
+      tags: byClass('replyTag'),
+      ghosts: byClass('replyTagGhost'),
+      fields: byClass('replyInput'),
+      reset: byClass('reset')[0],
+    }
+  }
+
+  setStored({ quickReplies: [] })
+  const off = showReplies('row-replies')
+  check('offering one tag per slot', off.tags.length === 4, String(off.tags.length))
+  check(
+    'each carrying the built-in phrase that slot would switch on',
+    off.tags.map(tag => tag.props.children).join(',')
+      === 'quickContinue,quickOk,quickNoUnderstand,quickStatus',
+    off.tags.map(tag => tag.props.children).join(','),
+  )
+  check('every one of them grey while no slot is on', off.ghosts.length === 4, String(off.ghosts.length))
+  check(
+    'each named for the phrase clicking it edits',
+    off.tags[1]?.props['aria-label'] === 'quickReplyTag({"text":"quickOk"})',
+    String(off.tags[1]?.props['aria-label']),
+  )
+  check('no editor open', off.fields.length === 0, String(off.fields.length))
+  check('and nothing to reset yet', off.reset === undefined, String(off.reset?.props.children))
+
+  // One click both switches the phrase on and opens it for editing, which is why
+  // the row can show a tag per slot without a separate "add" control.
+  off.tags[1]?.props.onClick()
+  check(
+    'clicking a grey tag switches that built-in phrase on',
+    JSON.stringify(replyWrites.at(-1)) === JSON.stringify(['quickReplies', ['', 'quickOk']]),
+    JSON.stringify(replyWrites.at(-1)),
+  )
+  setStored({ quickReplies: ['', 'quickOk'] })
+  const opened = showReplies('row-replies')
+  check(
+    'and opens that slot as a field, pre-filled with the phrase',
+    opened.fields.length === 1 && opened.fields[0]?.props.defaultValue === 'quickOk'
+      && opened.fields[0]?.props.placeholder === 'quickOk' && opened.fields[0]?.props.autoFocus === true,
+    JSON.stringify(opened.fields[0]?.props.defaultValue),
+  )
+  check(
+    'labelled as the phrase it edits',
+    opened.fields[0]?.props['aria-label'] === 'quickReplyInput',
+    String(opened.fields[0]?.props['aria-label']),
+  )
+  check(
+    'while the other three stay grey tags',
+    opened.tags.length === 3 && opened.ghosts.length === 3,
+    `${opened.tags.length}/${opened.ghosts.length}`,
+  )
+  opened.fields[0]?.props.onBlur({ currentTarget: { value: '  没有理解  ' } })
+  check(
+    'a blur saves the typed phrase into that slot',
+    JSON.stringify(replyWrites.at(-1)) === JSON.stringify(['quickReplies', ['', '没有理解']]),
+    JSON.stringify(replyWrites.at(-1)),
+  )
+  setStored({ quickReplies: ['', '没有理解'] })
+  const saved = showReplies('row-replies')
+  check(
+    'and the tag returns solid in place of the field',
+    saved.fields.length === 0 && saved.tags.filter(tag => !isGhost(tag))
+      .map(tag => tag.props.children).join(',') === '没有理解',
+    saved.tags.map(tag => tag.props.children).join(','),
+  )
+
+  setStored({ quickReplies: ['甲'] })
+  const filled = showReplies('row-replies-clear')
+  const writesBefore = replyWrites.length
+  filled.tags[0]?.props.onClick()
+  check('editing a filled tag commits nothing by itself', replyWrites.length === writesBefore)
+  const filledField = showReplies('row-replies-clear').fields[0]
+  check('it opens holding the stored phrase', filledField?.props.defaultValue === '甲', String(filledField?.props.defaultValue))
+  filledField?.props.onBlur({ currentTarget: { value: '   ' } })
+  check(
+    'clearing it switches the slot off again',
+    JSON.stringify(replyWrites.at(-1)) === JSON.stringify(['quickReplies', []]),
+    JSON.stringify(replyWrites.at(-1)),
+  )
+
+  setStored({ quickReplies: [] })
+  const escapeCase = showReplies('row-replies-escape')
+  escapeCase.tags[0]?.props.onClick()
+  showReplies('row-replies-escape').fields[0]?.props.onKeyDown({ key: 'Escape', currentTarget: { value: 'typed' } })
+  check(
+    'Escape switches the just-clicked slot back off',
+    JSON.stringify(replyWrites.at(-1)) === JSON.stringify(['quickReplies', []]),
+    JSON.stringify(replyWrites.at(-1)),
+  )
+  const escaped = showReplies('row-replies-escape')
+  check(
+    'and closes the field',
+    escaped.fields.length === 0 && escaped.ghosts.length === 4,
+    `${escaped.fields.length}/${escaped.ghosts.length}`,
+  )
+
+  // Cancelling leaves a guard set in case the browser blur arrives late; the next
+  // edit has to clear it, or its own first blur would be swallowed as if it were
+  // that late one.
+  setStored({ quickReplies: ['甲'] })
+  const afterEscape = showReplies('row-replies-escape-leak')
+  afterEscape.tags[0]?.props.onClick()
+  showReplies('row-replies-escape-leak').fields[0]?.props.onKeyDown({ key: 'Escape', currentTarget: { value: 'typed' } })
+  showReplies('row-replies-escape-leak').tags[0]?.props.onClick()
+  showReplies('row-replies-escape-leak').fields[0]?.props.onBlur({ currentTarget: { value: '乙' } })
+  check(
+    'an edit after an Escape still saves on blur',
+    JSON.stringify(replyWrites.at(-1)) === JSON.stringify(['quickReplies', ['乙']]),
+    JSON.stringify(replyWrites.at(-1)),
+  )
+
+  setStored({ quickReplies: ['一', '二', '三', '四', '五'] })
+  const full = showReplies('row-replies-full')
+  check(
+    'a hand-edited list beyond the offered slots shows the first four, none grey',
+    full.tags.length === 4 && full.ghosts.length === 0,
+    `${full.tags.length}/${full.ghosts.length}`,
+  )
+  check(
+    'once customized there is a way back to the built-in phrases',
+    full.reset?.props.children === 'restoreDefault',
+    String(full.reset?.props.children),
+  )
+  full.reset?.props.onClick()
+  check(
+    'which clears the stored list',
+    JSON.stringify(replyWrites.at(-1)) === JSON.stringify(['quickReplies', []]),
+    JSON.stringify(replyWrites.at(-1)),
+  )
+
+  setStored({ quickReplies: undefined })
+  const stale = showReplies('row-replies-stale')
+  check(
+    'a Host whose schema predates the field says so',
+    byClass('meta')[0]?.props.children === 'stale',
+    String(byClass('meta')[0]?.props.children),
+  )
+  check(
+    'and closes its tags',
+    stale.tags.length === 4 && stale.tags.every(tag => tag.props.disabled === true),
+    String(stale.tags.length),
+  )
+} else {
+  console.log('the quick-reply settings row (parked: the page does not mount it)')
+}
 
 for (const dispose of disposers) dispose()
 

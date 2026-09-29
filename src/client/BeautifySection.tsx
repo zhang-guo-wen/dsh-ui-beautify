@@ -10,6 +10,11 @@ import css from './BeautifySection.module.css'
 
 export type BeautifySectionProps = PropsRuntime<'settings.section'> & PropsLocale<typeof NS> & InjectFace<SettingsRowFace>
 
+// `QuickReplyRow` is parked: its component and its tests still live in this repo,
+// but the page does not mount it while the row's presentation is undecided.
+// Adding `<QuickReplyRow {...props} />` below the motion row is the whole change
+// to bring it back — the copy, the styles, the `quickReplies` field, and the
+// dock's read of it are all still in place.
 export function BeautifySection(props: BeautifySectionProps): ReactNode {
   return (
     <div className={css.page}>

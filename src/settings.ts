@@ -1,7 +1,7 @@
 /**
  * The `ui-beautify` user-settings namespace: which face the interface sets its
- * body text to, which it sets code text to, whether the composer lane moves, and
- * where the faces are downloaded from.
+ * body text to, which it sets code text to, whether the composer lane moves, the
+ * phrases the quick-reply row offers, and where the faces are downloaded from.
  *
  * The namespace is this plugin's Loader row Config. The profile entry id
  * (`ui-beautify`) is what the settings page addresses, and the schema below is
@@ -13,7 +13,7 @@
  * namespace fall back to its last good value — so an unknown id must resolve to
  * the role's default at the read site instead of failing the section.
  *
- * The six user choices are volatile. The mirrors and the cache directory are
+ * The seven user choices are volatile. The mirrors and the cache directory are
  * deployment choices that the route reads once at host start, so presenting them
  * as live fields would promise an effect a settings write cannot deliver; they
  * are set in the plugin row like any other fixed configuration.
@@ -42,6 +42,8 @@ export interface Config {
   brandIcon: Volatile<BeautifySettings['brandIcon']>
   brandName: Volatile<BeautifySettings['brandName']>
   tagline: Volatile<BeautifySettings['tagline']>
+  /** Phrases offered under the composer; empty keeps the built-in phrases. */
+  quickReplies: Volatile<BeautifySettings['quickReplies']>
   /** Registries a font file is downloaded from, tried in order. */
   mirrors: string[]
   /** Directory caching downloaded files; empty follows `$DSH_HOME`, then `~/.dsh`. */
@@ -58,6 +60,9 @@ export const Config = z.object({
   brandIcon: z.string().default('').volatile(),
   brandName: z.string().default('').volatile(),
   tagline: z.string().default('').volatile(),
+  // An empty list is "use the built-in phrases", not "show nothing": the row
+  // would otherwise lose its defaults the moment the field is written once.
+  quickReplies: z.array(z.string()).default([]).volatile(),
   mirrors: z.array(z.string()).default([...DEFAULT_MIRRORS]),
   cacheDir: z.string().default(''),
 })

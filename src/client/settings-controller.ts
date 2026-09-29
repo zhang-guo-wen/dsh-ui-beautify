@@ -26,6 +26,7 @@ import {
 } from '../fonts.ts'
 import { resolveMotionChoice, type MotionChoice } from '../motion.ts'
 import { CACHE_ROUTE, FONT_SETTINGS_NS } from '../params.ts'
+import { quickReplySlots } from '../quick-replies.ts'
 
 export { FONT_SETTINGS_NS } from '../params.ts'
 
@@ -36,6 +37,23 @@ export { FONT_SETTINGS_NS } from '../params.ts'
  * click has to wait long enough for the first files to land.
  */
 const CACHE_REREAD_DELAY_MS = 1500
+
+/**
+ * Whether a field already holds the value a row is about to write.
+ *
+ * Two shapes reach the writer: the string every picker stores, and the
+ * positional phrase list. Identity answers for a string, but a list is compared
+ * entry by entry — an equal list would otherwise publish a new snapshot and
+ * re-render the dock for nothing.
+ * @param current - the stored value, or undefined when the field is absent.
+ * @param next - the value about to be written.
+ * @returns whether writing it would change anything.
+ */
+function sameValue(current: string | readonly string[] | undefined, next: string | readonly string[]): boolean {
+  if (typeof next === 'string') return current === next
+  return Array.isArray(current) && current.length === next.length
+    && current.every((entry, at) => entry === next[at])
+}
 
 /** Snapshot a settings row renders. */
 export interface SettingsRowState {
@@ -64,6 +82,8 @@ export interface SettingsRowState {
   brandIcon: string
   brandName: string
   tagline: string
+  /** Phrases the quick-reply dock offers, as positional slots; empty means built-in. */
+  quickReplies: string[]
   /** What each face holds in the local cache; a face absent from it has downloaded nothing. */
   cache: FontCacheReport
 }
@@ -78,9 +98,10 @@ export interface SettingsRowFace {
    * Store one value under one namespace field.
    *
    * Addressed by field rather than by role because the lane's row writes a
-   * choice that belongs to no font role.
+   * choice that belongs to no font role, and because the quick-reply row writes
+   * a list where every other row writes a string.
    */
-  choose: (key: keyof BeautifySettings, id: string) => void
+  choose: (key: keyof BeautifySettings, value: string | readonly string[]) => void
   /** Ask the Host what the cache holds and publish the answer. */
   refreshCache: () => void
 }
@@ -116,7 +137,7 @@ export class SettingsController {
   inject(): SettingsRowFace {
     return {
       hooks: { beautify: this.store },
-      choose: (key, id) => { this.choose(key, id) },
+      choose: (key, value) => { this.choose(key, value) },
       refreshCache: () => { this.refreshCache() },
     }
   }
@@ -150,11 +171,11 @@ export class SettingsController {
     }, CACHE_REREAD_DELAY_MS)
   }
 
-  private choose(key: keyof BeautifySettings, id: string): void {
+  private choose(key: keyof BeautifySettings, value: string | readonly string[]): void {
     const snapshot = this.scope.getSnapshot()
     if (snapshot.status !== 'ready' || !snapshot.writable) return
-    if (snapshot.value?.[key] === id) return
-    void this.scope.set(key, id)
+    if (sameValue(snapshot.value?.[key], value)) return
+    void this.scope.set(key, value)
   }
 
   private projection(): SettingsRowState {
@@ -173,6 +194,7 @@ export class SettingsController {
         brandIcon: value?.brandIcon !== undefined,
         brandName: value?.brandName !== undefined,
         tagline: value?.tagline !== undefined,
+        quickReplies: value?.quickReplies !== undefined,
       },
       // The document is hand-editable, so an unknown stored value must show as
       // the choice actually in effect rather than as nothing selected.
@@ -183,6 +205,9 @@ export class SettingsController {
       brandIcon: value?.brandIcon ?? '',
       brandName: value?.brandName ?? '',
       tagline: value?.tagline ?? '',
+      // Slots rather than phrases: the settings row edits positions, and the
+      // dock drops the blanks itself.
+      quickReplies: quickReplySlots(value?.quickReplies),
       cache: this.cache,
     }
   }

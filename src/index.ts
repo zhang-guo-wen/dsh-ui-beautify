@@ -46,6 +46,9 @@ export { FONT_SETTINGS_NS } from './settings.ts'
 export { DEFAULT_MIRRORS, downloadFile, mirrorUrl } from './source.ts'
 export { DEFAULT_MOTION_CHOICE, MOTION_CHOICE_IDS, resolveMotionChoice } from './motion.ts'
 export type { MotionChoice } from './motion.ts'
+export {
+  MAX_QUICK_REPLIES, MAX_QUICK_REPLY_LENGTH, quickReplySlots, visibleQuickReplies,
+} from './quick-replies.ts'
 export { FontStore, resolveBrandDir, resolveCacheDir } from './store.ts'
 export { Config }
 
