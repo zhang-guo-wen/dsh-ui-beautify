@@ -8,7 +8,7 @@ DeepSeek Harness (`dsh`) is the open-source agent harness from DeepSeek AI, wher
 
 ## The problem this plugin solves
 
-This plugin adds its own **Settings → UI Beautify** page for body and code fonts, composer motion, and branding. Font files download on first use; uploaded brand images stay on the Host.
+UI beautification for DeepSeek Harness: body and code fonts, composer motion, and uploaded branding images. Font files download on first use; uploaded brand images stay on the Host.
 
 ## Install
 
