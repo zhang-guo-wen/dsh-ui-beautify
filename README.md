@@ -1,126 +1,82 @@
 # @guowenzhang/dsh-ui-beautify
 
-English | [中文](README.zh.md)
+English | [中文](<README.zh.md>)
 
-## Background: DeepSeek Harness
+A third-party plugin for [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) with custom fonts, composer motion, quick replies, branding, and mobile layout improvements.
 
-DeepSeek Harness (`dsh`) is the open-source agent harness from DeepSeek AI, where nearly every capability is a plugin on [Cordis](https://github.com/cordiverse/cordis). It is in **developer preview** and iterating fast, so expect compatibility-breaking changes ([docs](https://deepseek-harness.github.io/deepseek-harness/), `0.1.7-alpha.*`); this plugin is a standalone third-party package that resolves `@deepseek-ai/*` from the running host.
+## Improvements
 
-## The problem this plugin solves
+- **Body and code fonts**: choose each independently from faces including Source Han Sans, Source Han Serif, LXGW WenKai, Inter, JetBrains Mono, and Fira Code. Body text defaults to Source Han Sans; code defaults to the system font. Choosing **System default** restores the host font without uninstalling.
+- **On-demand font caching**: download only the character shards needed by the page and reuse cached files offline. Settings show descriptions, cache sizes, and shard counts; reload (F5) to recount.
+- **Composer motion**: a cyclist above the message box follows assistant output speed and coasts to a stop over eight seconds after output ends. Choose **Follow the browser**, **Always play**, or **Off**; the default respects reduced-motion preferences.
+- **Desktop quick replies**: tags below the message box default to **Continue**, **OK**, **I don’t understand**, and **What’s going on now**, following the interface language. Clicking inserts at the caret and submits without replacing the draft; messages queue while the agent is busy. The settings switch takes effect immediately; phones always hide the tags.
+- **Custom branding**: upload a welcome logo and top-left icon, and edit the top-left name and welcome tagline. Images support PNG, JPEG, WebP, and GIF up to 2 MB. Restore an image's default or clear a text field to use built-in content.
+- **Mobile layout**: at widths up to 600px, the left sidebar becomes a drawer and conversations stay full-width; its top-left opener aligns with the right sidebar entry. Choosing a session or section, tapping the backdrop, or pressing Escape closes the drawer. The right sidebar keeps the host fullscreen panel and restores its opener on collapse. Settings controls stack on narrow screens; transcript/composer gutters are 16px/8px. Desktop layout is unchanged.
+- **Recent conversation switches**: started conversations show up to five recent tabs, each capped at five characters, ordered by activity without moving a clicked tab to the front. Archived, blank, and subagent sessions are excluded, with no empty placeholders. Tabs reuse host fonts, selected underlines, and live state dots for approval/plan review/answer waits, running agents (including subagents), and unread completion reminders; idle sessions have no dot. Desktop places them after Chat/Trajectory; phones show only a horizontally scrollable recent row and hide the open-file and log/feedback menu.
+- **Remote settings reads**: phones and other remote pages read the same redacted Host settings as desktop without a separate phone configuration. Values refresh on settings changes, reconnect, and returning to the page. Remote forms remain read-only; edit and save on the local host.
 
-UI beautification for DeepSeek Harness: body and code fonts, composer motion, and uploaded branding images. Font files download on first use; uploaded brand images stay on the Host.
+## Settings screenshots
 
-## Install
+Open **Settings → UI Beautify** to adjust appearance and branding. These are actual screenshots of the Chinese interface; font choices, cache counts, and switch states are examples, not installation defaults.
+
+### Appearance
+
+![UI Beautify settings: body and code fonts, composer motion, and desktop quick replies](<docs/images/settings-appearance.png>)
+
+### Branding
+
+![UI Beautify settings: welcome logo, top-left icon and name, and welcome tagline](<docs/images/settings-branding.png>)
+
+## Installation
+
+Install and run DeepSeek Harness **0.2.0-rc.1 or newer** first, then add this plugin to the profile you use. Examples use `web`; replace it for another profile.
+
+### From npm
 
 ```sh
 npx @deepseek-ai/dsh plugin --profile web add @guowenzhang/dsh-ui-beautify
 ```
 
-From the npm registry: <https://www.npmjs.com/package/@guowenzhang/dsh-ui-beautify> — restart the host afterwards; local checkouts, git sources and troubleshooting are in [AGENTS.md](AGENTS.md).
+Published versions are listed on the [npm package page](https://www.npmjs.com/package/@guowenzhang/dsh-ui-beautify).
 
-## Usage
+### From GitHub
 
-At phone widths up to 600px, UI Beautify makes the existing host sidebar a drawer and keeps the conversation full-width. The top-left host-styled button aligns with the right sidebar opener in the conversation header and opens it; choosing a session or section, tapping the backdrop, or pressing Escape closes it. New hosts with their own mobile drawer retain that layout and their native recent-session tab breakpoints (which may differ at exactly 600px). The phone right sidebar retains the host fullscreen panel; its collapse control returns to the conversation and restores the header opener. Settings controls stack below their descriptions; desktop layout is unchanged.
+```sh
+npx @deepseek-ai/dsh plugin --profile web add https://github.com/zhang-guo-wen/dsh-ui-beautify.git
+```
 
-Started conversations also show up to 5 recent conversation switches: ordered by activity, with selection changing only the highlight, never moving a tab to the front, excluding archived, blank and subagent sessions. Fewer eligible conversations produce fewer tabs, without empty placeholders. Tabs reuse the host Chat/Trajectory font and selected underline. Each label is capped at 5 characters. Live state dots use the same host component and priority as sidebar sessions: waiting for approval/plan review/answers, running (including subagents), and unread completion reminders; idle sessions have no dot. Desktop places them after Chat/Trajectory; phones show only the recent switches in a scrollable row and hide the header's open-file and log/feedback more menu. Phone transcript gutters are 16px and composer gutters are 8px.
+After installing or upgrading, **restart the corresponding host and hard-reload the browser (Ctrl+F5)**, then open **Settings → UI Beautify**. Refresh the usual phone address to use the mobile layout; no extra mobile plugin, layout URL parameter, or Harness source changes are needed.
 
-No additional mobile plugin, Harness source edits, Desktop replacement, or layout URL parameter is needed. Use the usual phone address and refresh after loading the updated UI Beautify build. With dsh-pocket 2.10.6, only its incompatible mobile navigation cells and stylesheet are replaced; its proxy, QR access and settings remain active. Pocket's extra phone file/log shortcuts are not mounted.
+### Uninstall
 
-### Remote settings
+```sh
+npx @deepseek-ai/dsh plugin --profile web remove @guowenzhang/dsh-ui-beautify
+```
 
-Remote phone/browser pages read the same redacted Host settings as the desktop, including shared settings forms used by other plugins. There is no separate phone configuration: for example, a desktop choice of JetBrains Mono and motion Off is also displayed and applied on the phone, rather than replaced with defaults.
+### Local development
 
-Desktop changes refresh those values on settings events, reconnect, and returning to the page. Remote forms remain read-only and show a read-only message; change and save settings on the desktop. Desktop saving is unchanged. Pages with their own APIs or browser-local storage are outside this shared-form adapter. It does not enable credential access, configuration-file opening, plugin installation, or other loopback-only actions. Refresh the remote page after loading the updated plugin.
+```sh
+npm ci
+npm run typecheck
+npm run build
+npm test
+```
 
-### Change the logo and top-left brand
+Local-directory installation, the full font catalogue, and troubleshooting are in the [maintainer guide](https://github.com/zhang-guo-wen/dsh-ui-beautify/blob/master/AGENTS.md).
 
-Under **Settings → UI Beautify**, choose **Welcome logo** and **Top-left icon** from your computer. PNG, JPEG, WebP, and GIF files up to 2 MB are uploaded to the Host and previewed on the page. The logo appears on the blank conversation page; the icon appears in both sidebar views. Edit **Top-left name** beside the expanded sidebar icon, and **Welcome tagline** on the blank conversation page. **Restore default** clears an image choice; clearing a text field restores the built-in text. Uploaded files are stored under `$DSH_HOME/assets/ui-beautify`. Restart the Host once after upgrading, then refresh the page. The native first-run welcome window in the Electron installer is packaged separately and does not load this plugin.
+## Notes
 
-### Pick a body font
-
-Open **Settings → UI Beautify → Body font** and choose a face. The page restyles on selection with no confirmation step, and the choice is written to the current profile's settings file.
-
-### Pick a code font
-
-The **Code font** row is on the same page. It defaults to `system`, so a fresh install changes nothing about how code looks until you choose otherwise.
-
-### Understand what `system` means
-
-`system` removes the plugin's stylesheet links and token override, returning the tokens to `ui-theme`'s own declaration. It is not a frozen copy of today's defaults — upstream default-font changes are followed. Selecting it is also the only way to switch custom fonts off; uninstalling is not required.
-
-### Read the cache status line
-
-Each row shows a title, the selected face's description, and a status line such as `已缓存 103 KB · 1/101 片`. There is no download button: fonts are pulled on demand as the page needs them. The counter is a progress read-out of on-demand downloading, not a failure — it rises as you browse and new characters appear. The numbers are read when the row renders and about 1.5 seconds after a font switch, not in real time; the status line therefore keeps a standing hint that refreshing the page (F5) re-counts.
-
-### Understand the download behavior
-
-Downloads happen per shard, not as a whole package. A selected face's stylesheet is fetched first, then only the shards the page's characters actually need. Concurrent requests for the same file are coalesced, and later page loads read from local disk without touching the network.
-
-| Situation | What you see |
-|---|---|
-| The host machine has no outbound network | Downloads fail; the GUI keeps rendering with its fallback fonts |
-| The browser has network access but the host does not | Downloads still fail — the browser never contacts an external site |
-
-## Quick replies
-
-The strip directly below the message box carries tags — **Continue**, **OK**, **I don’t understand**, **What’s going on now** by default. One click sends that phrase as your message: the tag writes it into the composer and submits, which is the same path typing the same text and pressing Enter takes.
-
-- The phrases follow the interface language, because the phrase on a tag *is* the message that goes out.
-- A click inserts at the caret instead of replacing the draft, so a half-typed message is never thrown away by a stray click. Over an empty composer the two are the same thing.
-- While a submission is in flight the composer has locked its editor, and the tags close with it rather than looking clickable.
-- Sending queues: if the agent is still working, the message waits for its own turn, exactly like a normal send.
-
-### Desktop visibility
-
-Under **Settings → UI Beautify → Quick replies**, use the switch to show or hide the tags on desktop. It defaults to on and takes effect immediately. Phones (viewport width 600 px or less) always hide both the tags and this desktop-only setting, regardless of the saved switch value. After upgrading, restart the Host once and reload the page so the new setting is available.
-
-### The phrases are built in
-
-This version has **no editor for them in Settings**: the row shows the four built-in phrases and follows the interface language. The plugin already carries the machinery for custom phrases — a `quickReplies` field the dock reads — but the presentation is still undecided, so the settings row is not mounted. To customize in the meantime, edit `quickReplies` on the `ui-beautify` row of the current profile's `cordis.patch.yml` and reload the page.
-
-## The composer lane
-
-The strip directly above the message box carries a cyclist. It moves while the model is writing and rolls to a halt when it isn't: a fast stream sends it across quickly, a slow one lets it crawl, and once the output stops it keeps the speed it had and bleeds it off over eight seconds before coming to rest. It is a report of output, not a looping decoration.
-
-It is decoration, and it is deliberately quiet about it:
-
-- It reads nothing you type and sends nothing anywhere; the only thing it measures is how much assistant output has arrived.
-- Screen readers skip it (`aria-hidden`).
-
-### Turning it on or off
-
-**Settings → UI Beautify → Composer lane**, directly below the two font rows:
-
-| Choice | What it does |
-|---|---|
-| **Follow the browser** (default) | Plays unless the browser asks for reduced motion, in which case the strip above the message box stays empty |
-| **Always play** | Plays even when the browser asks for reduced motion |
-| **Off** | Never appears |
-
-The row's status line says *why* the strip is empty. If it reads that your browser reports `prefers-reduced-motion: reduce`, that is the whole explanation — and **Always play** is the way past it.
-
-The lane is live in the settings document the moment you pick, but the **Host needs a restart** to know about the field at all: until then the row says the Host is running an older build of the plugin. That is the same one-time restart every new setting in this plugin needs.
-
-## Notes and caveats
-
-- **The host machine must reach the network for a font's first use.** The browser only talks to the DSH origin; the host does the fetching. This is the one place the plugin depends on host connectivity, and it is the only reason a first use can fail while the browser itself is online.
-- **`system` is the code font's default**, so a fresh install is visually a no-op until you pick something.
-- **`maple-mono-cn` is the only code font that covers Chinese.** The other four cover Latin only and fall back to the built-in stack for CJK; `maple-mono-cn` is also 9 MB and reaches the machine through jsDelivr because the npm mirror does not carry that package.
-- **A missing font never breaks the interface.** Text renders first with the fallback font and swaps in when the shard arrives; if the download fails for good, the fallback simply stays.
-- **Two places ignore the font tokens** because they hardcode their own font: the integrated terminal (an xterm constructor argument, not CSS) and a hardcoded `Inter` prefix in the queue panel's stylesheet.
-- **The mirror list and cache directory are host-start configuration**, not live settings — changing them requires restarting the host.
-- **The composer lane is decoration, not a read-out.** It has no number, and its speed is an approximation of output speed rather than the `tok/s` in the status bar: while a step is still streaming the provider has reported no token count, so the lane measures characters instead.
-- **A new setting needs one Host restart.** The browser half picks up a new build on reload, but the Host loads its settings schema once per process — so a row for a newly added field is disabled until dsh restarts.
-- **Fonts are not covered by this plugin's license.** Each font keeps its own; see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+- **Compatibility**: DSH is evolving quickly, and host upgrades may introduce compatibility changes. This plugin resolves runtime dependencies from the host rather than replacing it. Hosts with native mobile drawers/recent strips retain their implementation and breakpoints (which may differ at exactly 600px). With dsh-pocket 2.10.6, only incompatible mobile navigation cells and styles are replaced; proxy, QR access, and settings remain active, without its extra phone file/log shortcuts.
+- **First font downloads require Host connectivity**: the browser only contacts DSH; the Host fetches from mirrors. Browser connectivity alone is insufficient. Only cached files work offline; new characters may still require uncached shards. Failed downloads leave fallback fonts in place without breaking the interface.
+- **Code font coverage**: of the custom code fonts provided, only Maple Mono CN covers Chinese. Its full set of shards is about 9 MB and uses jsDelivr; the other four fall back to host fonts for Chinese. Hardcoded fonts in the integrated terminal and queue panel do not fully follow font settings.
+- **Settings and storage**: choices persist in the current profile configuration and usually apply immediately. New setting fields require a Host restart, as do changes to mirrors or the cache directory. Default font storage is `$DSH_HOME/cache/ui-beautify/fonts`; uploaded images are stored in `$DSH_HOME/assets/ui-beautify`.
+- **Quick replies send immediately**: an existing draft is submitted together with the inserted phrase. Tags are disabled while submission locks the composer and do not appear on the blank welcome page. Settings do not provide a phrase editor. For custom phrases, set `quickReplies` on the current profile's `ui-beautify` configuration row (up to four phrases, 40 characters each); see the [maintainer guide](https://github.com/zhang-guo-wen/dsh-ui-beautify/blob/master/AGENTS.md).
+- **Motion is not an exact speed meter**: the cyclist approximates output character growth, not the status bar's `tok/s`. It neither reads user input nor sends data.
+- **Remote access stays read-only**: shared settings forms are covered, not pages with their own APIs or browser-local storage. This does not enable credential reads, configuration-file opening, plugin installation, or other loopback-only actions.
+- **Branding scope**: customization applies to the DSH browser interface. The Electron installer's separately packaged native first-run window does not load this plugin.
 
 ## License
 
-The plugin itself is Apache-2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+The plugin itself is licensed under **Apache-2.0**; see [LICENSE](<LICENSE>).
 
-**The plugin distributes no font file.** Fonts are downloaded on demand from npm mirrors into a local cache and keep their original licenses. Noto Sans SC, Noto Serif SC, ZCOOL XiaoWei, ZCOOL KuaiLe, ZCOOL QingKe HuangYou, Ma Shan Zheng, Zhi Mang Xing, Long Cang, Liu Jian Mao Cao, Inter, Geist, JetBrains Mono, Fira Code, Geist Mono, Noto Sans Mono and Maple Mono CN are SIL Open Font License 1.1, packaged by Fontsource or by the font's own publisher. LXGW WenKai, LXGW WenKai TC and LXGW WenKai Screen are SIL Open Font License 1.1; the npm packages carrying them — `lxgw-wenkai-webfont`, `lxgw-wenkai-tc-webfont` and `lxgw-wenkai-screen-webfont` — are MIT.
-
-## Further reading
-
-- [AGENTS.md](AGENTS.md) — the full font catalogue, the download pipeline, the cache layout, the composer lane's mechanics, developer commands, the add-a-font procedure, and troubleshooting.
-- [dsh-web-design](https://github.com/zhang-guo-wen/dsh-web-design) — a sibling plugin that previews and edits HTML in the DSH Sidebar.
-- [DeepSeek Harness documentation](https://deepseek-harness.github.io/deepseek-harness/).
+No font files are distributed with the plugin. Fonts downloaded on demand retain their original licenses: the fonts used are **SIL Open Font License 1.1**, while the LXGW WenKai webfont npm packaging code is additionally MIT. Full third-party declarations are in [NOTICE](<NOTICE>).

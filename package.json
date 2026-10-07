@@ -1,7 +1,7 @@
 {
   "name": "@guowenzhang/dsh-ui-beautify",
   "description": "UI beautification for DeepSeek Harness: body and code fonts, composer motion, and uploaded branding images",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
   "license": "Apache-2.0",
   "publishConfig": {
@@ -35,7 +35,7 @@
     "./cordis.patch.yml": "./cordis.patch.yml"
   },
   "engines": {
-    "dsh": ">=0.1.7-0"
+    "dsh": ">=0.2.0-rc.1"
   },
   "dsh": {
     "client": {
@@ -66,6 +66,9 @@
     "lib/index.mjs",
     "lib/client.js",
     "cordis.patch.yml",
+    "README.md",
+    "README.zh.md",
+    "docs/images",
     "LICENSE",
     "NOTICE"
   ],
