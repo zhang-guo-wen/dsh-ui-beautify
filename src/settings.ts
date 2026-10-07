@@ -13,7 +13,7 @@
  * namespace fall back to its last good value — so an unknown id must resolve to
  * the role's default at the read site instead of failing the section.
  *
- * The seven user choices are volatile. The mirrors and the cache directory are
+ * The user choices are volatile. The mirrors and the cache directory are
  * deployment choices that the route reads once at host start, so presenting them
  * as live fields would promise an effect a settings write cannot deliver; they
  * are set in the plugin row like any other fixed configuration.
@@ -44,6 +44,8 @@ export interface Config {
   tagline: Volatile<BeautifySettings['tagline']>
   /** Phrases offered under the composer; empty keeps the built-in phrases. */
   quickReplies: Volatile<BeautifySettings['quickReplies']>
+  /** Desktop visibility; mobile does not show quick replies. */
+  quickRepliesEnabled: Volatile<BeautifySettings['quickRepliesEnabled']>
   /** Registries a font file is downloaded from, tried in order. */
   mirrors: string[]
   /** Directory caching downloaded files; empty follows `$DSH_HOME`, then `~/.dsh`. */
@@ -63,6 +65,7 @@ export const Config = z.object({
   // An empty list is "use the built-in phrases", not "show nothing": the row
   // would otherwise lose its defaults the moment the field is written once.
   quickReplies: z.array(z.string()).default([]).volatile(),
+  quickRepliesEnabled: z.boolean().default(true).volatile(),
   mirrors: z.array(z.string()).default([...DEFAULT_MIRRORS]),
   cacheDir: z.string().default(''),
 })

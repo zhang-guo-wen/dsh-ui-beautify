@@ -20,6 +20,8 @@ From the npm registry: <https://www.npmjs.com/package/@guowenzhang/dsh-ui-beauti
 
 ## Usage
 
+On a phone, open the host sidebar with the top-left button; choosing a session or section closes the overlay again. The UI Beautify settings rows stack their controls below their descriptions on narrow screens. Desktop layout is unchanged.
+
 ### Change the logo and top-left brand
 
 Under **Settings → UI Beautify**, choose **Welcome logo** and **Top-left icon** from your computer. PNG, JPEG, WebP, and GIF files up to 2 MB are uploaded to the Host and previewed on the page. The logo appears on the blank conversation page; the icon appears in both sidebar views. Edit **Top-left name** beside the expanded sidebar icon, and **Welcome tagline** on the blank conversation page. **Restore default** clears an image choice; clearing a text field restores the built-in text. Uploaded files are stored under `$DSH_HOME/assets/ui-beautify`. Restart the Host once after upgrading, then refresh the page. The native first-run welcome window in the Electron installer is packaged separately and does not load this plugin.
@@ -57,6 +59,10 @@ The strip directly below the message box carries tags — **Continue**, **OK**, 
 - A click inserts at the caret instead of replacing the draft, so a half-typed message is never thrown away by a stray click. Over an empty composer the two are the same thing.
 - While a submission is in flight the composer has locked its editor, and the tags close with it rather than looking clickable.
 - Sending queues: if the agent is still working, the message waits for its own turn, exactly like a normal send.
+
+### Desktop visibility
+
+Under **Settings → UI Beautify → Quick replies**, use the switch to show or hide the tags on desktop. It defaults to on and takes effect immediately. Phones (viewport width 600 px or less) always hide both the tags and this desktop-only setting, regardless of the saved switch value. After upgrading, restart the Host once and reload the page so the new setting is available.
 
 ### The phrases are built in
 

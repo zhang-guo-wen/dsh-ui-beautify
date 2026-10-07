@@ -30,3 +30,10 @@
 .tag:disabled:hover {
   background: var(--dsw-alias-bg-layer-2);
 }
+
+/* Match the host's mobile breakpoint, including live viewport resizing. */
+@media (max-width: 600px) {
+  .row {
+    display: none;
+  }
+}

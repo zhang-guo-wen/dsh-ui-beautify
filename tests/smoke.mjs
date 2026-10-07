@@ -197,6 +197,9 @@ check('defaults to the default body face', Config({}).font.get() === DEFAULT_FON
 check('defaults the code face to the built-in stack', Config({}).codeFont.get() === DEFAULT_CODE_FONT_ID, String(Config({}).codeFont.get()))
 check('defaults the lane to following the browser', Config({}).motion.get() === DEFAULT_MOTION_CHOICE, String(Config({}).motion.get()))
 check('declares the quick-reply list live', Config.dict.quickReplies.meta.volatile === true)
+check('declares quick-reply visibility live', Config.dict.quickRepliesEnabled.meta.volatile === true)
+check('desktop quick replies default to enabled', Config({}).quickRepliesEnabled.get() === true)
+check('desktop quick replies can be disabled', Config({ quickRepliesEnabled: false }).quickRepliesEnabled.get() === false)
 check(
   'defaults the quick replies to the built-in phrases',
   Config({}).quickReplies.get().length === 0,

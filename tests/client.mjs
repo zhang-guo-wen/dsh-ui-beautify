@@ -99,6 +99,7 @@ const IconChevronDownOutlineRegular = () => null
 // assertions can read the props (the click handler, the label) the primitive
 // would have turned into a button.
 const Pill = props => record('pill', props)
+const Switch = props => record('switch', props)
 
 /** Hook slots of each mounted component, kept in call order across re-renders. */
 const instances = new Map()
@@ -163,7 +164,7 @@ globalThis.cancelAnimationFrame = () => { clock.frame = null }
 const externals = {
   react: reactStub,
   'react/jsx-runtime': { jsx: record, jsxs: record, Fragment: 'Fragment' },
-  '@deepseek-ai/dsh-client-ui-primitives': { Menu, IconChevronDownOutlineRegular, Pill, Tag: () => null },
+  '@deepseek-ai/dsh-client-ui-primitives': { Menu, IconChevronDownOutlineRegular, Pill, Switch, Tag: () => null },
   '@deepseek-ai/dsh-client-store': {
     createSnapshotStore: (initial) => {
       let current = initial
@@ -819,6 +820,12 @@ const renderReplies = (key, phase, actions) => {
   })
   return elements.filter(element => element.type === 'pill')
 }
+check('older profiles keep desktop quick replies enabled', snapshot().quickRepliesEnabled === true)
+setStored({ quickRepliesEnabled: false })
+check('switching off removes every quick reply and its row',
+  renderReplies('replies-off', 'plain', inputActions).length === 0 && byClass('row').length === 0)
+check('switching off keeps the dock registered', registrations.includes(repliesEntry))
+setStored({ quickRepliesEnabled: true })
 const tags = renderReplies('replies', 'plain', inputActions)
 check(
   'offering every built-in phrase as its own tag',
@@ -860,6 +867,44 @@ check(
   'closed while a submission is in flight',
   renderReplies('busy', 'submitting', inputActions).every(tag => tag.props.disabled === true),
 )
+
+console.log('desktop quick-reply toggle')
+check('the page includes only visibility, not phrase editing',
+  pageComponents.has('QuickReplyToggleRow') && !pageComponents.has('QuickReplyRow'))
+const toggleWrites = []
+const renderToggle = (overrides = {}) => {
+  mount('reply-toggle', pageComponents.get('QuickReplyToggleRow'), {
+    t,
+    useBeautify: selector => selector({ ...snapshot(), ...overrides }),
+    choose: (key, value) => { toggleWrites.push([key, value]) },
+  })
+  return elements.find(element => element.type === 'switch')
+}
+const toggle = renderToggle()
+check('uses the host switch with a localized label', toggle.props.label === 'quickTitle')
+check('shows the saved enabled state', toggle.props.checked === true && toggle.props.disabled === false)
+toggle.props.onChange(false)
+check('the switch writes a boolean without editing phrases',
+  JSON.stringify(toggleWrites.at(-1)) === JSON.stringify(['quickRepliesEnabled', false]))
+setStored({ quickRepliesEnabled: false })
+check('the switch reflects the disabled state', renderToggle().props.checked === false)
+setStored({ quickRepliesEnabled: undefined })
+check('an older host disables the new setting with an explanation',
+  renderToggle().props.disabled === true && byClass('meta')[0].props.children === 'stale')
+setStored({ quickRepliesEnabled: true })
+check('read-only settings disable the toggle', renderToggle({ writable: false }).props.disabled === true)
+check('unavailable settings disable the toggle', renderToggle({ available: false }).props.disabled === true)
+const face = pageEntry.definition.inject()
+face.choose('quickRepliesEnabled', false)
+await settle()
+check('the shared writer persists false rather than treating it as an array', stored.quickRepliesEnabled === false)
+setStored({ quickRepliesEnabled: true })
+const replyCss = readFileSync(new URL('../src/client/QuickReplies.module.css', import.meta.url), 'utf8')
+const rowCss = readFileSync(new URL('../src/client/SettingRow.module.css', import.meta.url), 'utf8')
+check('phones hide the send controls at the host breakpoint',
+  /@media\s*\(max-width:\s*600px\)\s*\{\s*\.row\s*\{\s*display:\s*none/.test(replyCss))
+check('phones also hide the desktop-only setting',
+  /@media\s*\(max-width:\s*600px\)\s*\{\s*\.desktopOnly\s*\{\s*display:\s*none/.test(rowCss))
 
 console.log('custom quick replies')
 setStored({ quickReplies: [' 甲 ', '乙'] })

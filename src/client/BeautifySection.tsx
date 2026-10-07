@@ -5,6 +5,7 @@ import { BrandIconRow, BrandNameRow, LogoRow, TaglineRow } from './BrandRows.tsx
 import { CodeFontRow, FontRow } from './FontRows.tsx'
 import { NS } from './locales.ts'
 import { MotionRow } from './MotionRow.tsx'
+import { QuickReplyToggleRow } from './QuickReplyToggleRow.tsx'
 import type { SettingsRowFace } from './settings-controller.ts'
 import css from './BeautifySection.module.css'
 
@@ -24,6 +25,7 @@ export function BeautifySection(props: BeautifySectionProps): ReactNode {
       <FontRow {...props} />
       <CodeFontRow {...props} />
       <MotionRow {...props} />
+      <QuickReplyToggleRow {...props} />
       <h3 className={css.groupTitle}>{props.t('brandingGroup')}</h3>
       <LogoRow {...props} />
       <BrandIconRow {...props} />

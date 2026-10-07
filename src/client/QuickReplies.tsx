@@ -46,6 +46,8 @@ export function QuickReplies({ inputActions, useInput, useBeautify, t }: QuickRe
   const phase = useInput(state => state.phase)
   const locked = phase === 'adjudicating' || phase === 'submitting'
   const state = useBeautify(snapshot => snapshot)
+  // Keep the slot registered so changing the setting restores it immediately.
+  if (!state.quickRepliesEnabled) return null
   const custom = visibleQuickReplies(state.quickReplies)
   // The built-in list replaces the row wholesale once the user writes phrases of
   // their own: customization means the row is what they typed, not their text

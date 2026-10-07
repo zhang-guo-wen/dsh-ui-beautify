@@ -315,6 +315,8 @@ export interface BeautifySettings {
    * the built-in phrases of the active locale.
    */
   quickReplies: string[]
+  /** Whether quick replies appear on desktop; mobile always hides them. */
+  quickRepliesEnabled: boolean
 }
 
 /**

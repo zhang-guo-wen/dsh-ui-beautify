@@ -1,6 +1,6 @@
 # AGENTS.md
 
-本仓 `dsh-ui-beautify` 是**独立于 harness monorepo** 的 DeepSeek Harness (DSH) 插件：在「设置 → 界面美化」独立页面提供字体、动效与品牌设置（快捷回复的设置行**暂时不挂载**，组件留在仓库里），并给 composer 上下各加一件——上方是骑车道，下方是快捷回复标签（内置四条，可经手改配置替换）。
+本仓 `dsh-ui-beautify` 是**独立于 harness monorepo** 的 DeepSeek Harness (DSH) 插件：在「设置 → 界面美化」独立页面提供字体、动效、PC 端快捷回复开关与品牌设置（快捷回复的内容编辑行**暂时不挂载**，组件留在仓库里），并给 composer 上下各加一件——上方是骑车道，下方是快捷回复标签（内置四条，可经手改配置替换）。
 字体**不随包分发**——包里只有 npm 包名、锁定版本与包内样式表路径，字体在首次使用时由 Host 从镜像下载到本机缓存，之后完全离线可用。
 它不打包 `@deepseek-ai/*`，运行时从宿主 harness 解析这些包。
 
@@ -25,12 +25,13 @@ src/
   index.ts                Host：认领字体、缓存与品牌图片三个路由
   client/
     index.ts              Client：注册独立设置页、composer 上下的车道与快捷回复 + 按角色应用所选字体
-    BeautifySection.tsx   字体、动效与品牌的独立设置页面（快捷回复那一行暂不挂载）
+    BeautifySection.tsx   字体、动效、快捷回复开关与品牌页面（内容编辑行暂不挂载）
     BrandRows.tsx         欢迎页 Logo、侧栏图标的上传控件与名称输入
     branding.tsx          仅在设置非空时接管宿主品牌插槽
     FontRows.tsx          字体偏好行组件（标题 / 描述 / 缓存状态 + 下拉选择），两个角色共用
     MotionRow.tsx         车道那一行：三选一，并写出「为什么带子是空的」
-    QuickReplyRow.tsx     快捷回复那一行（**暂不挂载**）：4 个槽位标签，点开就地编辑
+    QuickReplyRow.tsx     快捷回复内容编辑行（**暂不挂载**）：4 个槽位标签，点开就地编辑
+    QuickReplyToggleRow.tsx PC 端快捷回复显示开关：复用宿主 Switch，手机隐藏
     SettingRow.module.css 七项设置共用的行样式
     BikeLane.tsx          composer 卡片正上方的骑车小人：SVG 与逐帧驱动
     BikeLane.module.css
@@ -50,6 +51,7 @@ tools/
 ```
 
 - `lib/` —— 构建产物：**已提交进仓库**（`index.mjs` host + `client.js` 浏览器 handoff），这样别人可以直接从 git 安装。改完源码**记得 `npm run build` 并把 `lib/` 一起提交**。
+- 手机侧栏由宿主 `ui-layout` 控制（600px 以下为浮层），本插件不单独实现侧栏开关；`SettingRow.module.css` 在手机宽度下把设置控件排到说明下方。快捷回复内容编辑行仍暂不挂载，PC 显示开关单独提供。
 - `cordis.patch.yml` —— 把插件行插入组合的 bundle 层。
 - `build-client.mjs` / `tsdown.config.ts` —— 两段打包的配置（见「构建」）。
 - `LICENSE` / `NOTICE` —— 插件本体 Apache-2.0；字体各自的许可与上游声明见 `NOTICE`。
@@ -276,6 +278,10 @@ composer 卡片正下方那条整宽插槽是 `conversation.composer.dock`（同
 
 短语**就是发出去的消息**，所以内置短语留在 locale 字典（`quickContinue` / `quickOk` / `quickNoUnderstand` / `quickStatus`）里而不是写成组件里的字面量：中文界面发中文，英文界面发英文。顺序与清单在 `locales.ts` 的 `QUICK_REPLY_PHRASE_KEYS` 里，加一句 = 加一个字典键 + 在那一项里加一条，别处没有第二份枚举。
 
+### PC 端显示开关与手机隐藏
+
+`quickRepliesEnabled` 是默认 `true` 的 volatile 布尔字段。`QuickReplyToggleRow` 在设置页的动效行后复用宿主 `Switch`；关闭时 `QuickReplies` 返回 `null`，插槽始终注册，重新开启立即恢复。手机视口（不超过 600px，与宿主侧栏断点一致）通过媒体查询隐藏回复标签和开关行；调整窗口宽度也实时生效。内容编辑行仍 parked，不恢复编辑 UI。新增字段需要宿主重启一次，旧 schema 显示 `stale` 并禁用开关。`tests/client.mjs` 覆盖布尔写入、开关状态、旧宿主/只读/不可用，以及两处手机隐藏规则。
+
 ### 短语是可自定义的
 
 用户写的短语存在设置里（`quickReplies`，`z.array(z.string()).volatile()`，默认 `[]`），所以这排标签是"用户自己的话"，内置的四条只是全新安装时的默认值。两半边共用 `src/quick-replies.ts` 的槽位模型：
@@ -304,15 +310,15 @@ composer 卡片正下方那条整宽插槽是 `conversation.composer.dock`（同
 
 **空白会话（hero）里不会有这排标签**：`conversation.composer.dock` 只在 `variant === 'composer'` 时渲染，这是 ui-conversation 的行为，不是插件没注册。
 
-## 设置与七个可配项
+## 设置与可配项
 
-插件注册一个 `settings.section`（id `ui-beautify`，order 40），在「设置 → 界面美化」页面显示正文字体、代码字体、输入框动效与品牌四项。`BeautifySection` 复用 `FontRows`、`MotionRow`、`BrandRows` 和 `SettingsController` 的一份快照；快捷回复那一行**暂时不挂载**（呈现方式未定，见「短语是可自定义的」），所以页面上目前看不到它。
+插件注册一个 `settings.section`（id `ui-beautify`，order 40），在「设置 → 界面美化」页面显示正文字体、代码字体、输入框动效、PC 端快捷回复开关与品牌四项。`BeautifySection` 的各行复用 `SettingsController` 的一份快照；快捷回复内容编辑行**暂时不挂载**（见「短语是可自定义的」），显示开关则已独立挂载。
 
 快捷回复的字段与 dock 的读取逻辑照旧，只是暂时没有 UI 去写它——要自定义就手改 profile 补丁里的 `quickReplies`；要恢复设置行，把 `<QuickReplyRow {...props} />` 加回动效行之后即可。
 
 品牌四项在它之后。`logo` 对应空白会话页标志，`brandIcon` 和 `brandName` 对应侧栏左上角，`tagline` 对应空白会话页标语。图片通过 `POST /plugins/dsh-ui-beautify/brand/upload/{logo|brandIcon}` 上传，限 2 MB 的 PNG/JPEG/WebP/GIF，按内容哈希保存到 `$DSH_HOME/assets/ui-beautify`，由同一路由下的 `assets/<sha>.<ext>` 读取。设置中仅保存图片 URL；留空时不注册品牌插槽，宿主默认内容继续显示。自定义侧栏插槽使用 priority -1 覆盖官方插件的 priority 0。标语当前由宿主组件直接渲染、无插槽；客户端以 DOM 观察同步可见文案，清空后恢复宿主文案。Electron 安装版的原生首次引导不加载浏览器插件。
 
-选择写进**当前 profile 的配置文件** `$DSH_HOME/profiles/<profile>/cordis.patch.yml` 里 `ui-beautify` 行的 `config`（`font` / `codeFont` / `motion` / `quickReplies` / `logo` / `brandIcon` / `brandName` / `tagline`），改完立即生效、无需重启。新增字段在宿主仍跑着旧 schema 时会显示旧版本提示并禁用；重启 dsh 即可。
+选择写进**当前 profile 的配置文件** `$DSH_HOME/profiles/<profile>/cordis.patch.yml` 里 `ui-beautify` 行的 `config`（`font` / `codeFont` / `motion` / `quickReplies` / `quickRepliesEnabled` / `logo` / `brandIcon` / `brandName` / `tagline`），改完立即生效、无需重启。新增字段在宿主仍跑着旧 schema 时会显示旧版本提示并禁用；重启 dsh 即可。
 
 > 更早的 DSH 版本把选择写在 `$DSH_HOME/settings.yaml`；该文件已被 DSH 迁移进 profile 的补丁文件并重命名为 `settings.yaml.imported`。现在手工改设置要改的是 profile 补丁。
 
@@ -332,7 +338,7 @@ composer 卡片正下方那条整宽插槽是 `conversation.composer.dock`（同
 
 `cacheDir` 留空时的解析顺序：`$DSH_HOME`（非空时）→ `~/.dsh`，再拼 `cache/ui-beautify/fonts`。插件自己展开 `~` / `~/` / `~\` 前缀，因为 `@deepseek-ai/dsh-home-paths` 是 harness 内部包，loader 从 profile 解析本插件的 import，那里没装它。填了值就 `resolve()` 成绝对路径，所以**相对路径按宿主进程的 cwd 解析**，不是 profile 目录。
 
-七个可配字段都是 volatile：字体、动效、品牌五项是 `z.string().volatile()`，快捷回复是 `z.array(z.string()).volatile()`（默认 `[]`，不写 `.max()`——schema 拒绝一个字段会让整份命名空间回落到上一个好值，超长列表在读取处裁掉，见「短语是可自定义的」）。字体和动效的未知值在读取处回落到默认值，图片地址、短语列表在使用时检查。`mirrors` / `cacheDir` 有默认值但不是 volatile，不出现在设置页。
+所有用户可配字段都是 volatile；显示开关是默认开启的 `z.boolean().volatile()`：字体、动效、品牌五项是 `z.string().volatile()`，快捷回复是 `z.array(z.string()).volatile()`（默认 `[]`，不写 `.max()`——schema 拒绝一个字段会让整份命名空间回落到上一个好值，超长列表在读取处裁掉，见「短语是可自定义的」）。字体和动效的未知值在读取处回落到默认值，图片地址、短语列表在使用时检查。`mirrors` / `cacheDir` 有默认值但不是 volatile，不出现在设置页。
 
 ## 构建
 
@@ -606,4 +612,4 @@ Get-ChildItem "$env:USERPROFILE\.dsh\cache\ui-beautify\fonts" -Recurse -File | S
 - **车道的外观**：车速曲线的常量在 `src/client/output-rate.ts`，尺寸常量在 `BikeLane.tsx`/`.module.css`（改尺寸要同时改两处）。想让它更小、更淡或换形象，只动这三处。
 - **车道可调速度**：加第二个 `z.number().volatile()` 字段做倍率即可，`SettingsController` 与 `MotionRow` 的写法可以照抄。
 - **把快捷回复的设置行挂回来**：`QuickReplyRow.tsx`（4 个槽位标签、点开就地编辑）、它的文案与样式、`quickReplies` 字段与 dock 的读取、以及 `tests/client.mjs` 里那 24 条断言都还在仓库里；`BeautifySection` 加一行 `<QuickReplyRow {...props} />`（连 import）即恢复，测试块由 `pageComponents.has('QuickReplyRow')` 守卫、会自动重跑。呈现方式想好了再挂。
-- **关掉这排快捷回复**：四条全空是"用内置短语"，所以现在没有"一条都不显示"的状态。要加就在同一命名空间加一个布尔字段，让 `QuickReplies` 在它打开时渲染空行（注册照常，只在组件里收窄——见骑车道那节的教训）。
+- PC 端快捷回复显示开关已实现（`quickRepliesEnabled`），手机始终隐藏；四条全空仍是「用内置短语」，与显示开关独立。
