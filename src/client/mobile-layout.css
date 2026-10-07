@@ -6,12 +6,14 @@
 [data-ui-beautify-recent]:empty { display: none; }
 [data-mobile-recent-sessions] { display: flex; align-items: stretch; gap: 20px; min-width: 0; width: max-content; }
 /* Geometry only: the host's actual tab/tabActive classes own typography, color and underline. */
-[data-mobile-recent-sessions] button { flex: none; max-width: 5em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-mobile-recent-sessions] button { flex: none; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+[data-recent-session-title] { max-width: 5em; overflow: hidden; text-overflow: ellipsis; }
+[data-recent-session-status] { display: inline-flex; align-items: center; flex: none; }
 [data-mobile-recent-sessions] button:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: -2px; }
 @media (max-width: 600px) {
   [data-ui-beautify-recent-tabs] > button[role='tab'] { display: none; }
   [data-ui-beautify-recent-tabs] { padding-left: 0 !important; gap: 0 !important; }
-  [data-mobile-layout-frame][data-sidebar-collapsed] [class*='_titleRow'] { padding-left: 20px; }
+  [data-mobile-layout-frame][data-sidebar-collapsed]:has([data-mobile-layout-header-toggle]) [class*='_titleRow'] { padding-left: 0; }
   [data-ui-beautify-recent] { min-width: 100%; margin-top: 0; }
   [data-mobile-recent-sessions] { gap: 16px; }
   [data-slot='conversation.session.header.utilities'] > :has([data-open-target='directory']),
@@ -67,6 +69,14 @@
     z-index: 1;
     background: var(--dsw-alias-bg-base);
   }
+  [data-mobile-layout-toggle][data-mobile-layout-header-toggle] {
+    position: static;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    pointer-events: auto;
+  }
   [data-mobile-layout-backdrop] {
     position: absolute;
     inset: 0;
@@ -78,6 +88,6 @@
     cursor: pointer;
     pointer-events: auto;
   }
-  [data-mobile-layout-frame][data-sidebar-collapsed] [data-slot='conversation.header.leading'] { padding-left: 44px; }
+  [data-mobile-layout-frame][data-sidebar-collapsed]:has([data-mobile-layout-header-toggle]) [data-conversation-header-leading] { margin-left: -8px; margin-right: 8px; }
   [data-mobile-layout-frame][data-sidebar-collapsed] main > :first-child { padding-top: 42px; }
 }

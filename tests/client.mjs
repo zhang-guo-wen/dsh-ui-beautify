@@ -168,7 +168,7 @@ const externals = {
   react: reactStub,
   'react/jsx-runtime': { jsx: record, jsxs: record, Fragment: 'Fragment' },
   'react-dom': { createPortal: node => node },
-  '@deepseek-ai/dsh-client-ui-primitives': { Menu, IconChevronDownOutlineRegular, IconPanelLeftOutlineRegular: () => null, Button: props => record('button', props), Pill, Switch, Tag: () => null },
+  '@deepseek-ai/dsh-client-ui-primitives': { Menu, IconChevronDownOutlineRegular, IconPanelLeftOutlineRegular: () => null, Button: props => record('button', props), StateDot: props => record('state-dot', props), Pill, Switch, Tag: () => null },
   '@deepseek-ai/dsh-client-store': {
     createSnapshotStore: (initial) => {
       let current = initial
@@ -236,6 +236,7 @@ const scope = {
   set: async (key, value) => { stored = { ...stored, [key]: value } },
 }
 const makeCtx = (into) => ({
+  get(name) { return name === 'remote' ? { $host: { isLoopback: true } } : undefined },
   inject(_names, callback) { callback({ get: () => ({ openSession() {} }) }) },
   effect(fn) {
     const dispose = fn()
@@ -260,7 +261,7 @@ const makeCtx = (into) => ({
     },
   },
 })
-plugin.apply(makeCtx(registrations))
+await plugin.apply(makeCtx(registrations))
 const pageEntry = registrations.find(entry => entry.definition.name === 'settings.section')
 const laneEntry = registrations.find(entry => entry.definition.id === 'ui-beautify-lane')
 const repliesEntry = registrations.find(entry => entry.definition.id === 'ui-beautify-replies')

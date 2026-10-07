@@ -2,7 +2,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
-import { useSyncExternalStore, type ReactNode } from 'react'
+import { useLayoutEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Button, IconPanelLeftOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime, SlotComponent } from '@deepseek-ai/dsh-client-ui-slots'
 import { createMobileController, type MobileLayoutController } from './mobile-layout-controller.ts'
@@ -12,11 +13,24 @@ import { MobileRecentSessions } from './MobileRecentSessions.tsx'
 
 function MobileOverlay({ controller, t }: PropsLocale<typeof NS> & { controller: MobileLayoutController }): ReactNode {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot)
+  const [leading, setLeading] = useState<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    if (!state.mobile) { setLeading(null); return }
+    // The host header owns vertical alignment, including blank and session headers.
+    // Keep an overlay fallback only on pages without a conversation header.
+    const sync = (): void => { setLeading(document.querySelector('[data-conversation-header-leading]')) }
+    sync()
+    const observer = new MutationObserver(sync)
+    observer.observe(document.documentElement, { subtree: true, childList: true })
+    return () => { observer.disconnect() }
+  }, [state.mobile])
   if (!state.mobile) return null
+  const toggle = <Button variant="ghost" size="sm" data-mobile-layout-toggle=""
+    data-mobile-layout-header-toggle={leading ? '' : undefined} aria-label={t('mobileOpen')}
+    title={t('mobileOpen')} onClick={controller.toggle} icon={<IconPanelLeftOutlineRegular size={16} />} />
   return <div data-mobile-layout-controls="">{state.open
     ? <button type="button" data-mobile-layout-backdrop="" aria-label={t('mobileClose')} onClick={controller.close} />
-    : <Button variant="ghost" size="sm" data-mobile-layout-toggle="" aria-label={t('mobileOpen')}
-      title={t('mobileOpen')} onClick={controller.toggle} icon={<IconPanelLeftOutlineRegular size={20} />} />}</div>
+    : leading ? createPortal(toggle, leading) : toggle}</div>
 }
 function SuppressedPocketNavigation(): ReactNode { return null }
 

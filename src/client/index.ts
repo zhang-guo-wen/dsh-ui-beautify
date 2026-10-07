@@ -50,6 +50,7 @@ import { QuickReplies } from './QuickReplies.tsx'
 import { SettingsController } from './settings-controller.ts'
 import { applyTagline } from './tagline.ts'
 import { applyMobileLayout } from './mobile-layout.tsx'
+import { installRemoteSettings } from './remote-settings.ts'
 
 export type { BikeLaneProps } from './BikeLane.tsx'
 export type { CodeFontRowProps, FontRowProps } from './FontRows.tsx'
@@ -97,14 +98,19 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
  * locale carry the rows, and the configuration forms service is where the
  * choices live.
  */
-export const inject = ['theme', 'slots', 'locale', 'configForms', 'layout']
+export const inject = ['theme', 'slots', 'locale', 'configForms', 'layout', 'remote', 'remote.settings']
 
 /**
  * Client plugin body: register the settings page, keep the document in sync
  * with the stored choices, and put the lane in the composer dock.
  * @param ctx - client cordis context.
  */
-export function apply(ctx: Context): void {
+export async function apply(ctx: Context): Promise<void> {
+  const remoteSettings = installRemoteSettings(ctx)
+  if (remoteSettings) {
+    ctx.effect(() => () => { remoteSettings.dispose() }, 'ui-beautify: remote settings reads')
+    await remoteSettings.ready
+  }
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-beautify: dictionaries')
   const scope = ctx.configForms.get<BeautifySettings>(FONT_SETTINGS_NS)
   const controller = new SettingsController(scope)

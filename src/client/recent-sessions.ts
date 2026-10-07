@@ -1,6 +1,10 @@
 /** Small public catalog projection; do not treat subagents or blank drafts as recent conversations. */
-export interface RecentSession { id: string; displayTitle: string; updatedAt: number; blank?: boolean; origin?: string }
-export interface RecentSessionList { ids: readonly string[]; byId: Readonly<Record<string, RecentSession | undefined>> }
+export interface RecentSession { id: string; displayTitle: string; updatedAt: number; blank?: boolean; origin?: string; running?: boolean }
+export interface RecentSessionList {
+  ids: readonly string[]
+  byId: Readonly<Record<string, RecentSession | undefined>>
+  projectionsBySession?: Readonly<Record<string, { values: { subagentCatalog?: readonly { id: string }[] } } | undefined>>
+}
 export function deriveRecentSessions(list: RecentSessionList, current: string, archivedIds: readonly string[] = []): readonly RecentSession[] {
   const archived = new Set(archivedIds)
   // Selection changes only the highlight, never membership or position.

@@ -43,6 +43,12 @@ test('actual installed host phone drawer, cold touch load, breakpoints and deskt
         sideVisibility:getComputedStyle(f.firstElementChild).visibility,width:innerWidth,scrollWidth:document.documentElement.scrollWidth,
         slotErrors:document.querySelectorAll('[data-slot-error]').length }
     })
+    const blankButtons = await page.locator('[data-mobile-layout-header-toggle],[data-sidebar-right-expand]').evaluateAll(nodes => nodes.map(n => {
+      const box = n.getBoundingClientRect()
+      return { center: box.y + box.height / 2, width: box.width, height: box.height }
+    }))
+    assert.equal(blankButtons.length, 2)
+    assert.deepEqual(blankButtons[0], blankButtons[1], 'blank conversation top buttons align too')
     let g = await geometry()
     assert.equal(g.center, 393)
     assert.equal(g.grid, '0px 393px 0px')
@@ -82,6 +88,19 @@ test('actual installed host phone drawer, cold touch load, breakpoints and deskt
     assert.ok((await recent.first().getAttribute('class')).split(/\s+/).some(x => x.endsWith('_tab')))
     assert.ok((await recent.allTextContents()).every(x => Array.from(x).length <= 5))
     const header = page.locator('header').filter({ has: page.locator('[data-mobile-recent-sessions]') })
+    const assertAligned = async () => {
+      const left = await page.locator('[data-mobile-layout-header-toggle]').boundingBox()
+      const right = await header.locator('[data-sidebar-right-expand]').boundingBox()
+      assert.ok(left && right)
+      assert.ok(Math.abs(left.y + left.height / 2 - right.y - right.height / 2) < 1, 'top buttons share a horizontal centerline')
+      assert.equal(left.width, right.width)
+      assert.equal(left.height, right.height)
+      assert.equal(await page.locator('[data-mobile-layout-header-toggle] svg').getAttribute('width'), '16')
+    }
+    await assertAligned()
+    assert.equal(await recent.filter({ has: page.locator('[data-recent-session-status]') }).count(),
+      await page.locator('[data-mobile-recent-sessions] button:not([data-recent-status="idle"])').count())
+    assert.ok(await recent.evaluateAll(nodes => nodes.every(n => n.title.includes(' · ') && n.getAttribute('aria-label').includes(' · '))))
     assert.equal(await header.getByRole('tab', { name: '对话', exact: true }).isVisible(), false)
     assert.equal(await header.locator('[data-open-target="directory"]').isVisible(), false)
     assert.equal(await header.locator('[class*="_moreButton"]').isVisible(), false)
@@ -91,6 +110,7 @@ test('actual installed host phone drawer, cold touch load, breakpoints and deskt
         await page.locator(`[data-recent-session-id="${id}"]`).tap()
         await page.waitForFunction(id => document.querySelector('[data-mobile-recent-sessions] button[aria-current="page"]')?.getAttribute('data-recent-session-id') === id, id)
         assert.deepEqual(await recent.evaluateAll(nodes => nodes.map(x => x.dataset.recentSessionId)), before)
+        await assertAligned()
       }
     }
     // The phone host opens the right panel fullscreen; its close control must remain reachable.

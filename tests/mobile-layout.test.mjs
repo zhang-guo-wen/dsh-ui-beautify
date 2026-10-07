@@ -77,6 +77,15 @@ test('mobile rightbar keeps the host panel at the frame right edge, not offscree
   assert.ok(css.includes('[data-rightbar-col]:has([data-sidebar-right-open]) { z-index: 1250; }'))
 })
 
+test('phone opener joins the host leading header and matches the right opener geometry', () => {
+  const source = readFileSync(new URL('../src/client/mobile-layout.tsx', import.meta.url), 'utf8')
+  const css = readFileSync(new URL('../src/client/mobile-layout.css', import.meta.url), 'utf8')
+  assert.ok(source.includes("document.querySelector('[data-conversation-header-leading]')"))
+  assert.ok(source.includes('createPortal(toggle, leading)'))
+  assert.ok(source.includes('IconPanelLeftOutlineRegular size={16}'))
+  assert.match(css, /\[data-mobile-layout-toggle\]\[data-mobile-layout-header-toggle\] \{\s*position: static;\s*width: 28px;\s*height: 28px;/)
+})
+
 test('built client shadows only the three Pocket navigation cells, never root', () => {
   const source = readFileSync(new URL('../src/client/mobile-layout.tsx', import.meta.url), 'utf8')
   assert.ok(source.includes('IconPanelLeftOutlineRegular'))

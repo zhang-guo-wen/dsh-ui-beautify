@@ -41,6 +41,8 @@
     "client": {
       "inject": [
         "@deepseek-ai/dsh-api-gateway",
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-connection",
         "@deepseek-ai/dsh-client-store",
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-layout",
@@ -70,8 +72,9 @@
   "scripts": {
     "build": "tsdown -c tsdown.config.ts && node build-client.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node tests/smoke.mjs && node tests/http.mjs && node tests/brand.mjs && node tests/client.mjs && node --experimental-strip-types --test tests/mobile-layout.test.mjs tests/recent-sessions.test.mjs tests/recent-archives.test.mjs tests/mobile-browser.test.mjs",
-    "test:mobile": "node --experimental-strip-types --test tests/mobile-layout.test.mjs tests/recent-sessions.test.mjs tests/recent-archives.test.mjs tests/mobile-browser.test.mjs",
+    "test": "node tests/smoke.mjs && node tests/http.mjs && node tests/brand.mjs && node tests/client.mjs && node --experimental-strip-types --test tests/mobile-layout.test.mjs tests/recent-sessions.test.mjs tests/recent-session-status.test.mjs tests/recent-archives.test.mjs tests/remote-settings.test.mjs tests/mobile-browser.test.mjs",
+    "test:mobile": "node --experimental-strip-types --test tests/mobile-layout.test.mjs tests/recent-sessions.test.mjs tests/recent-session-status.test.mjs tests/recent-archives.test.mjs tests/remote-settings.test.mjs tests/mobile-browser.test.mjs",
+    "test:remote-settings": "node --experimental-strip-types --test tests/remote-settings.test.mjs tests/remote-settings-browser.test.mjs",
     "test:cdn": "node tests/cdn.mjs",
     "probe": "node tools/probe-font.mjs"
   },
@@ -82,13 +85,13 @@
     "@deepseek-ai/dsh-client-ui-chat": ">=0.1.7-0",
     "@deepseek-ai/dsh-client-ui-conversation": ">=0.1.7-0",
     "@deepseek-ai/dsh-client-ui-layout": ">=0.2.0-rc.1",
-    "@deepseek-ai/dsh-client-ui-workspace": ">=0.2.0-rc.1",
     "@deepseek-ai/dsh-client-ui-primitives": ">=0.1.7-0",
     "@deepseek-ai/dsh-client-ui-renderer": ">=0.1.7-0",
     "@deepseek-ai/dsh-client-ui-settings": ">=0.1.7-0",
     "@deepseek-ai/dsh-client-ui-sidebar": ">=0.1.7-0",
     "@deepseek-ai/dsh-client-ui-slots": ">=0.1.7-0",
     "@deepseek-ai/dsh-client-ui-theme": ">=0.1.7-0",
+    "@deepseek-ai/dsh-client-ui-workspace": ">=0.2.0-rc.1",
     "@deepseek-ai/schemastery": "*",
     "react": "*",
     "react-dom": "*"
@@ -146,6 +149,8 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.3",
     "@deepseek-ai/dsh-api-gateway": ">=0.1.7-0",
+    "@deepseek-ai/dsh-api-remotes": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-client-connection": "^0.1.7-rc.2",
     "@deepseek-ai/dsh-client-locale": ">=0.1.7-0",
     "@deepseek-ai/dsh-client-store": ">=0.1.7-0",
     "@deepseek-ai/dsh-client-ui-chat": ">=0.1.7-0",
