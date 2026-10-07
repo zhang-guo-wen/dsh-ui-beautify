@@ -49,6 +49,9 @@ const makeElement = tag => ({
 })
 globalThis.document = {
   body: {},
+  documentElement: {},
+  addEventListener() {},
+  removeEventListener() {},
   head: { appendChild(element) { head.push(element) } },
   querySelector: () => null,
   querySelectorAll: selector => selector === '[class*="_headline"] [class*="_titleGroup"] > span:first-child' ? [headline] : [],
@@ -164,7 +167,8 @@ globalThis.cancelAnimationFrame = () => { clock.frame = null }
 const externals = {
   react: reactStub,
   'react/jsx-runtime': { jsx: record, jsxs: record, Fragment: 'Fragment' },
-  '@deepseek-ai/dsh-client-ui-primitives': { Menu, IconChevronDownOutlineRegular, Pill, Switch, Tag: () => null },
+  'react-dom': { createPortal: node => node },
+  '@deepseek-ai/dsh-client-ui-primitives': { Menu, IconChevronDownOutlineRegular, IconPanelLeftOutlineRegular: () => null, Button: props => record('button', props), Pill, Switch, Tag: () => null },
   '@deepseek-ai/dsh-client-store': {
     createSnapshotStore: (initial) => {
       let current = initial
@@ -204,7 +208,10 @@ globalThis.window = {
       })
     },
   },
-  matchMedia: () => ({ matches: reducedMotion }),
+  matchMedia: () => ({ matches: reducedMotion, addEventListener() {}, removeEventListener() {} }),
+  MutationObserver: globalThis.MutationObserver,
+  requestAnimationFrame: globalThis.requestAnimationFrame,
+  cancelAnimationFrame: globalThis.cancelAnimationFrame,
 }
 runInThisContext(readFileSync(bundle, 'utf8'), { filename: bundle.pathname })
 
@@ -229,6 +236,7 @@ const scope = {
   set: async (key, value) => { stored = { ...stored, [key]: value } },
 }
 const makeCtx = (into) => ({
+  inject(_names, callback) { callback({ get: () => ({ openSession() {} }) }) },
   effect(fn) {
     const dispose = fn()
     if (typeof dispose === 'function') disposers.push(dispose)
@@ -236,6 +244,7 @@ const makeCtx = (into) => ({
   },
   locale: { register: () => () => {}, bind: () => key => key },
   configForms: { get: () => scope },
+  layout: { toggleSidebar() {} },
   theme: {
     overrideTokens(id, table) {
       tokens = { id, table }

@@ -49,6 +49,7 @@ import { en, NS, zh, type SettingsKey } from './locales.ts'
 import { QuickReplies } from './QuickReplies.tsx'
 import { SettingsController } from './settings-controller.ts'
 import { applyTagline } from './tagline.ts'
+import { applyMobileLayout } from './mobile-layout.tsx'
 
 export type { BikeLaneProps } from './BikeLane.tsx'
 export type { CodeFontRowProps, FontRowProps } from './FontRows.tsx'
@@ -96,7 +97,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
  * locale carry the rows, and the configuration forms service is where the
  * choices live.
  */
-export const inject = ['theme', 'slots', 'locale', 'configForms']
+export const inject = ['theme', 'slots', 'locale', 'configForms', 'layout']
 
 /**
  * Client plugin body: register the settings page, keep the document in sync
@@ -112,6 +113,7 @@ export function apply(ctx: Context): void {
   ctx.effect(() => applyFonts(ctx, scope), 'ui-beautify: fonts')
   ctx.effect(() => applyTagline(scope), 'ui-beautify: tagline')
   applyBranding(ctx, scope)
+  applyMobileLayout(ctx)
   const t = ctx.locale.bind(NS)
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section', id: 'ui-beautify', order: 40,

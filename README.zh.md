@@ -20,7 +20,11 @@ npx @deepseek-ai/dsh plugin --profile web add @guowenzhang/dsh-ui-beautify
 
 ## 用法
 
-手机端点击左上角按钮可展开宿主侧栏，选择会话或页面后侧栏会自动收起。窄屏上，界面美化的设置控件会排到说明文字下方；桌面布局不变。
+手机视口不超过 600px 时，UI Beautify 将现有宿主侧栏变为浮层抽屉，会话正文保持全宽。点击左上角宿主样式按钮展开；选择会话或页面、点击遮罩、按 Esc 后收起。已有原生手机抽屉的新宿主保留其布局与原生最近会话标签断点（恰好 600px 时可能不同）。手机右侧栏保留宿主全屏面板，点击其“收起右侧边栏”返回会话，展开入口随之恢复。窄屏设置控件排到说明文字下方，桌面布局不变。
+
+已开始的会话顶部提供最多 5 个最近对话标签：按活动时间排序，点击仅切换对话和选中态，不将当前对话移到首位，排除已归档、空白和子代理对话；不足 5 个时按实际数量显示，不补空位。标签复用宿主“对话 / 轨迹”的字体和选中下划线，每个标签最多显示 5 个字。桌面标签位于“对话 / 轨迹”后，手机只显示最近对话，横向不足时可滚动；手机顶部隐藏“打开文件”和下载日志／反馈三点菜单，正文左右留白为 16px、输入框为 8px。
+
+不需要额外手机插件、修改 Harness 源码、替换桌面版或添加布局 URL 参数。加载最新 UI Beautify 构建后，刷新普通手机地址即可。与 dsh-pocket 2.10.6 共用时，仅替换它不兼容的手机导航插槽及样式；二维码、代理和设置仍保持运行。口袋插件额外的手机文件/日志快捷按钮不挂载。
 
 ### 修改 Logo 和左上角品牌
 
@@ -46,10 +50,10 @@ npx @deepseek-ai/dsh plugin --profile web add @guowenzhang/dsh-ui-beautify
 
 下载是**按分片**进行的，不是整包预取。先取所选字体的样式表，然后只取页面实际用到的字符所属的那几片。同一文件的并发请求会合并；之后再次加载页面全部走本地磁盘，不再联网。
 
-| Situation | What you see |
+| 情况 | 表现 |
 |---|---|
-| The host machine has no outbound network | Downloads fail; the GUI keeps rendering with its fallback fonts |
-| The browser has network access but the host does not | Downloads still fail — the browser never contacts an external site |
+| 宿主机无法访问外网 | 下载失败，界面继续使用回退字体 |
+| 浏览器可联网，但宿主机不能 | 下载仍会失败——浏览器不会直接访问外部字体站点 |
 
 ## 快捷回复
 

@@ -20,7 +20,11 @@ From the npm registry: <https://www.npmjs.com/package/@guowenzhang/dsh-ui-beauti
 
 ## Usage
 
-On a phone, open the host sidebar with the top-left button; choosing a session or section closes the overlay again. The UI Beautify settings rows stack their controls below their descriptions on narrow screens. Desktop layout is unchanged.
+At phone widths up to 600px, UI Beautify makes the existing host sidebar a drawer and keeps the conversation full-width. The top-left host-styled button opens it; choosing a session or section, tapping the backdrop, or pressing Escape closes it. New hosts with their own mobile drawer retain that layout and their native recent-session tab breakpoints (which may differ at exactly 600px). The phone right sidebar retains the host fullscreen panel; its collapse control returns to the conversation and restores the header opener. Settings controls stack below their descriptions; desktop layout is unchanged.
+
+Started conversations also show up to 5 recent conversation switches: ordered by activity, with selection changing only the highlight, never moving a tab to the front, excluding archived, blank and subagent sessions. Fewer eligible conversations produce fewer tabs, without empty placeholders. Tabs reuse the host Chat/Trajectory font and selected underline. Each label is capped at 5 characters. Desktop places them after Chat/Trajectory; phones show only the recent switches in a scrollable row and hide the header's open-file and log/feedback more menu. Phone transcript gutters are 16px and composer gutters are 8px.
+
+No additional mobile plugin, Harness source edits, Desktop replacement, or layout URL parameter is needed. Use the usual phone address and refresh after loading the updated UI Beautify build. With dsh-pocket 2.10.6, only its incompatible mobile navigation cells and stylesheet are replaced; its proxy, QR access and settings remain active. Pocket's extra phone file/log shortcuts are not mounted.
 
 ### Change the logo and top-left brand
 

@@ -1,0 +1,83 @@
+/* Scope all geometry to the frame this plugin owns. Host controls and tokens remain unchanged. */
+[data-ui-beautify-recent-anchor] { display: none; }
+[data-ui-beautify-recent-tabs] { align-items: stretch; gap: 24px !important; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+[data-ui-beautify-recent-tabs]::-webkit-scrollbar { display: none; }
+[data-ui-beautify-recent] { min-width: 0; flex: none; }
+[data-ui-beautify-recent]:empty { display: none; }
+[data-mobile-recent-sessions] { display: flex; align-items: stretch; gap: 20px; min-width: 0; width: max-content; }
+/* Geometry only: the host's actual tab/tabActive classes own typography, color and underline. */
+[data-mobile-recent-sessions] button { flex: none; max-width: 5em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-mobile-recent-sessions] button:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: -2px; }
+@media (max-width: 600px) {
+  [data-ui-beautify-recent-tabs] > button[role='tab'] { display: none; }
+  [data-ui-beautify-recent-tabs] { padding-left: 0 !important; gap: 0 !important; }
+  [data-mobile-layout-frame][data-sidebar-collapsed] [class*='_titleRow'] { padding-left: 20px; }
+  [data-ui-beautify-recent] { min-width: 100%; margin-top: 0; }
+  [data-mobile-recent-sessions] { gap: 16px; }
+  [data-slot='conversation.session.header.utilities'] > :has([data-open-target='directory']),
+  [data-slot='conversation.session.header.utilities'] > :has([class*='_moreButton']) { display: none !important; }
+  [class*='_headerUtilities']:has([data-slot='conversation.session.header.utilities']) { margin-left: 0 !important; }
+  [data-mobile-layout-frame] [class*='_body']:has([class*='_composerStack']) {
+    --dsh-composer-side-clearance: 8px;
+    --dsh-chat-side-inset: 16px;
+  }
+  [data-mobile-layout-frame] [class*='_scroll']:has([class*='_flowItem']) { padding-left: 16px !important; padding-right: 16px !important; }
+  [data-mobile-layout-frame] {
+    grid-template-columns: 0 minmax(0, 1fr) 0 !important;
+    transition: none !important;
+  }
+  [data-mobile-layout-frame] > :first-child {
+    position: absolute !important;
+    inset: 0 auto 0 0 !important;
+    width: min(280px, calc(100vw - 48px)) !important;
+    max-width: calc(100vw - 48px);
+    z-index: 1200;
+    visibility: visible;
+    border-right: 0 !important;
+    background: var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base));
+  }
+  [data-mobile-layout-frame][data-sidebar-collapsed] > :first-child {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  [data-mobile-layout-frame] > :first-child > [data-slot='sidebar'] > div {
+    width: 100% !important;
+    max-width: 100%;
+  }
+  [data-mobile-layout-frame] > :nth-child(2) {
+    grid-column: 2 !important;
+    grid-row: 1;
+    min-width: 0;
+  }
+  /* The host anchors its fullscreen panel to the right edge of this zero-width track. */
+  [data-mobile-layout-frame] > [data-rightbar-col] {
+    grid-column: 3 !important;
+    grid-row: 1;
+  }
+  [data-mobile-layout-frame] > [data-rightbar-col]:has([data-sidebar-right-open]) { z-index: 1250; }
+  [data-mobile-layout-frame][data-rightbar-fullscreen] [data-mobile-layout-toggle] { visibility: hidden; }
+  [data-mobile-layout-frame] [data-side='sidebar'],
+  [data-mobile-layout-frame] [data-side='details'] { display: none !important; }
+  [data-mobile-layout-frame] [data-shell-overlay] { z-index: 1100; }
+  [data-mobile-layout-controls] { pointer-events: auto; }
+  [data-mobile-layout-toggle] {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + var(--dsh-frame-top-clearance, 0px) + 6px);
+    left: 8px;
+    z-index: 1;
+    background: var(--dsw-alias-bg-base);
+  }
+  [data-mobile-layout-backdrop] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    padding: 0;
+    background: var(--dsw-alias-mask, rgb(0 0 0 / 28%));
+    cursor: pointer;
+    pointer-events: auto;
+  }
+  [data-mobile-layout-frame][data-sidebar-collapsed] [data-slot='conversation.header.leading'] { padding-left: 44px; }
+  [data-mobile-layout-frame][data-sidebar-collapsed] main > :first-child { padding-top: 42px; }
+}

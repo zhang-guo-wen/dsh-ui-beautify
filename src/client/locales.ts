@@ -19,6 +19,10 @@ export const NS = 'settings.uiBeautify'
 /** English copy. */
 export const en = {
   nav: 'UI Beautify',
+  mobileOpen: 'Open sidebar',
+  mobileClose: 'Close sidebar',
+  mobileRecent: 'Recent conversations',
+  mobileSwitch: 'Open conversation: {title}',
   pageTitle: 'UI Beautify',
   pageIntro: 'Choose fonts, motion, and the images and text shown in the interface.',
   appearanceGroup: 'Appearance',
@@ -121,6 +125,10 @@ export const en = {
 /** Chinese copy. */
 export const zh: typeof en = {
   nav: '界面美化',
+  mobileOpen: '打开侧边栏',
+  mobileClose: '收起侧边栏',
+  mobileRecent: '最近对话',
+  mobileSwitch: '切换到对话：{title}',
   pageTitle: '界面美化',
   pageIntro: '在这里统一设置字体、动效，以及界面中的图片和文字。',
   appearanceGroup: '外观',

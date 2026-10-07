@@ -51,7 +51,10 @@ tools/
 ```
 
 - `lib/` —— 构建产物：**已提交进仓库**（`index.mjs` host + `client.js` 浏览器 handoff），这样别人可以直接从 git 安装。改完源码**记得 `npm run build` 并把 `lib/` 一起提交**。
-- 手机侧栏由宿主 `ui-layout` 控制（600px 以下为浮层），本插件不单独实现侧栏开关；`SettingRow.module.css` 在手机宽度下把设置控件排到说明下方。快捷回复内容编辑行仍暂不挂载，PC 显示开关单独提供。
+- 手机布局直接由本插件的 `mobile-layout.tsx`、`mobile-layout-controller.ts` 和 `mobile-layout.css` 提供，复用宿主 `layout.toggleSidebar`、Button 和现有侧栏；≤600px 是浮层，桌面不改，新宿主已有 `data-mobile-sidebar` 时保留其原生布局。不得另装 `dsh-mobile-layout`、复制宿主组件或修改 Harness 源码。Pocket 2.10.6 的三个失效导航 cell 通过 priority -10 shadow，明确标识的 mobile CSS 暂停，卸载时恢复；网络/二维码/设置保持运行。`npm run test:mobile` 运行控制器和可选真实浏览器测试（设置 `DSH_MOBILE_URL`）。普通 3081 根地址必须通过冷加载、触摸、导航、600/601px、桌面和卸载清理验收。设置控件窄屏堆叠，快捷回复内容编辑行仍 parked。
+- 顶部完整需求来自 2026-10-07 的原手机适配对话（不是 worktree 丢失）：`MobileRecentSessions.tsx` 复用 session catalog + `uiWorkspace.openSession`，未归档/非空白/非子代理按活动排序最多取 5 条，点击只改选中态，不置首；portal 容器不因 sessionId 变化销毁重建，实际不足时不补位，Unicode 显示 5 字。`useWorkspaces.archivedSessionIds` 是权威归档来源，归档当前会话也移除；每个标签复用实际宿主的 `_tab`/`_tabActive` class，字号/颜色/下划线不另做一套。通过 portal 挂在旧宿主 View tabs 后，手机隐藏旧 View tabs、顶部打开文件和日志/反馈三点菜单，正文/输入框边距 16px/8px；已有原生 recent strip 不重复插入。公开开发声明缺 session standard-seat augmentation 时仅在插槽注册边界适配，不复制宿主组件或类型图。必须在当前会话页验证真实标签点击、桌面保留 View tabs 与工具按钮，不能只测空白页。
+- 2026-10-07 提交前验证：真实 3081 宿主通过冷加载、触摸抽屉、Esc、遮罩、600/601px、近期会话切换和桌面恢复；真实卸载恢复及新宿主原生布局尚未做端到端验收，控制器清理和原生布局不接管只经单测验证。原生 recent strip 保留宿主自身断点（新宿主可能在恰好 600px 显示 View tabs）。浏览器回归须设置 `DSH_MOBILE_URL`、`DSH_MOBILE_WORKSPACE` 和 `DSH_MOBILE_SESSION_PATTERN`；可用 `DSH_MOBILE_PLAYWRIGHT`、`DSH_MOBILE_CHROME` 指定浏览器环境，目标工作区需有至少一条已开始会话；回归按 1–5 条实际数量校验，不要求凑齐五条。
+- 手机右侧栏依然归宿主所有：`[data-rightbar-col]` 必须固定在 grid-column 3/grid-row 1（0 宽轨道的右边缘），否则宿主 fullscreen 面板会定位到负的 viewport 宽度；打开时在左侧抽屉/overlay 之上，全屏时隐藏左侧展开按钮。不可替换宿主右侧栏和关闭控件。浏览器验收必须包括实际触摸“展开 → 收起 → 再展开”，验证面板 left=0/right=innerWidth 与入口恢复。
 - `cordis.patch.yml` —— 把插件行插入组合的 bundle 层。
 - `build-client.mjs` / `tsdown.config.ts` —— 两段打包的配置（见「构建」）。
 - `LICENSE` / `NOTICE` —— 插件本体 Apache-2.0；字体各自的许可与上游声明见 `NOTICE`。

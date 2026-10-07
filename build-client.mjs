@@ -58,11 +58,23 @@ const cssModulePlugin = {
   },
 }
 
+const cssTextPlugin = {
+  name: 'dsh-css-text',
+  resolveId(source, importer) {
+    if (!source.endsWith('.css') || source.endsWith('.module.css')) return null
+    return '\0dsh-css-text:' + join(dirname(importer), source) + '.mjs'
+  },
+  async load(id) {
+    if (!id.startsWith('\0dsh-css-text:')) return null
+    return 'export default ' + JSON.stringify(await readFile(id.slice('\0dsh-css-text:'.length, -4), 'utf8'))
+  },
+}
+
 const bundle = await rolldown({
   input: join(root, 'src', 'client', 'index.ts'),
   platform: 'browser',
-  external: [/^react$/, /^react\//, /^@deepseek-ai\//],
-  plugins: [cssModulePlugin],
+  external: [/^react$/, /^react\//, /^react-dom$/, /^@deepseek-ai\//],
+  plugins: [cssModulePlugin, cssTextPlugin],
 })
 await bundle.write({ format: 'cjs', file: join(root, 'lib', 'client.js'), banner, footer, intro, sourcemap: false })
 console.log('lib/client.js written (ModuleLoader handoff bundle)')
