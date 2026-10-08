@@ -27,6 +27,7 @@ const routes = []
 const disposers = []
 const config = Config({})
 apply({
+  inject() {}, // Optional translation RPC is absent in this font-only fixture.
   effect(fn) {
     const dispose = fn()
     if (typeof dispose === 'function') disposers.push(dispose)
@@ -195,11 +196,16 @@ for (const field of ['logo', 'brandIcon', 'brandName', 'tagline']) {
 }
 check('defaults to the default body face', Config({}).font.get() === DEFAULT_FONT_ID, String(Config({}).font.get()))
 check('defaults the code face to the built-in stack', Config({}).codeFont.get() === DEFAULT_CODE_FONT_ID, String(Config({}).codeFont.get()))
-check('defaults the lane to following the browser', Config({}).motion.get() === DEFAULT_MOTION_CHOICE, String(Config({}).motion.get()))
+check('defaults animation to always enabled', Config({}).motion.get() === DEFAULT_MOTION_CHOICE, String(Config({}).motion.get()))
 check('declares the quick-reply list live', Config.dict.quickReplies.meta.volatile === true)
 check('declares quick-reply visibility live', Config.dict.quickRepliesEnabled.meta.volatile === true)
 check('desktop quick replies default to enabled', Config({}).quickRepliesEnabled.get() === true)
 check('desktop quick replies can be disabled', Config({ quickRepliesEnabled: false }).quickRepliesEnabled.get() === false)
+for (const field of ['mobileLayoutEnabled', 'recentSessionsEnabled', 'remoteSettingsEnabled', 'scrollToPromptEnabled']) {
+  check(`declares ${field} live`, Config.dict[field].meta.volatile === true)
+  check(`${field} defaults on`, Config({})[field].get() === true)
+  check(`${field} accepts false`, Config({ [field]: false })[field].get() === false)
+}
 check(
   'defaults the quick replies to the built-in phrases',
   Config({}).quickReplies.get().length === 0,
@@ -220,7 +226,9 @@ check(
 )
 
 console.log('the lane motion choice')
-check('offers the three answers in order', MOTION_CHOICE_IDS.join(',') === 'system,always,off', MOTION_CHOICE_IDS.join(','))
+check('offers only enabled and disabled states', MOTION_CHOICE_IDS.join(',') === 'always,off', MOTION_CHOICE_IDS.join(','))
+check('legacy system resolves to enabled', resolveMotionChoice('system') === 'always')
+check('default is enabled', DEFAULT_MOTION_CHOICE === 'always')
 check('an unknown value resolves to the default', resolveMotionChoice('nope') === DEFAULT_MOTION_CHOICE)
 check('an undefined value resolves to the default', resolveMotionChoice(undefined) === DEFAULT_MOTION_CHOICE)
 check(

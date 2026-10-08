@@ -1,5 +1,5 @@
 /**
- * The output-rate meter behind the composer dock's cyclist.
+ * The output-rate meter behind the composer dock's light beam.
  *
  * The rate is measured from the assistant text as it arrives. The `sessionStats`
  * projection is the obvious source and is deliberately not used: it folds
@@ -13,7 +13,7 @@
  * The unit is characters, not tokens. Providers report usage only when the step
  * closes, so no token count exists for output in flight, and guessing a
  * tokenizer per model would invent precision the data does not have. Only the
- * shape of the curve reaches the screen — a faster stream moves the cyclist
+ * shape of the curve reaches the screen — a faster stream moves the light beam
  * faster — so every character counts the same.
  *
  * @module @guowenzhang/dsh-ui-beautify/client/output-rate
@@ -25,7 +25,7 @@ import type { AssistantBlock, PartialAssistant } from '@deepseek-ai/dsh-client-u
 const RATE_WINDOW_MS = 900
 
 /**
- * Characters per second at which the cyclist covers half of its speed range.
+ * Characters per second at which the light beam covers half of its speed range.
  *
  * Roughly 70 tokens per second at ordinary prose density, so the interesting
  * band of real output speeds lands across the middle of the curve rather than
@@ -35,9 +35,9 @@ const SPEED_HALF_POINT = 220
 
 /**
  * Crossing rate the curve approaches but never reaches, in lane spans per
- * second. The fastest output still crosses the lane in about two seconds.
+ * second, matching the approved prototype's `1.6 * rate / (rate + 220)` curve.
  */
-const SPRINT_SPANS_PER_SECOND = 0.5
+const SPRINT_SPANS_PER_SECOND = 1.6
 
 /** One observation of the accumulating output. */
 export interface OutputSample {
@@ -113,8 +113,8 @@ export function observeOutput(
  * animation must not do. A stalled stream is handled by the rule below instead.
  *
  * Once nothing has arrived for a whole window the answer is exactly zero: a
- * reading that only ever decays towards zero would leave the cyclist creeping
- * forever, and "the model stopped writing" has to mean a still bicycle.
+ * reading that only ever decays towards zero would leave the light beam creeping
+ * forever, and "the model stopped writing" has to mean a still beam.
  * @param samples - the window from {@link observeOutput}.
  * @param now - reading time in `performance.now()` milliseconds.
  * @returns characters per second, 0 before two samples bracket any output, and
@@ -131,12 +131,12 @@ export function charsPerSecond(samples: readonly OutputSample[], now: number): n
 }
 
 /**
- * Turn an output rate into how fast the cyclist crosses the lane.
+ * Turn an output rate into how fast the light beam crosses the lane.
  *
  * Nothing arriving means no movement at all: the figure is a report of output,
- * so a still model is a still bicycle. Above zero the curve is proportional for
+ * so a still model is a still beam. Above zero the curve is proportional for
  * slow streams and saturates for fast ones, so every further increase still
- * moves the cyclist a little faster and a fast stream never looks identical to a
+ * moves the light beam a little faster and a fast stream never looks identical to a
  * slightly faster one.
  * @param charsPerSecond - recent output speed from {@link charsPerSecond}.
  * @returns lane spans per second, 0 when nothing is arriving.

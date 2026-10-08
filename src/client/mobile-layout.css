@@ -1,32 +1,20 @@
 /* Scope all geometry to the frame this plugin owns. Host controls and tokens remain unchanged. */
-[data-ui-beautify-recent-anchor] { display: none; }
-[data-ui-beautify-recent-tabs] { align-items: stretch; gap: 24px !important; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-[data-ui-beautify-recent-tabs]::-webkit-scrollbar { display: none; }
-[data-ui-beautify-recent] { min-width: 0; flex: none; }
-[data-ui-beautify-recent]:empty { display: none; }
-[data-mobile-recent-sessions] { display: flex; align-items: stretch; gap: 20px; min-width: 0; width: max-content; }
-/* Geometry only: the host's actual tab/tabActive classes own typography, color and underline. */
-[data-mobile-recent-sessions] button { flex: none; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-[data-recent-session-title] { max-width: 5em; overflow: hidden; text-overflow: ellipsis; }
-[data-recent-session-status] { display: inline-flex; align-items: center; flex: none; }
-[data-mobile-recent-sessions] button:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: -2px; }
 @media (max-width: 600px) {
-  [data-ui-beautify-recent-tabs] > button[role='tab'] { display: none; }
-  [data-ui-beautify-recent-tabs] { padding-left: 0 !important; gap: 0 !important; }
   [data-mobile-layout-frame][data-sidebar-collapsed]:has([data-mobile-layout-header-toggle]) [class*='_titleRow'] { padding-left: 0; }
-  [data-ui-beautify-recent] { min-width: 100%; margin-top: 0; }
-  [data-mobile-recent-sessions] { gap: 16px; }
   [data-slot='conversation.session.header.utilities'] > :has([data-open-target='directory']),
   [data-slot='conversation.session.header.utilities'] > :has([class*='_moreButton']) { display: none !important; }
   [class*='_headerUtilities']:has([data-slot='conversation.session.header.utilities']) { margin-left: 0 !important; }
   [data-mobile-layout-frame] [class*='_body']:has([class*='_composerStack']) {
-    --dsh-composer-side-clearance: 8px;
-    --dsh-chat-side-inset: 16px;
+    --dsh-composer-side-clearance: 4px;
+    --dsh-chat-side-inset: 8px;
   }
-  [data-mobile-layout-frame] [class*='_scroll']:has([class*='_flowItem']) { padding-left: 16px !important; padding-right: 16px !important; }
+  [data-mobile-layout-frame] [class*='_scroll']:has([class*='_flowItem']) { padding-left: 8px !important; padding-right: 8px !important; }
   [data-mobile-layout-frame] {
     grid-template-columns: 0 minmax(0, 1fr) 0 !important;
     transition: none !important;
+    /* Keep drawer/rightbar layers below the host's body-portaled modals.
+       Otherwise an inert iframe paints over the modal that blocks its input. */
+    isolation: isolate;
   }
   [data-mobile-layout-frame] > :first-child {
     position: absolute !important;
@@ -90,4 +78,101 @@
   }
   [data-mobile-layout-frame][data-sidebar-collapsed]:has([data-mobile-layout-header-toggle]) [data-conversation-header-leading] { margin-left: -8px; margin-right: 8px; }
   [data-mobile-layout-frame][data-sidebar-collapsed] main > :first-child { padding-top: 42px; }
+
+  /* The settings dialog portals beside the frame, including on native-mobile
+     hosts. Keep its real navigation, slots, focus trap and close paths; only
+     reflow this exact shell. No copied host component or translated selectors. */
+  [data-shortcut-modal='settings'] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    height: calc(100vh - 2 * max(12px, var(--dsh-frame-overlay-top, 12px)));
+    height: calc(100dvh - 2 * max(12px, var(--dsh-frame-overlay-top, 12px)));
+    min-height: 0;
+    border-radius: var(--dsw-radius-xl);
+  }
+  [data-shortcut-modal='settings'] > nav,
+  [data-shortcut-modal='settings'] > [class*='_content'] { display: contents; }
+  [data-shortcut-modal='settings'] > nav > [class*='_navTitle'] {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+    padding: 16px;
+    min-width: 0;
+  }
+  [data-shortcut-modal='settings'] > nav > [class*='_navList'] {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    flex-direction: row;
+    gap: 6px;
+    min-width: 0;
+    padding: 0 16px 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scroll-padding-inline: 16px;
+    border-bottom: 1px solid var(--dsw-alias-border-l2);
+  }
+  [data-shortcut-modal='settings'] > nav > [class*='_navList'] > button {
+    flex: none;
+    min-height: 44px;
+    height: auto;
+    padding: 10px 12px;
+    white-space: nowrap;
+  }
+  [data-shortcut-modal='settings'] > [class*='_content'] > [class*='_header'] {
+    grid-column: 2;
+    grid-row: 1;
+    align-items: center;
+    height: auto;
+    min-height: 56px;
+    padding: 6px 8px 6px 0;
+  }
+  [data-shortcut-modal='settings'] [class*='_header'] > [class*='_close'] {
+    flex: none;
+    width: 44px;
+    height: 44px;
+  }
+  [data-shortcut-modal='settings'] > [class*='_content'] > [class*='_options'] {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    min-width: 0;
+    min-height: 0;
+    padding: 0 16px max(24px, env(safe-area-inset-bottom, 0px));
+    overscroll-behavior-y: contain;
+    overflow-wrap: anywhere;
+  }
+
+  /* Shared preference rows are contributed by several host packages. Limit
+     suffix-based CSS-module matching to the general-settings slot so unrelated
+     plugin tables, dialogs and editor toolbars are never restyled. */
+  [data-shortcut-modal='settings'] [data-slot='settings.general.item'] [class*='_row']:has(> [class*='_rowText']),
+  [data-shortcut-modal='settings'] [data-slot='settings.general.item'] [class*='_setting']:has(> [class*='_settingText']) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  [data-shortcut-modal='settings'] [data-slot='settings.general.item'] :is([class*='_rowText'], [class*='_settingText']) {
+    min-width: 0;
+    padding-right: 0;
+  }
+  [data-shortcut-modal='settings'] [data-slot='settings.general.item'] [class*='_selector'] {
+    min-height: 44px;
+    height: auto;
+    max-width: 100%;
+    white-space: nowrap;
+  }
+  [data-shortcut-modal='settings'] [data-slot='settings.general.item'] [class*='_row']:has(> button[role='switch']) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+  }
+  [data-shortcut-modal='settings'] [data-slot='settings.general.item'] [class*='_themeCube'] {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 16px 8px;
+    white-space: nowrap;
+  }
 }

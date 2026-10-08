@@ -1,11 +1,69 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, readFile } from 'node:fs/promises'
 import { pathToFileURL } from 'node:url'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 const url = process.env.DSH_MOBILE_URL
+
+// Real browser paint + input regression: inert keeps hit-testing the modal even
+// when a raised fullscreen iframe incorrectly paints over it. DOM visibility
+// checks alone cannot catch that mismatch.
+test('fullscreen phone editor cannot conceal a body-portaled blocking modal', { skip: !url }, async () => {
+  const playwright = process.env.DSH_MOBILE_PLAYWRIGHT ?? join(homedir(), '.dsh/profiles/desktop/node_modules/playwright-core/index.mjs')
+  const { chromium } = await import(pathToFileURL(playwright).href)
+  const browser = await chromium.launch({ executablePath: process.env.DSH_MOBILE_CHROME ??
+    (process.platform === 'win32' ? join(process.env.ProgramFiles ?? 'C:/Program Files', 'Google/Chrome/Application/chrome.exe') : undefined), headless: true })
+  try {
+    const context = await browser.newContext({ viewport: { width: 393, height: 800 }, isMobile: true, hasTouch: true })
+    const page = await context.newPage()
+    const css = await readFile(new URL('../src/client/mobile-layout.css', import.meta.url), 'utf8')
+    await page.route('http://mobile-stacking.test/', route => route.fulfill({ contentType: 'text/html', body: `<!doctype html>
+      <meta name="viewport" content="width=device-width,initial-scale=1"><style>
+      body{margin:0} [data-mobile-layout-frame]{display:grid;position:relative;height:100dvh}
+      [data-rightbar-col]{position:relative} [data-sidebar-right-panel]{position:absolute;right:0;width:100vw;height:100dvh}
+      iframe{width:100%;height:100%;border:0} #modal{position:fixed;inset:0;z-index:1000;background:#fff;display:grid;place-items:center}
+      ${css}</style><div id="root"><div data-mobile-layout-frame data-sidebar-collapsed>
+      <aside></aside><main></main><div data-rightbar-col><div data-sidebar-right-panel data-sidebar-right-open>
+      <iframe srcdoc="<button id='file' onclick='window.clicked=true'>File</button>"></iframe>
+      </div></div><div data-shell-overlay></div></div></div>` }))
+    await page.goto('http://mobile-stacking.test/')
+    await page.locator('iframe').contentFrame().locator('#file').waitFor()
+    const cdp = await context.newCDPSession(page)
+    for (const width of [393, 600]) {
+      await page.setViewportSize({ width, height: 800 })
+      await page.evaluate(() => {
+        document.querySelector('#root').inert = true
+        const modal = document.createElement('div')
+        modal.id = 'modal'
+        modal.setAttribute('role', 'dialog')
+        modal.innerHTML = '<button>Continue</button>'
+        modal.querySelector('button').onclick = () => { document.querySelector('#root').inert = false; modal.remove() }
+        document.body.append(modal)
+      })
+      // DOMSnapshot's paint order, unlike elementFromPoint, sees through inert's
+      // hit-test retargeting and detects an iframe painted over the modal.
+      const modalAboveEditor = async () => {
+        const snapshot = await cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: [], includePaintOrder: true })
+        const doc = snapshot.documents[0]
+        const iframeNode = doc.nodes.nodeName.findIndex(name => snapshot.strings[name] === 'IFRAME')
+        const modalNode = doc.nodes.attributes.findIndex(attrs => attrs.some((value, i) => i % 2 === 0 && snapshot.strings[value] === 'id' && snapshot.strings[attrs[i + 1]] === 'modal'))
+        assert.ok(iframeNode >= 0 && modalNode >= 0)
+        const iframePaint = doc.layout.paintOrders[doc.layout.nodeIndex.indexOf(iframeNode)]
+        const modalPaint = doc.layout.paintOrders[doc.layout.nodeIndex.indexOf(modalNode)]
+        return modalPaint > iframePaint
+      }
+      await page.evaluate(() => { document.querySelector('[data-mobile-layout-frame]').style.isolation = 'auto' })
+      assert.equal(await modalAboveEditor(), false, `reproduces hidden modal without isolation at ${width}px`)
+      await page.evaluate(() => { document.querySelector('[data-mobile-layout-frame]').style.removeProperty('isolation') })
+      assert.equal(await modalAboveEditor(), true, `modal must paint above editor at ${width}px`)
+      await page.getByRole('button', { name: 'Continue', exact: true }).tap()
+      await page.locator('iframe').contentFrame().locator('#file').tap()
+      assert.equal(await page.locator('iframe').contentFrame().locator('body').evaluate(() => window.clicked), true)
+    }
+  } finally { await browser.close() }
+})
 
 test('actual installed host phone drawer, cold touch load, breakpoints and desktop', { skip: !url }, async () => {
   const playwright = process.env.DSH_MOBILE_PLAYWRIGHT ?? join(homedir(), '.dsh/profiles/desktop/node_modules/playwright-core/index.mjs')

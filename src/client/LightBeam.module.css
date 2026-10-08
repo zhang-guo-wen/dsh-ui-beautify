@@ -1,0 +1,27 @@
+/* The host input.overlay anchor is absolute and zero-height at the card's top edge. */
+.lane {
+  position: absolute;
+  top: 0;
+  left: var(--dsw-radius-panel, 16px);
+  right: var(--dsw-radius-panel, 16px);
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-state-business-primary);
+  pointer-events: none;
+}
+
+.beam {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 24%;
+  min-width: 70px;
+  max-width: 180px;
+  height: 1px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent 0%, currentColor 62%, transparent 100%);
+  pointer-events: none;
+  will-change: transform;
+}

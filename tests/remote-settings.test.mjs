@@ -45,7 +45,7 @@ test('invalidation during a read is coalesced and failure preserves last values'
   r.dispose()
 })
 
-function context(loopback = false) {
+function context(loopback = false, enabled = true) {
   let writeCalls = 0
   let revision = 1
   let reads = 0
@@ -57,11 +57,11 @@ function context(loopback = false) {
     if (!forms.has(ns)) forms.set(ns, { getSnapshot: () => ({status:'unavailable',value:undefined}), subscribe: () => () => {},
       set: async () => {writeCalls++;return true}, unset: async () => {writeCalls++;return true}, mutate: async () => {writeCalls++;return true} })
     return forms.get(ns)
-  }, describe: () => ({old:true}), whileServed: () => () => {} }
+  }, describe: () => ({ getSnapshot: () => ({status:'unavailable',view:undefined}), ensure:async()=>{} }), whileServed: () => () => {} }
   const remote = { $host:{isLoopback:loopback}, $on: (key, fn) => {events.set(key,fn);return()=>events.delete(key)} }
-  const ctx = {get:key=>key==='remote'?remote:key==='remote.settings'?{describe:async()=>{reads++;return{ok:true,value:describe(revision)}}}:key==='configForms'?owner:undefined,
+  const ctx = {get:key=>key==='remote'?remote:key==='remote.settings'?{describe:async()=>{reads++;return{ok:true,value:{...describe(revision),namespaces:describe(revision).namespaces.map(row=>row.ns==='ui-beautify'?{...row,value:{...row.value,remoteSettingsEnabled:enabled}}:row)}}}}:key==='configForms'?owner:undefined,
     on:(key,fn)=>{events.set(key,fn);return()=>events.delete(key)} }
-  return {ctx,owner,forms,remote,events,domEvents,writes:()=>writeCalls,reads:()=>reads,setRevision:n=>{revision=n}}
+  return {ctx,owner,forms,remote,events,domEvents,writes:()=>writeCalls,reads:()=>reads,setRevision:n=>{revision=n},setEnabled:value=>{enabled=value}}
 }
 
 test('shared public forms are decorated but identity/permissions stay remote; dispose restores methods', async () => {
@@ -88,6 +88,49 @@ test('shared public forms are decorated but identity/permissions stay remote; di
   assert.equal(cached.getSnapshot, oldSnapshot)
   assert.equal(f.events.size, 0)
   assert.equal(f.domEvents.size, 0)
+})
+
+test('disabled remote bridge restores native methods after its one bootstrap read', async () => {
+  const f = context(false, false)
+  const oldGet = f.owner.get
+  const cached = f.owner.get('another-plugin')
+  const oldSnapshot = cached.getSnapshot
+  const bridge = installRemoteSettings(f.ctx)
+  await bridge.ready
+  assert.equal(f.reads(), 1)
+  assert.equal(f.owner.get, oldGet)
+  assert.equal(cached.getSnapshot, oldSnapshot)
+  assert.equal(cached.getSnapshot().status, 'unavailable')
+  assert.equal(f.events.size, 0)
+  assert.equal(f.domEvents.size, 0)
+  assert.equal(f.writes(), 0)
+  bridge.dispose()
+})
+
+test('remote settings update can disable synchronization and notify cached consumers', async () => {
+  const f = context()
+  const cached = f.owner.get('another-plugin')
+  const oldSnapshot = cached.getSnapshot
+  const bridge = installRemoteSettings(f.ctx)
+  await bridge.ready
+  let lastStatus, describeStatus, released = 0
+  const face = f.owner.describe()
+  const offDescribe = face.subscribe(() => { describeStatus = face.getSnapshot().status })
+  const offServed = f.owner.whileServed(['ui-beautify'], () => () => { released++ })
+  const off = cached.subscribe(() => { lastStatus = cached.getSnapshot().status })
+  f.setEnabled(false)
+  f.events.get('settings/document-updated')()
+  await new Promise(resolve => setTimeout(resolve, 0))
+  assert.equal(cached.getSnapshot, oldSnapshot)
+  assert.equal(lastStatus, 'unavailable')
+  assert.equal(describeStatus, 'unavailable')
+  assert.equal(released, 1)
+  offServed()
+  assert.equal(released, 1, 'served cleanup is idempotent')
+  await face.ensure()
+  assert.equal(f.events.size, 0)
+  assert.equal(f.writes(), 0)
+  off(); offDescribe(); bridge.dispose()
 })
 
 test('loopback host forms and write path are not touched', () => {

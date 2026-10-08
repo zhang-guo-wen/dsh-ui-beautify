@@ -19,6 +19,7 @@ import { serveBrandAsset } from './brand-assets.ts'
 import { serveCacheUsage, serveFontFile } from './serve.ts'
 import { Config } from './settings.ts'
 import { FontStore, resolveBrandDir, resolveCacheDir } from './store.ts'
+import { applyDescriptionTranslationService } from './description-translation-service.ts'
 
 /** Loader row name for this plugin. */
 export const name = 'ui-beautify'
@@ -51,6 +52,9 @@ export {
 } from './quick-replies.ts'
 export { FontStore, resolveBrandDir, resolveCacheDir } from './store.ts'
 export { Config }
+export { DescriptionTranslationService, pluginDescriptionSource } from './description-translation-service.ts'
+export { translateDescriptionWithModel } from './description-translation-model.ts'
+export { translateDescriptionBatchWithModel } from './description-batch-model.ts'
 
 /**
  * Host plugin body: claim the font directory's URL prefix and the cache
@@ -61,6 +65,7 @@ export { Config }
  * @param config - this row's parsed configuration.
  */
 export function apply(ctx: Context, config: Config): void {
+  applyDescriptionTranslationService(ctx)
   const store = new FontStore({
     cacheDir: resolveCacheDir(config.cacheDir),
     mirrors: config.mirrors,

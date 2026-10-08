@@ -129,23 +129,6 @@ function cachePhrase(t: Translate, usage: FontCacheUsage | undefined): string {
 }
 
 /**
- * The line under the description for the chosen face: what it holds, how much
- * of it, and how to refresh a reading that was taken when this row rendered.
- * @param t - this row's translate seat.
- * @param usage - what the Host reported for the chosen face, if anything.
- * @returns the line's text.
- */
-function cacheDetail(t: Translate, usage: FontCacheUsage | undefined): string {
-  if (usage === undefined || usage.shardsTotal === 0) return `${t('cacheAbsent')} · ${t('cacheHint')}`
-  const reading = t('cachePresent', {
-    size: readableSize(t, usage.bytes),
-    cached: usage.shardsCached,
-    total: usage.shardsTotal,
-  })
-  return `${reading} · ${t('cacheHint')}`
-}
-
-/**
  * The line under the description.
  * @param t - this row's translate seat.
  * @param role - the role this row edits.
@@ -159,7 +142,7 @@ function detailLine(t: Translate, role: FontRole, state: SettingsRowState): stri
   if (!state.fields[FONT_ROLES[role].key]) return t('stale')
   const choice = state[FONT_ROLES[role].key]
   if (choice === SYSTEM_FONT_ID) return ''
-  return cacheDetail(t, state.cache[choice])
+  return cachePhrase(t, state.cache[choice])
 }
 
 /**

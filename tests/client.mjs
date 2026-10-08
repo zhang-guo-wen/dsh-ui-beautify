@@ -35,6 +35,16 @@ globalThis.MutationObserver = class {
   disconnect() {}
   notify() { this.callback() }
 }
+// Layout observers are captured rather than delivered: the quick-reply row only
+// measures when a box it shares a line with changes, and the assertions below
+// own that moment (see "quick replies keep one line").
+const resizeObservers = []
+globalThis.ResizeObserver = class {
+  constructor(callback) { this.callback = callback; resizeObservers.push(this) }
+  observe() {}
+  disconnect() {}
+  notify() { this.callback() }
+}
 /** A <link> or <style> stand-in that knows how to remove itself from the head. */
 const makeElement = tag => ({
   tag,
@@ -72,20 +82,27 @@ const stores = []
 const elements = []
 /** Lane width the frame loop measures; the real value comes from layout. */
 const LANE_WIDTH = 800
-/**
- * Rendered width of the cyclist, mirroring `BIKE_WIDTH_PX` in BikeLane.tsx.
- *
- * The traverse is this much longer than the lane at each end, so the tests that
- * reason about where the figure is on screen need the same number.
- */
-const BIKE_WIDTH = 36
+/** Desktop beam width is capped at 180px, as in the real stylesheet. */
+const BEAM_WIDTH = 180
+/** Conversation DOM the up-button component locates; null keeps its effect inert. */
+const conversationDom = { content: null }
 /** Host-node stand-in: enough for the frame loop to write to and be read back. */
 const makeNode = tag => ({
   tag,
   style: {},
   clientWidth: LANE_WIDTH,
+  offsetWidth: BEAM_WIDTH,
   attributes: {},
+  // A detached element, the way a fresh ref starts: the quick-reply row looks
+  // for the dock it shares a line with before it measures anything.
+  parentElement: null,
+  children: [],
   setAttribute(name, value) { this.attributes[name] = value },
+  closest(selector) {
+    return conversationDom.content !== null && selector === '[data-conversation-content]'
+      ? conversationDom.content
+      : null
+  },
 })
 const record = (type, props) => {
   const element = { type, props }
@@ -118,6 +135,13 @@ const reactStub = {
   // model; identity keeps the memoized component callable like any other.
   memo: component => component,
   useEffect: (effect, deps) => {
+    const at = cursor++
+    if (!depsMoved(hooks[at], deps)) return
+    hooks[at] = deps
+    due.push(effect)
+  },
+  // The rows and the up button both locate host DOM after commit.
+  useLayoutEffect: (effect, deps) => {
     const at = cursor++
     if (!depsMoved(hooks[at], deps)) return
     hooks[at] = deps
@@ -165,10 +189,10 @@ globalThis.requestAnimationFrame = (callback) => { clock.frame = callback; retur
 globalThis.cancelAnimationFrame = () => { clock.frame = null }
 
 const externals = {
-  react: reactStub,
+  react: { ...reactStub, createElement: record, useMemo: factory => factory(), useSyncExternalStore: (_subscribe, snapshot) => snapshot() },
   'react/jsx-runtime': { jsx: record, jsxs: record, Fragment: 'Fragment' },
   'react-dom': { createPortal: node => node },
-  '@deepseek-ai/dsh-client-ui-primitives': { Menu, IconChevronDownOutlineRegular, IconPanelLeftOutlineRegular: () => null, Button: props => record('button', props), StateDot: props => record('state-dot', props), Pill, Switch, Tag: () => null },
+  '@deepseek-ai/dsh-client-ui-primitives': { Menu, IconChevronDownOutlineRegular, IconChevronUpOutlineRegular: () => null, IconPanelLeftOutlineRegular: () => null, Button: props => record('button', props), StateDot: props => record('state-dot', props), Pill, Switch, Tag: () => null },
   '@deepseek-ai/dsh-client-store': {
     createSnapshotStore: (initial) => {
       let current = initial
@@ -209,6 +233,8 @@ globalThis.window = {
     },
   },
   matchMedia: () => ({ matches: reducedMotion, addEventListener() {}, removeEventListener() {} }),
+  addEventListener() {},
+  removeEventListener() {},
   MutationObserver: globalThis.MutationObserver,
   requestAnimationFrame: globalThis.requestAnimationFrame,
   cancelAnimationFrame: globalThis.cancelAnimationFrame,
@@ -236,14 +262,20 @@ const scope = {
   set: async (key, value) => { stored = { ...stored, [key]: value } },
 }
 const makeCtx = (into) => ({
-  get(name) { return name === 'remote' ? { $host: { isLoopback: true } } : undefined },
-  inject(_names, callback) { callback({ get: () => ({ openSession() {} }) }) },
+  get(name) {
+    if (name === 'remote') return { $host: { isLoopback: true } }
+    if (name === 'locale') return this.locale
+    if (name === 'slots') return this.slots
+    return undefined
+  },
+  on() { return () => {} },
+  inject(names, callback) { if (names.some(name => name.startsWith('remote.'))) return; callback({ get: () => ({ openSession() {} }) }) },
   effect(fn) {
     const dispose = fn()
     if (typeof dispose === 'function') disposers.push(dispose)
     return dispose
   },
-  locale: { register: () => () => {}, bind: () => key => key },
+  locale: { register: () => () => {}, bind: () => key => key, getSnapshot: () => ({ active: 'zh' }), subscribe: () => () => {} },
   configForms: { get: () => scope },
   layout: { toggleSidebar() {} },
   theme: {
@@ -253,6 +285,7 @@ const makeCtx = (into) => ({
     },
   },
   slots: {
+    entries: () => [], entriesOfSlot: () => [], subscribe: () => () => {},
     inject: (_slot, register) => register(),
     register(definition, component) {
       const entry = { definition, component }
@@ -265,6 +298,13 @@ await plugin.apply(makeCtx(registrations))
 const pageEntry = registrations.find(entry => entry.definition.name === 'settings.section')
 const laneEntry = registrations.find(entry => entry.definition.id === 'ui-beautify-lane')
 const repliesEntry = registrations.find(entry => entry.definition.id === 'ui-beautify-replies')
+const promptEntry = registrations.find(entry => entry.definition.id === 'ui-beautify-to-prompt')
+check('registers localized prompt navigation without replacing host chat or down button',
+  promptEntry?.definition.name === 'conversation.input.dock'
+  && promptEntry.definition.locale === 'settings.uiBeautify'
+  && typeof promptEntry.component === 'function')
+check('the up button reads the same settings snapshot its switch writes',
+  promptEntry.definition.inject().hooks.beautify === pageEntry.definition.inject().hooks.beautify)
 const links = () => head.filter(element => element.rel === 'stylesheet')
 const hrefs = () => links().map(link => link.href)
 const setStored = (values) => {
@@ -274,6 +314,7 @@ const setStored = (values) => {
 const snapshot = () => stores.at(-1)?.get()
 const settle = () => new Promise(resolve => { setTimeout(resolve, 10) })
 mount('beautify-page', pageEntry.component, {
+  descriptions: pageEntry.definition.inject().descriptions,
   t: key => key,
   useBeautify: selector => selector(snapshot()),
   choose: () => {}, refreshCache: () => {}, close: () => {},
@@ -451,8 +492,8 @@ const body = render(bodyRow)
 check('the body row names itself', body.titles[0] === 'title', String(body.titles[0]))
 check('and describes the chosen body face', body.descs[0] === 'fontLxgwWenkaiDesc', String(body.descs[0]))
 check(
-  'reporting its shard count and how to refresh it',
-  body.metas[0] === 'cachePresent({"size":"4.3 unitMb","cached":12,"total":194}) · cacheHint',
+  'reporting only cached size, without shard counts or refresh hints',
+  body.metas[0] === 'cacheCached({"size":"4.3 unitMb"})',
   String(body.metas[0]),
 )
 check('showing it on the selector', body.selector?.props.children[0] === 'fontLxgwWenkai', JSON.stringify(body.selector?.props.children))
@@ -493,7 +534,7 @@ check(
   code.menu?.props.items.find(item => item.id === 'maple-mono-cn')?.label === 'codeFontMapleMonoCn · cacheAbsent',
   String(code.menu?.props.items.find(item => item.id === 'maple-mono-cn')?.label),
 )
-check('the code default carries no cache line', code.metas[0] === 'cacheAbsent · cacheHint' || code.metas[0] === '', String(code.metas[0]))
+check('an uncached code face shows only its download status', code.metas[0] === 'cacheAbsent', String(code.metas[0]))
 
 console.log('brand settings rows')
 const writes = []
@@ -521,6 +562,7 @@ mount('row-brand-name', pageComponents.get('BrandNameRow'), {
 })
 const nameInput = elements.find(element => element.type === 'input')
 check('the sidebar name remains a text field', nameInput?.props.type === 'text')
+check('the sidebar name uses the current-name hint without saving it', nameInput?.props.placeholder === 'namePlaceholder' && nameInput?.props.defaultValue === '')
 nameInput?.props.onBlur({ currentTarget: { value: '  New name  ' } })
 check('the sidebar name saves trimmed text', writes.at(-1)?.join(':') === 'brandName:New name')
 mount('row-tagline', pageComponents.get('TaglineRow'), {
@@ -564,7 +606,7 @@ check('and goes back to normal once the Host exposes the field', restored.metas[
 console.log('the composer lane')
 check(
   'rides in the strip above the composer card',
-  laneEntry?.definition.name === 'conversation.input.dock',
+  laneEntry?.definition.name === 'conversation.input.overlay',
   JSON.stringify(laneEntry?.definition),
 )
 check(
@@ -593,11 +635,6 @@ const travelOf = (node) => {
   const written = /translate3d\((-?[\d.]+)px/.exec(node.style.transform ?? '')
   return written === null ? 0 : Number(written[1])
 }
-/** Wheel angle the frame loop last wrote, in degrees; 0 while it writes none. */
-const turnOf = (node) => {
-  const written = /rotate\(([-\d.]+)/.exec(node.attributes.transform ?? '')
-  return written === null ? 0 : Number(written[1])
-}
 
 // An assistant step in flight: one text block growing as streamed chunks land.
 const step = { text: '' }
@@ -619,18 +656,6 @@ const travelled = (rider, frames) => {
   const from = travelOf(rider)
   advance(16, frames)
   return travelOf(rider) - from
-}
-/**
- * Wheel rotation across one frame, modulo a full turn.
- *
- * One frame is the whole point: the angle wraps at 360°, and the fastest this
- * geometry goes is roughly 55° per frame, so a single frame cannot wrap more
- * than once and the modulo recovers the rotation exactly.
- */
-const turnedPerFrame = (wheel) => {
-  const from = turnOf(wheel)
-  advance(16)
-  return ((turnOf(wheel) - from) % 360 + 360) % 360
 }
 /** Stream chunks into a mounted lane, one render and one frame each. */
 const streamInto = (key, chunks) => {
@@ -657,34 +682,29 @@ step.text = ''
 mount('lane', laneEntry.component, laneProps())
 check('draws one lane', byClass('lane').length === 1)
 check('that assistive technology is told to skip', byClass('lane')[0]?.props['aria-hidden'] === 'true')
-check(
-  'with a cyclist, two wheels, and a pair of legs',
-  byClass('rider').length === 1 && byClass('wheel').length === 2 && byClass('leg').length === 2,
-  `${byClass('rider').length}/${byClass('wheel').length}/${byClass('leg').length}`,
-)
-const idleRider = byClass('rider')[0].props.ref.current
-const idleWheel = byClass('wheel')[0].props.ref.current
-const idleTravel = travelled(idleRider, 8)
-const idleTurn = turnedPerFrame(idleWheel)
-check('stands still with nothing streaming', idleTravel === 0, String(idleTravel))
-check('with its wheels stopped', idleTurn === 0, String(idleTurn))
-check(
-  'and both wheels on the lane',
-  byClass('wheel').every(wheel => Number.isFinite(turnOf(wheel.props.ref.current))),
-)
+check('only a light beam, no track or bicycle SVG',
+  byClass('beam').length === 1 && byClass('track').length === 0 && !elements.some(element => element.type === 'svg'))
+const idleBeam = byClass('beam')[0].props.ref.current
+const idleLane = byClass('lane')[0].props.ref.current
+check('stands still with nothing streaming', travelled(idleBeam, 8) === 0)
+check('idle beam stays visible without an opacity override', idleLane.style.opacity === undefined)
+check('idle beam is parked inside the visible lane', travelOf(idleBeam) >= 0 && travelOf(idleBeam) <= LANE_WIDTH - BEAM_WIDTH)
+const beamCss = readFileSync(new URL('../src/client/LightBeam.module.css', import.meta.url), 'utf8')
+check('light beam thickness is fixed at one pixel', /\.beam\s*\{[^}]*height: 1px;/.test(beamCss))
+check('idle lane is not hidden by its stylesheet', !/\.lane\s*\{[^}]*opacity: 0;/.test(beamCss))
+check('lane overlays the card top border without flow height or spacing', /\.lane\s*\{[^}]*position: absolute;/.test(beamCss) && /\.lane\s*\{[^}]*top: 0;/.test(beamCss) && /\.lane\s*\{[^}]*height: 1px;/.test(beamCss) && beamCss.includes('margin: 0;') && !beamCss.includes('margin-bottom'))
+check('beam cannot intercept input', beamCss.includes('pointer-events: none'))
 
 // The same frames against a stream have to cover ground and spin the wheels —
 // that mapping is the whole point of reading the output rate.
 clock.time = 0
 step.text = ''
 mount('sprint', laneEntry.component, laneProps())
-const sprintRider = byClass('rider')[0].props.ref.current
-const sprintWheel = byClass('wheel')[0].props.ref.current
+const sprintBeam = byClass('beam')[0].props.ref.current
+const sprintLane = byClass('lane')[0].props.ref.current
 streamInto('sprint', 12)
-const sprintTravel = travelled(sprintRider, 8)
-const sprintTurn = turnedPerFrame(sprintWheel)
-check('a stream sets it moving', sprintTravel > 0, String(sprintTravel))
-check('and turns the wheels', sprintTurn > 0, String(sprintTurn))
+check('a stream sets it moving', travelled(sprintBeam, 8) > 0)
+check('output keeps the light visible without opacity changes', sprintLane.style.opacity === undefined)
 
 // A closed step takes the in-flight accumulator with it. The figure keeps the
 // speed it was carrying and bleeds it off over eight seconds, so it is still
@@ -692,21 +712,25 @@ check('and turns the wheels', sprintTurn > 0, String(sprintTurn))
 clock.time = 0
 step.text = ''
 mount('settled', laneEntry.component, laneProps())
-const settledRider = byClass('rider')[0].props.ref.current
-const settledWheel = byClass('wheel')[0].props.ref.current
+const settledBeam = byClass('beam')[0].props.ref.current
+const settledLane = byClass('lane')[0].props.ref.current
 streamInto('settled', 12)
 step.text = ''
 mount('settled', laneEntry.component, laneProps())
 // 2s of no output: still coasting, over a distance a stopped figure cannot cover.
-const coasting = travelled(settledRider, 120)
-check('keeps rolling after the writing stops', coasting > 0, String(coasting))
+const beforeCoast = travelOf(settledBeam)
+advance(16, 120)
+check('keeps moving after the writing stops', travelOf(settledBeam) !== beforeCoast)
+check('light does not fade when output stops', settledLane.style.opacity === undefined)
 // Past the roll-out it is at rest, with the wheels stopped too.
 advance(16, 400)
 check(
   'and comes to rest once the roll-out is spent',
-  travelled(settledRider, 8) === 0 && turnedPerFrame(settledWheel) === 0,
-  String(travelled(settledRider, 8)),
+  travelled(settledBeam, 8) === 0 && settledLane.style.opacity === undefined,
+  String(settledLane.style.opacity),
 )
+
+check('resting beam stays fully inside the visible lane', travelOf(settledBeam) >= 0 && travelOf(settledBeam) <= LANE_WIDTH - BEAM_WIDTH)
 
 // A long ride must not jump back to the start while the figure is on the lane.
 // The traverse is a bike width longer than the lane at each end, so the wrap
@@ -715,7 +739,7 @@ check(
 clock.time = 0
 step.text = ''
 mount('ride', laneEntry.component, laneProps())
-const rideRider = byClass('rider')[0].props.ref.current
+const rideRider = byClass('beam')[0].props.ref.current
 streamInto('ride', 6)
 const xs = []
 for (let frame = 0; frame < 400; frame += 1) {
@@ -727,7 +751,7 @@ for (let frame = 0; frame < 400; frame += 1) {
   xs.push(travelOf(rideRider))
 }
 /** Whether at least half of a figure whose left edge is at `x` is inside the lane. */
-const mostlyOnLane = x => x > -BIKE_WIDTH / 2 && x < LANE_WIDTH - BIKE_WIDTH / 2
+const mostlyOnLane = x => x > -BEAM_WIDTH / 2 && x < LANE_WIDTH - BEAM_WIDTH / 2
 const biggestVisibleStep = Math.max(...xs.map((x, at) => {
   if (at === 0) return 0
   const from = xs[at - 1]
@@ -735,52 +759,47 @@ const biggestVisibleStep = Math.max(...xs.map((x, at) => {
 }))
 check(
   'never jumps back to the start while it is on the lane',
-  biggestVisibleStep < 20,
+  biggestVisibleStep <= 1.6 * (LANE_WIDTH + 2 * BEAM_WIDTH) * 0.016 + 0.01,
   `largest on-lane move ${biggestVisibleStep.toFixed(1)}px`,
 )
 check(
   'and completes the traverse',
-  Math.max(...xs) > LANE_WIDTH - BIKE_WIDTH && Math.min(...xs) < 0,
+  Math.max(...xs) > LANE_WIDTH - BEAM_WIDTH && Math.min(...xs) < 0,
   `${Math.min(...xs).toFixed(0)}..${Math.max(...xs).toFixed(0)}`,
 )
 
-console.log('the lane row owns the answer')
-reducedMotion = true
+console.log('the animation row is a default-on switch')
+const motionWrites = []
+const renderMotion = (overrides = {}) => {
+  mount('motion-toggle', motionRow.component, {
+    t, useBeautify: selector => selector({ ...snapshot(), ...overrides }),
+    choose: (key, value) => motionWrites.push([key, value]),
+  })
+  return elements.find(element => element.type === 'switch')
+}
 setStored({ motion: 'system' })
-const laneRow = render(motionRow)
-check('the row names itself', laneRow.titles[0] === 'motionTitle', String(laneRow.titles[0]))
-check(
-  'offering all three answers',
-  laneRow.menu?.props.items.map(item => item.id).join(',') === 'system,always,off',
-  String(laneRow.menu?.props.items.length),
-)
-check(
-  'naming the reason the strip is empty',
-  laneRow.metas[0] === 'motionBlocked',
-  String(laneRow.metas[0]),
-)
-reducedMotion = false
+let motionToggle = renderMotion()
+check('legacy system is shown as enabled', motionToggle.props.checked === true)
+check('animation uses the host switch, not a dropdown', motionToggle.props.label === 'motionTitle' && !elements.some(element => element.type === Menu))
+motionToggle.props.onChange(false)
+check('turning off writes off', JSON.stringify(motionWrites.at(-1)) === JSON.stringify(['motion', 'off']))
 setStored({ motion: 'off' })
-check(
-  'and saying so when it is switched off here',
-  render(motionRow).metas[0] === 'motionOffNote',
-  String(render(motionRow).metas[0]),
-)
+check('saved off is unchecked', renderMotion().props.checked === false)
+renderMotion().props.onChange(true)
+check('turning on writes always', JSON.stringify(motionWrites.at(-1)) === JSON.stringify(['motion', 'always']))
+check('read-only and unavailable animation switches are disabled', renderMotion({ writable: false }).props.disabled && renderMotion({ available: false }).props.disabled)
+setStored({ motion: undefined })
+check('missing motion defaults on but old schema stays disabled', renderMotion().props.checked && renderMotion().props.disabled)
+check('old animation schema includes restart hint', byClass('meta')[0].props.children === 'stale')
 
-console.log('a browser asking for no motion')
-// The default follows the browser: nothing renders and no frame is requested.
+console.log('enabled animation ignores browser reduced-motion preference')
 setStored({ motion: 'system' })
 reducedMotion = true
 clock.frame = null
 mount('quiet', laneEntry.component, laneProps())
-check('follows the browser by default and draws nothing', byClass('lane').length === 0, String(byClass('lane').length))
-check('without asking for a frame', clock.frame === null, String(clock.frame))
-check(
-  'while the entry itself is still registered, so the cause is discoverable',
-  registrations.some(entry => entry.definition.id === 'ui-beautify-lane'),
-)
+check('legacy system runs as always regardless of browser preference', byClass('lane').length === 1 && clock.frame !== null)
+check('entry stays registered regardless of state', registrations.some(entry => entry.definition.id === 'ui-beautify-lane'))
 
-// The stored answer is the only thing that overrules it.
 setStored({ motion: 'always' })
 step.text = ''
 mount('override', laneEntry.component, laneProps())
@@ -789,7 +808,7 @@ check(
   byClass('lane').length === 1 && clock.frame !== null,
   `${byClass('lane').length}/${String(clock.frame)}`,
 )
-const overrideRider = byClass('rider')[0].props.ref.current
+const overrideRider = byClass('beam')[0].props.ref.current
 streamInto('override', 12)
 check('actually moving', travelled(overrideRider, 4) > 0)
 
@@ -820,7 +839,7 @@ const inputActions = {
   insertText: (text, span) => { typed.push({ text, span }); return true },
   submit: () => { submissions += 1 },
 }
-/** Mount the row against one input phase and return its tags. */
+/** Mount the row against one input phase and return its visible tags. */
 const renderReplies = (key, phase, actions) => {
   mount(key, repliesEntry.component, {
     t,
@@ -828,7 +847,9 @@ const renderReplies = (key, phase, actions) => {
     useBeautify: selector => selector(snapshot()),
     inputActions: actions,
   })
-  return elements.filter(element => element.type === 'pill')
+  // The row also renders its hidden price list of every phrase; a tag is the
+  // pill with a click handler (onClick is what makes Pill a button).
+  return elements.filter(element => element.type === 'pill' && element.props.onClick !== undefined)
 }
 check('older profiles keep desktop quick replies enabled', snapshot().quickRepliesEnabled === true)
 setStored({ quickRepliesEnabled: false })
@@ -878,6 +899,70 @@ check(
   renderReplies('busy', 'submitting', inputActions).every(tag => tag.props.disabled === true),
 )
 
+console.log('quick replies keep one line by dropping what does not fit')
+// This shim has no layout, so the assertions model what the browser does with
+// the strip: the row is shrunk to a box while the tags keep their widths, and
+// the flex line hands more room back as tags go away (the numbers are the ones
+// a real 620px-wide composer produced). The row is mounted first to attach its
+// observer, then the line is wired up by hand and the observer is fired the way
+// a resize would fire it.
+const TAG_WIDTHS = [40, 32, 64, 88]
+const TAG_GAP = 6
+const observersBefore = resizeObservers.length
+renderReplies('replies-fit', 'plain', inputActions)
+const fitObserver = resizeObservers[observersBefore]
+const rowNode = byClass('row')[0].props.ref.current
+// The tags are host nodes: the row hides them by class, and each one reports
+// where it sits on the line while it is shown.
+const tagNodes = TAG_WIDTHS.map((width, at) => {
+  const node = {
+    width,
+    hidden: false,
+    classList: { toggle: (_name, on) => { node.hidden = on === true } },
+  }
+  node.getBoundingClientRect = () => {
+    if (node.hidden) return { left: 0, right: 0 }
+    let left = 0
+    for (let before = 0; before < at; before += 1) {
+      if (!tagNodes[before].hidden) left += TAG_WIDTHS[before] + TAG_GAP
+    }
+    return { left, right: left + width }
+  }
+  return node
+})
+const visibleTags = () => tagNodes.filter(node => !node.hidden).length
+rowNode.children = tagNodes
+// The box the line leaves for the row, per visible count, for one scenario.
+let rowBoxes = { 0: 0, 1: 40, 2: 78, 3: 148, 4: 210 }
+rowNode.getBoundingClientRect = () => ({ width: rowBoxes[visibleTags()] ?? 0 })
+const fitsTo = (boxes) => {
+  rowBoxes = boxes
+  fitObserver.notify()
+  const tags = renderReplies('replies-fit', 'plain', inputActions)
+  const shown = tags.filter(tag => !String(tag.props.className).includes('hidden'))
+  return {
+    shown: shown.map(tag => tag.props.children).join(','),
+    hiddenClass: tags.length - shown.length,
+    hiddenNodes: tagNodes.filter(node => node.hidden).length,
+  }
+}
+const ROOMY = { 0: 0, 1: 40, 2: 78, 3: 148, 4: 300 }
+check('a line wide enough for every tag keeps all four',
+  fitsTo({ 0: 0, 1: 40, 2: 78, 3: 148, 4: 242 }).shown
+    === 'quickContinue,quickOk,quickNoUnderstand,quickStatus')
+check('a line the tags outgrow drops the tail',
+  fitsTo({ 0: 0, 1: 40, 2: 78, 3: 148, 4: 210 }).shown === 'quickContinue,quickOk,quickNoUnderstand')
+check('the tags past the fit stay mounted but hidden',
+  fitsTo({ 0: 0, 1: 40, 2: 78, 3: 148, 4: 210 }).hiddenClass === 1
+    && fitsTo({ 0: 0, 1: 40, 2: 78, 3: 148, 4: 210 }).hiddenNodes === 1)
+check('a line too narrow for even one tag shows none',
+  fitsTo({ 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 }).shown === ''
+    && fitsTo({ 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 }).hiddenNodes === 4)
+check('and the whole row comes back when the line widens again',
+  fitsTo(ROOMY).shown === 'quickContinue,quickOk,quickNoUnderstand,quickStatus')
+check('the row is a direct child of the line it measures',
+  byClass('row').length === 1 && rowNode.parentElement === null)
+
 console.log('desktop quick-reply toggle')
 check('the page includes only visibility, not phrase editing',
   pageComponents.has('QuickReplyToggleRow') && !pageComponents.has('QuickReplyRow'))
@@ -913,8 +998,98 @@ const replyCss = readFileSync(new URL('../src/client/QuickReplies.module.css', i
 const rowCss = readFileSync(new URL('../src/client/SettingRow.module.css', import.meta.url), 'utf8')
 check('phones hide the send controls at the host breakpoint',
   /@media\s*\(max-width:\s*600px\)\s*\{\s*\.row\s*\{\s*display:\s*none/.test(replyCss))
+check('desktop rows never wrap their tags onto a second line',
+  /\.row\s*\{[^}]*flex-wrap:\s*nowrap/.test(replyCss) && !/flex-wrap:\s*wrap\s*;/.test(replyCss))
+check('a tag past the fit is hidden rather than reached',
+  /\.hidden\s*\{[^}]*display:\s*none/.test(replyCss))
 check('phones also hide the desktop-only setting',
   /@media\s*\(max-width:\s*600px\)\s*\{\s*\.desktopOnly\s*\{\s*display:\s*none/.test(rowCss))
+
+console.log('independent interface enhancement toggles')
+for (const [componentName, field, title, desc] of [
+  ['MobileLayoutToggleRow', 'mobileLayoutEnabled', 'mobileLayoutTitle', 'mobileLayoutDesc'],
+  ['RecentSessionsToggleRow', 'recentSessionsEnabled', 'recentSessionsTitle', 'recentSessionsDesc'],
+  ['RemoteSettingsToggleRow', 'remoteSettingsEnabled', 'remoteSettingsTitle', 'remoteSettingsDesc'],
+  ['ScrollToPromptToggleRow', 'scrollToPromptEnabled', 'scrollToPromptTitle', 'scrollToPromptDesc'],
+]) {
+  const render = (overrides = {}) => {
+    mount(`feature-${field}`, pageComponents.get(componentName), {
+      t, useBeautify: selector => selector({ ...snapshot(), ...overrides }),
+      choose: (key, value) => toggleWrites.push([key, value]),
+    })
+    return elements.find(element => element.type === 'switch')
+  }
+  check(`${field} defaults on for older profiles`, snapshot()[field] === true)
+  setStored({ [field]: true })
+  let control = render()
+  check(`${field} uses the labeled host Switch`, control.props.label === title && !control.props.disabled)
+  check(`${field} has a localized description`, byClass('desc')[0].props.children === desc)
+  check(`${field} stays visible on phones`, !byClass('row')[0].props.className.includes('desktopOnly'))
+  control.props.onChange(false)
+  check(`${field} writes false to only its own field`, JSON.stringify(toggleWrites.at(-1)) === JSON.stringify([field, false]))
+  face.choose(field, false)
+  await settle()
+  for (const notify of subscribers) notify()
+  check(`${field} writer persists false and updates state`, stored[field] === false && render().props.checked === false)
+  check(`${field} is disabled on read-only pages`, render({ writable: false }).props.disabled)
+  check(`${field} is disabled if unavailable`, render({ available: false }).props.disabled)
+  setStored({ [field]: undefined })
+  check(`${field} old schema shows restart explanation`, render().props.disabled && byClass('meta')[0].props.children === 'stale')
+  setStored({ [field]: true })
+}
+console.log('the up button follows its settings switch')
+// Only the DOM the control locates is modelled here: its conversation body, the
+// chat flow inside it, and the frame the portal lands in. The lane's own checks
+// below reuse this same host-node stand-in.
+const promptScroller = {
+  scrollTop: 0,
+  addEventListener() {},
+  removeEventListener() {},
+  getBoundingClientRect: () => ({ top: 120 }),
+}
+const promptRow = {
+  closest: () => null,
+  getClientRects: () => [{}],
+  getBoundingClientRect: () => ({ top: 40 }),
+}
+const promptFrame = { tag: 'frame' }
+const promptFlow = {
+  querySelectorAll: () => [promptRow],
+  closest: () => promptScroller,
+  parentElement: { parentElement: { parentElement: promptFrame } },
+}
+conversationDom.content = {
+  querySelector: selector => selector === '[data-chat-flow]' ? promptFlow : null,
+}
+const mountPrompt = (key, enabled) => {
+  const props = {
+    t,
+    useBeautify: selector => selector({ ...snapshot(), scrollToPromptEnabled: enabled }),
+  }
+  // Twice: the first commit locates the conversation and stores what it found,
+  // the second renders what that state produced, like React's own re-render.
+  mount(key, promptEntry.component, props)
+  mount(key, promptEntry.component, props)
+  return elements.filter(element => element.type === 'button')
+}
+const hiddenPrompt = mountPrompt('prompt-off', false)
+check('only the host down button shows while the switch is off', hiddenPrompt.length === 0, String(hiddenPrompt.length))
+const shownPrompt = mountPrompt('prompt-on', true)
+check('switching it on restores the up button',
+  shownPrompt.length === 1 && shownPrompt[0].props['aria-label'] === 'backToPrompt',
+  JSON.stringify(shownPrompt.map(element => element.props['aria-label'])))
+check('the control stays in the composer dock either way',
+  registrations.filter(entry => entry.definition.id === 'ui-beautify-to-prompt').length === 1)
+conversationDom.content = null
+// Lifetime release/reinstall is verified with real registration disposers.
+setStored({ mobileLayoutEnabled: false })
+check('phone adaptation releases its Pocket shadows', !registrations.some(entry => entry.definition.id === 'mobile-nav-overlay'))
+check('phone adaptation leaves the recent strip enabled', registrations.some(entry => entry.definition.id === 'ui-beautify-recent-sessions'))
+setStored({ mobileLayoutEnabled: true, recentSessionsEnabled: false })
+check('recent switch removes only its own strip', !registrations.some(entry => entry.definition.id === 'ui-beautify-recent-sessions')
+  && registrations.some(entry => entry.definition.id === 'mobile-nav-overlay'))
+setStored({ recentSessionsEnabled: true })
+check('re-enable does not duplicate the strip', registrations.filter(entry => entry.definition.id === 'ui-beautify-recent-sessions').length === 1)
 
 console.log('custom quick replies')
 setStored({ quickReplies: [' 甲 ', '乙'] })

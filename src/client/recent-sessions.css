@@ -1,0 +1,18 @@
+/* Recent tabs own their styles independently of phone drawer adaptation. */
+[data-ui-beautify-recent-anchor] { display: none; }
+[data-ui-beautify-recent-tabs] { align-items: stretch; gap: 24px !important; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+[data-ui-beautify-recent-tabs]::-webkit-scrollbar { display: none; }
+[data-ui-beautify-recent] { min-width: 0; flex: none; }
+[data-ui-beautify-recent]:empty { display: none; }
+[data-mobile-recent-sessions] { display: flex; align-items: stretch; gap: 20px; min-width: 0; width: max-content; }
+/* The host's actual tab/tabActive classes own typography, color and underline. */
+[data-mobile-recent-sessions] button { flex: none; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+[data-recent-session-title] { max-width: 5em; overflow: hidden; text-overflow: ellipsis; }
+[data-recent-session-status] { display: inline-flex; align-items: center; flex: none; }
+[data-mobile-recent-sessions] button:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: -2px; }
+@media (max-width: 600px) {
+  [data-ui-beautify-recent-tabs] > button[role='tab'] { display: none; }
+  [data-ui-beautify-recent-tabs] { padding-left: 0 !important; gap: 0 !important; }
+  [data-ui-beautify-recent] { min-width: 100%; margin-top: 0; }
+  [data-mobile-recent-sessions] { gap: 16px; }
+}

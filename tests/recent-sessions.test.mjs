@@ -14,10 +14,15 @@ test('five recent conversations keep activity order independent of selection and
 
 test('phone hides only header open-file/more and view tabs, restores requested gutters', () => {
   const css = readFileSync(new URL('../src/client/mobile-layout.css', import.meta.url), 'utf8')
-  assert.ok(css.includes("[data-ui-beautify-recent-tabs] > button[role='tab'] { display: none; }"))
+  const recentCss = readFileSync(new URL('../src/client/recent-sessions.css', import.meta.url), 'utf8')
+  assert.ok(recentCss.includes("[data-ui-beautify-recent-tabs] > button[role='tab'] { display: none; }"))
+  assert.ok(!css.includes('data-ui-beautify-recent-tabs'), 'drawer CSS must not hide view tabs independently')
   assert.ok(css.includes("[data-slot='conversation.session.header.utilities'] > :has([data-open-target='directory'])"))
   assert.ok(css.includes("[data-slot='conversation.session.header.utilities'] > :has([class*='_moreButton'])"))
-  assert.ok(css.includes('--dsh-composer-side-clearance: 8px'))
-  assert.ok(css.includes('padding-left: 16px !important'))
+  // Phone gutters were halved once more for a tighter layout: 16px chat / 8px composer → 8px / 4px.
+  assert.ok(css.includes('--dsh-composer-side-clearance: 4px'))
+  assert.ok(css.includes('--dsh-chat-side-inset: 8px'))
+  assert.ok(css.includes('padding-left: 8px !important'))
+  assert.ok(css.includes('padding-right: 8px !important'))
   assert.ok(!css.includes("[data-slot='conversation.session.header.corner'] { padding-left: 44px; }"))
 })

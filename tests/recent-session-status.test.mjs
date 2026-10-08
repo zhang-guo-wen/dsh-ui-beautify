@@ -27,7 +27,7 @@ test('running child activity outranks completion and uses catalog fallback until
 
 test('recent tab subscribes to live host statuses and reuses StateDot without truncating it', () => {
   const source = readFileSync(new URL('../src/client/MobileRecentSessions.tsx', import.meta.url), 'utf8')
-  const css = readFileSync(new URL('../src/client/mobile-layout.css', import.meta.url), 'utf8')
+  const css = readFileSync(new URL('../src/client/recent-sessions.css', import.meta.url), 'utf8')
   assert.ok(source.includes('useSessionStatus(state => state)'))
   assert.ok(source.includes('<StateDot state={state} />'))
   assert.ok(source.includes("state !== 'idle'"), 'sidebar idle rows have no dot')

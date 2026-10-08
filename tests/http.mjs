@@ -96,6 +96,7 @@ async function startPlugin(options) {
   const handlers = new Map()
   const disposers = []
   apply({
+    inject() {}, // Optional translation RPC is absent in this HTTP fixture.
     effect(fn) {
       const dispose = fn()
       if (typeof dispose === 'function') disposers.push(dispose)

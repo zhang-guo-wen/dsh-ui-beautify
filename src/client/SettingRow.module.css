@@ -211,14 +211,34 @@
     padding-right: 0;
   }
 
+  .row:not(.desktopOnly):has(> button[role='switch']) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+  }
+
   .selector {
     align-self: flex-start;
+    min-height: 44px;
+    height: auto;
     max-width: 100%;
+    white-space: nowrap;
+  }
+
+  .rowText {
+    overflow-wrap: anywhere;
   }
 
   .textInput,
   .replyControl {
     width: 100%;
+    min-width: 0;
+  }
+
+  .textInput {
+    min-height: 44px;
+    font-size: 16px;
   }
 
   .imageControl,

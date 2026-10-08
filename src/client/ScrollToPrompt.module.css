@@ -1,0 +1,50 @@
+.anchor {
+  display: none;
+}
+
+.slot {
+  position: absolute;
+  right: 0;
+  bottom: 16px;
+  left: 0;
+  z-index: 8;
+  height: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding-right: max(
+    var(--dsh-chat-side-inset, calc(var(--dsh-composer-side-clearance, 16px) + 16px)),
+    calc((100% - var(--dsh-chat-content-width)) / 2)
+  );
+  pointer-events: none;
+}
+
+:global([data-conversation-scroll]) .slot {
+  position: sticky;
+  bottom: calc(var(--dsh-composer-height, 152px) + 16px);
+}
+
+/* Match the host's floating down button; reserve its position even while hidden. */
+.slot .button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  margin-top: -34px;
+  margin-right: 42px;
+  padding: 0;
+  border: 0;
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l3);
+  border-radius: 100px;
+  corner-shape: round;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-button-floating-fill);
+  box-shadow: var(--dsw-elevation-panel);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.slot .button:hover {
+  background: var(--dsw-alias-button-floating-hover);
+}

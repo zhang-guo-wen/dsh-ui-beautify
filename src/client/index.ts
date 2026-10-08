@@ -15,9 +15,8 @@
  * 3. **The quick replies** are the composer's submit plane offered as one click
  *    per common answer; they send the phrase the tag carries, which is the
  *    user's own text once they have customized the row.
- * 4. **The lane** is decoration: a figure whose speed reports how fast the model
- *    is writing. It is the one contribution that is skipped outright when the
- *    browser asks for reduced motion.
+ * 4. **The light beam** reports actual output speed in a fixed 1px strip.
+ *    Its default-on settings switch controls whether it can play.
  *
  * Only the chosen faces' stylesheets are linked, so the browser never fetches
  * the shard layout of a face the user is not using. The files behind them are
@@ -42,22 +41,26 @@ import {
   faceById, fontStack, resolveFontChoice, FONT_ROLES, type BeautifySettings, type FontRole,
 } from '../fonts.ts'
 import { FONTS_ROUTE, FONT_SETTINGS_NS } from '../params.ts'
-import { BikeLane } from './BikeLane.tsx'
+import { LightBeam } from './LightBeam.tsx'
 import { BeautifySection } from './BeautifySection.tsx'
 import { applyBranding } from './branding.tsx'
 import { en, NS, zh, type SettingsKey } from './locales.ts'
 import { QuickReplies } from './QuickReplies.tsx'
+import { ScrollToPrompt } from './ScrollToPrompt.tsx'
 import { SettingsController } from './settings-controller.ts'
 import { applyTagline } from './tagline.ts'
 import { applyMobileLayout } from './mobile-layout.tsx'
 import { installRemoteSettings } from './remote-settings.ts'
+import { applyDescriptionTranslation } from './description-translation.ts'
 
-export type { BikeLaneProps } from './BikeLane.tsx'
+export type { LightBeamProps } from './LightBeam.tsx'
 export type { CodeFontRowProps, FontRowProps } from './FontRows.tsx'
 export type { MotionRowProps } from './MotionRow.tsx'
 export type { QuickRepliesProps } from './QuickReplies.tsx'
 export type { SettingsRowFace, SettingsRowState } from './settings-controller.ts'
 export { NS } from './locales.ts'
+// Pure/UI adapter exports let regression tests exercise the installed handoff.
+export { descriptionProjection, translateSkillMenu, installDescriptionAdapters } from './description-adapters.tsx'
 
 /** Identity of this plugin's stylesheet links and its theme override layer. */
 const PLUGIN_ID = '@guowenzhang/dsh-ui-beautify'
@@ -119,23 +122,31 @@ export async function apply(ctx: Context): Promise<void> {
   ctx.effect(() => applyFonts(ctx, scope), 'ui-beautify: fonts')
   ctx.effect(() => applyTagline(scope), 'ui-beautify: tagline')
   applyBranding(ctx, scope)
-  applyMobileLayout(ctx)
+  applyMobileLayout(ctx, scope)
+  const descriptions = applyDescriptionTranslation(ctx)
   const t = ctx.locale.bind(NS)
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section', id: 'ui-beautify', order: 40,
     label: () => t('nav'), locale: NS,
-    inject: () => controller.inject(),
+    inject: () => ({ ...controller.inject(), descriptions }),
   }, BeautifySection))
+
+  // The switch that hides this control lives in the settings namespace, so the
+  // entry reads the same snapshot the rows do rather than a copy of the choice.
+  ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+    name: 'conversation.input.dock', id: 'ui-beautify-to-prompt', order: 101, locale: NS,
+    inject: () => controller.inject(),
+  }, ScrollToPrompt))
 
   // Registered unconditionally, and given the stored answer rather than the
   // browser's: a lane the user switched off is a lane they can switch back on,
   // while a lane that never registered is indistinguishable from a broken one.
-  ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
-    name: 'conversation.input.dock',
+  ctx.slots.inject('conversation.input.overlay', () => ctx.slots.register({
+    name: 'conversation.input.overlay',
     id: LANE_ID,
     order: LANE_ORDER,
     inject: () => controller.inject(),
-  }, BikeLane))
+  }, LightBeam))
 
   // No business face of its own — the session's input actions and the draft's
   // phase are standard props every session-scope entry receives — but the

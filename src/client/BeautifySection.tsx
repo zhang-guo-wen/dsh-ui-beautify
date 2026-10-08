@@ -4,12 +4,15 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import { BrandIconRow, BrandNameRow, LogoRow, TaglineRow } from './BrandRows.tsx'
 import { CodeFontRow, FontRow } from './FontRows.tsx'
 import { NS } from './locales.ts'
+import { MobileLayoutToggleRow, RecentSessionsToggleRow, RemoteSettingsToggleRow, ScrollToPromptToggleRow } from './FeatureToggleRows.tsx'
 import { MotionRow } from './MotionRow.tsx'
 import { QuickReplyToggleRow } from './QuickReplyToggleRow.tsx'
+import { DescriptionTranslationRow } from './DescriptionTranslationRow.tsx'
+import type { DescriptionController } from './description-controller.ts'
 import type { SettingsRowFace } from './settings-controller.ts'
 import css from './BeautifySection.module.css'
 
-export type BeautifySectionProps = PropsRuntime<'settings.section'> & PropsLocale<typeof NS> & InjectFace<SettingsRowFace>
+export type BeautifySectionProps = PropsRuntime<'settings.section'> & PropsLocale<typeof NS> & InjectFace<SettingsRowFace> & { descriptions: DescriptionController }
 
 // `QuickReplyRow` is parked: its component and its tests still live in this repo,
 // but the page does not mount it while the row's presentation is undecided.
@@ -26,6 +29,12 @@ export function BeautifySection(props: BeautifySectionProps): ReactNode {
       <CodeFontRow {...props} />
       <MotionRow {...props} />
       <QuickReplyToggleRow {...props} />
+      <h3 className={css.groupTitle}>{props.t('enhancementsGroup')}</h3>
+      <ScrollToPromptToggleRow {...props} />
+      <MobileLayoutToggleRow {...props} />
+      <RecentSessionsToggleRow {...props} />
+      <RemoteSettingsToggleRow {...props} />
+      <DescriptionTranslationRow {...props} />
       <h3 className={css.groupTitle}>{props.t('brandingGroup')}</h3>
       <LogoRow {...props} />
       <BrandIconRow {...props} />

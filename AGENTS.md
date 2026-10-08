@@ -6,6 +6,16 @@
 
 姊妹插件：[`dsh-web-design`](../dsh-web-design)（在 DSH 侧栏里预览与编辑 HTML）。
 
+## 描述翻译（2026-10-08）
+
+- 设置页只有一个「翻译描述」按钮，使用 `agentDefaultModel.currentSelection()` + `llm.stream()` 独立请求，不创建会话、不传工具／历史、不改 skill 注册表或原文件。`uiBeautifyDescriptions` 通过 Typert Remote 接入认证 Gateway；禁止用未认证字体路由调用模型。`@Remote` 必须构建期降级，并保留 `request, signal` 参数名。
+- 成功缓存按 kind／id／精确原文哈希／目标语言保存到 `$DSH_HOME/data/ui-beautify/description-translations/v1`。读接口不生成；重复、并发与不同宿主进程用原子 PID+UUID 锁去重。只恢复证实已退出进程的锁，未知锁不猜测删除；失败／超时不写缓存。
+- 插件描述仅在公开 `remote.pluginManager.listBundles` 与 `remote.pluginInventory.list` 的返回副本里添加描述语言映射，原元数据、标题与宿主不改。卸载按原 property descriptor 恢复，不通过 Cordis 每次返回的新函数代理比较身份。译文刷新使用原插件页公开 inject face 的 refresh，不复制或 shadow 带 children 的 main 页。
+- 斜杠菜单复用原 MenuView，只投影 skill group 描述的只读 observable；Markdown 预览和 SkillRow 附加当前目录的译文摘要，原文件及历史结果保持原样。采用公开 slots priority shadow + 原组件／inject／locale／store，拒绝带 children 的组件。打包宿主 registrant 可能缩写为 mf，需结合精确 cell 和原组件名识别，不能依赖 registrant 包名。
+- 翻译目录包括全局已加载 Skill、workspaceRegistry.list() 的所有已登记工作区通过 skills.list({cwd}) 发现的项目 Skill，以及当前会话专属目录；不扫描未登记项目／磁盘。按来源去重，名称和文件分开，工作区读取失败提示。展示 membership 仍按会话和语言隔离，防同名串译。
+- 2026-10-08 用户明确改为真正批量：先 lookup 排除缓存，description-batches.ts 按含 system+JSON 的 UTF-8 16 KB 上限拆批，每批一次 llm.stream 返回编号 JSON。translateBatch 先按哈希有序持全部缺项锁、重读缓存，所有编号／数量／译文验证成功才逐项存储；不得回退为每条调用／仅增加并发。UI 显示实际默认提供方／模型／推理档位，以及插件、Skill（全局／Agent）、工作区 Skill 三类已完成／总数。2026-10-08 用户要求去掉批次／字节说明；运行中的同一按钮切成可点击「取消」，用独立 run AbortController 传到 Remote 和模型，取消不销毁页面只读缓存、不删除成功译文，后续点击复用。插件全部相关描述完成才计完成，官方译文也计完成，失败不算完成。已有官方译文不生成，组件描述计入翻译总数但不重复算插件包。每个批次读取默认模型并将实际路由回传；不擅自切低档或其他模型。
+- 回归新增 `tests/description-*.test.mjs`：持久化、真实子进程去重、认证 Gateway 401/403、默认模型终止校验、作用域／语言、标题同文不误改、菜单原状态不变、卸载恢复。实际 19387 页面已用临时浏览器响应模拟验证按钮／复用、插件列表和详情、斜杠菜单；模拟已移除。真实默认模型及 skill 预览／调用卡片的全流程仍需重载当前宿主后验收，不得把模拟通过表述成真实翻译已生效。
+
 ## 目录
 
 仓库根**就是**包：`package.json` 即 `@guowenzhang/dsh-ui-beautify`。
@@ -55,6 +65,7 @@ tools/
 - 顶部完整需求来自 2026-10-07 的原手机适配对话（不是 worktree 丢失）：`MobileRecentSessions.tsx` 复用 session catalog + `uiWorkspace.openSession`，未归档/非空白/非子代理按活动排序最多取 5 条，点击只改选中态，不置首；portal 容器不因 sessionId 变化销毁重建，实际不足时不补位，Unicode 显示 5 字。`useWorkspaces.archivedSessionIds` 是权威归档来源，归档当前会话也移除；每个标签复用实际宿主的 `_tab`/`_tabActive` class，字号/颜色/下划线不另做一套。通过 portal 挂在旧宿主 View tabs 后，手机隐藏旧 View tabs、顶部打开文件和日志/反馈三点菜单，正文/输入框边距 16px/8px；已有原生 recent strip 不重复插入。公开开发声明缺 session standard-seat augmentation 时仅在插槽注册边界适配，不复制宿主组件或类型图。必须在当前会话页验证真实标签点击、桌面保留 View tabs 与工具按钮，不能只测空白页。
 - 2026-10-07 提交前验证：真实 3081 宿主通过冷加载、触摸抽屉、Esc、遮罩、600/601px、近期会话切换和桌面恢复；真实卸载恢复及新宿主原生布局尚未做端到端验收，控制器清理和原生布局不接管只经单测验证。原生 recent strip 保留宿主自身断点（新宿主可能在恰好 600px 显示 View tabs）。浏览器回归须设置 `DSH_MOBILE_URL`、`DSH_MOBILE_WORKSPACE` 和 `DSH_MOBILE_SESSION_PATTERN`；可用 `DSH_MOBILE_PLAYWRIGHT`、`DSH_MOBILE_CHROME` 指定浏览器环境，目标工作区需有至少一条已开始会话；回归按 1–5 条实际数量校验，不要求凑齐五条。
 - 手机右侧栏依然归宿主所有：`[data-rightbar-col]` 必须固定在 grid-column 3/grid-row 1（0 宽轨道的右边缘），否则宿主 fullscreen 面板会定位到负的 viewport 宽度；打开时在左侧抽屉/overlay 之上，全屏时隐藏左侧展开按钮。不可替换宿主右侧栏和关闭控件。浏览器验收必须包括实际触摸“展开 → 收起 → 再展开”，验证面板 left=0/right=innerWidth 与入口恢复。
+- 2026-10-08 手机白板触摸卡死：手机 frame 的 drawer/rightbar 为 1200/1250，高于 body portal 的宿主 Modal（1000）；宿主将 root 设为 inert 后，弹窗被编辑器遮住但遮罩仍拦输入。只在 `[data-mobile-layout-frame]` 加 `isolation: isolate` 限定层级，不移除 inert、不跳过弹窗、不更改 Draw.io。回归须用浏览器 `DOMSnapshot` paint order（普通可见性和 elementFromPoint 会被 inert 误导），证明去掉 isolation 重现、恢复后 Modal 在 iframe 上方，并触摸继续后可操作。实际 LAN 页面需验证白板打开、菜单、收起再打开。
 - `remote-settings.ts` 只在 `remote.$host.isLoopback=false` 的页面装饰共用 configForms 的公开读取方法和已缓存表单，使用现有 `remote.settings.describe()` 脱敏值。禁止伪造本机身份、读取 credentials 或 settings document、调用写 RPC；远程表单 `set/unset/mutate` 必须直接 false。describe 一律 writable/hasDocument=false，变更事件、重连和页面可见时刷新；失败保留上次真实值，卸载恢复方法/监听器。本机不适配，原写队列不变。`tests/remote-settings.test.mjs` 覆盖同步、合并读取、拒写和还原。
 - `cordis.patch.yml` —— 把插件行插入组合的 bundle 层。
 - `build-client.mjs` / `tsdown.config.ts` —— 两段打包的配置（见「构建」）。
@@ -228,7 +239,11 @@ theme 服务每个来源只保留一层，所以两个角色的 token 必须在*
 - 集成终端（xterm 构造参数，不走 CSS）
 - 队列面板 `QueueDock.module.css` 里写死的 `Inter` 前缀
 
-## composer 上方的骑车道
+## composer 上方的光柱（2026-10-08）
+
+当前实现为 `LightBeam.tsx` + `LightBeam.module.css`，已删除旧 BikeLane 源码。光柱固定 1px，改用宿主 `conversation.input.overlay` 的零高度绝对定位锚点，直接覆盖输入框上边框，不占行、不加 margin/gap，不修改宿主布局；仅保留光柱，无底轨和外扩光晕。保留 `ui-beautify-lane` / order 100；设置页只有默认开启的宿主 Switch，沿用 `motion` 字符串字段写入 `always`／`off`，不新增字段。旧 `system` 或未设置归一化为开启，已存 `off` 保持关闭；删除三选一和浏览器 reduced-motion 分支。不要新增粗细或速度配置。使用宿主主题主色；按真实 assistant partial 字符增长测速，速度为 `1.6 * rate / (rate + 220)` 行程／秒，0.65 秒指数平滑，停止后 8 秒线性减速至静止，空闲保持可见悬浮，不淡出；仅关闭开关时隐藏。若停在行程裁剪区，将光柱停靠最近可见边缘，避免无输出时看不见。位置保存为比例，头尾在容器外换行，背景标签恢复时单帧 dt 最大 0.1 秒。React 只采样，rAF 写 transform，关闭／卸载取消 rAF。`tests/output-rate.test.mjs` 覆盖原型曲线和采样；客户端产物测试覆盖固定 1px／零布局占位、无单车 SVG、空闲可见静止、流动、减速停靠、可见区域无跳跃和默认开启的 always/off 开关。
+
+### 历史骑车道实现（已由光柱替代，仅供历史参考）
 
 composer 卡片正上方那条整宽插槽是 `conversation.input.dock`（ui-conversation 声明，`kind: 'list'`、`scope: 'session'`），本插件在其中注册 `ui-beautify-lane`（order **100**）。同一插槽的既有占用者是 queue（20）、todo（0）与 goal，100 让小人排在它们之后、紧贴卡片。
 
@@ -272,6 +287,14 @@ composer 卡片正上方那条整宽插槽是 `conversation.input.dock`（ui-con
 
 `.lane` 用 `margin-bottom: calc(2px - var(--dsh-composer-stack-gap, 6px))` 把 `composerStack` 的 6px 行距吃掉大半：小人要看起来**坐在输入框上**，而不是和下方面板一样属于上方那组卡片。留 2px 免得贴死。用变量而不是写死 -4px，是为了 stack 行距变了这里跟着变。
 
+## 回到最近提问
+
+`ScrollToPrompt.tsx` 在 `conversation.input.dock` 注册零高度定位锚点，通过 portal 把向上按钮放入当前 Chat frame，保持宿主向下按钮不变。按钮复用宿主 Button、向上图标与 floating token，位于向下按钮左侧 42px；提问已在视口顶部或无提问时隐藏。仅操作当前会话的最近可见 `user` / `steering` 已发送消息，不跳到整个历史开头、不读取草稿。滚动后立即交付 scroll/scrollend，让宿主结束读者位置采样、停止追随输出；切换轨迹视图或卸载时释放 portal、滚动监听与观察器。
+
+设置页「界面增强」第一行是它的开关：`scrollToPromptEnabled`（默认 `true` 的 volatile 字段）。注册时带上 `inject: () => controller.inject()`，组件读同一份设置快照；关闭时组件返回 `null`（**插槽条目照常注册**，否则重开就没法恢复），定位 effect 以该开关为依赖重跑——关着的时候没有锚点，重新打开必须重新定位，否则按钮再也不会出现。新增字段需要宿主重启一次，旧 schema 会把这一行显示成 `stale`。
+
+`npm run test:scroll` 覆盖定位与空白/隐藏消息；真实浏览器回归设置 `DSH_SCROLL_URL`、`DSH_SCROLL_WORKSPACE`、`DSH_SCROLL_SESSION`，选择已有长对话，隔离测试浏览器仅替换本次 client bundle 响应，不覆盖正在使用的插件目录。验收包括向上/原向下、393px/桌面、浅色/深色、轨迹切换清理，以及关掉开关后按钮消失、重开立即恢复。
+
 ## composer 下方的快捷回复
 
 composer 卡片正下方那条整宽插槽是 `conversation.composer.dock`（同样由 ui-conversation 声明，`kind: 'list'`、`scope: 'session'`），本插件在其中注册 `ui-beautify-replies`（order **1**）。同一插槽的既有占用者是 ui-chat 的会话统计胶囊（order 0），1 让标签排在它后面；`ContextMeter` 由 composer 自己渲染，在整条带子的最后。
@@ -308,7 +331,17 @@ composer 卡片正下方那条整宽插槽是 `conversation.composer.dock`（同
 
 `conversation.composer.dock` 的注册因此补上了 `inject: () => controller.inject()`：短语来自设置，不再是常量。
 
-标签用 ui-primitives 的 `Pill`：胶囊几何与配色由它给，行内只留自己的排布——`flex-wrap`（宁可换行也不把短语截成省略号，否则「这一点发出去的是什么」就看不见了）、6px 间距、以及禁用时的降透明度。`Pill` 已经被视图切换与终端块用着，所以它的样式一直在 shell 的 CSS 里，不存在「引用了没样式的原子」这种情况。
+标签用 ui-primitives 的 `Pill`：胶囊几何与配色由它给，行内只留自己的排布——`flex-wrap: nowrap`（**始终一行**，绝不换行把 composer 的控件挤走）、6px 间距、以及禁用时的降透明度。`Pill` 已经被视图切换与终端块用着，所以它的样式一直在 shell 的 CSS 里，不存在「引用了没样式的原子」这种情况。
+
+### 一行放不下就少显示几条（2026-10-08）
+
+composer 下方那条带子是**同一条 flex 行**（会话统计胶囊 + 快捷回复 + ContextMeter），窗口变窄时行会压缩**可收缩的项**：统计胶囊先被省略号截断，快捷回复行被压到比内容窄——旧实现在这里 `flex-wrap` 换行，于是带子长高、把卡片里的控件顶掉。现在改成**只显示放得下的前几条**：
+
+- **换行改成隐藏**：超出的标签保留在 React 树里、加 `.hidden`（`display: none`）——既不占行、也不能 Tab 到、更不进无障碍树；变宽后同一次测量可以把它们重新显示出来。
+- **判据是「行自己的内容超出它拿到的盒子」**：`QuickReplies.tsx` 的 `fit()` 先显示全部标签，再用 `last.right - first.left`（可见标签的**实际跨度**，不是 `scrollWidth`——行是居中的，溢出的一半落在盒子左边，不进滚动区）与 `row.getBoundingClientRect().width` 比较；放不下就从尾部去掉一条**再测一次**（每去掉一条，兄弟项不再被压缩，盒子会变大，所以必须逐步重测）。`count === 0` 时整行不显示标签，但行本身留着，否则变宽后再也无法测回来。
+- **测量时机**：`ResizeObserver` 观察行、dock、dock 的父级（viewport/侧栏变化移动的是这一层，行一旦放得下就不再变形）以及其余同层条目；`MutationObserver` 覆盖兄弟文案变化；`document.fonts` 的 `loadingdone` 覆盖字体换装（标签宽度变了但任何被观察的盒子都没动）；再加 `window` 的 `resize`——变宽时可能**没有任何盒子移动**（行已被裁到刚好放下），只靠 RO 会一直停在少显示几条的状态。
+- 用 `classList.toggle(css.hidden, …)` 而不是行内 `display`：行内样式只能藏不能显示，一旦被上一次测量藏起来，后面就永远涨不回来（实测会一路钉死在最少条数）。React 渲染的 `className` 与探索写的是同一个类，二者一致。
+- 验证：`.fit-check/`（一次性脚手架，已删除）+ 真实浏览器里用宿主自己的 `InputBar.module.css` / `StatsPills.module.css` / `ContextMeter.module.css` 复现带子，跑 1200/893/800/700/660/620/601/600/560 的来回切换：≥700 显示 4 条，601–660 显示 3 条，≤600 由既有媒体查询整行隐藏；每次都是**单行、无重叠、统计胶囊不再被截断**。
 
 无障碍的三个字段都是必须的：外层 `role="group"` + `aria-label` 说明这是一组快捷回复，每个标签自己的 `aria-label` 写成「发送「继续」」——按钮上的字就是消息本身，所以两处文案都只从字典取。设置行里每个标签的 `aria-label` 是「编辑「<它现在显示的字>」」（灰色标签用的是内置短语，正好等于点它会启用什么），打开后的输入框是「快捷回复内容」。
 
@@ -316,13 +349,13 @@ composer 卡片正下方那条整宽插槽是 `conversation.composer.dock`（同
 
 ## 设置与可配项
 
-插件注册一个 `settings.section`（id `ui-beautify`，order 40），在「设置 → 界面美化」页面显示正文字体、代码字体、输入框动效、PC 端快捷回复开关与品牌四项。`BeautifySection` 的各行复用 `SettingsController` 的一份快照；快捷回复内容编辑行**暂时不挂载**（见「短语是可自定义的」），显示开关则已独立挂载。
+插件注册一个 `settings.section`（id `ui-beautify`，order 40），在「设置 → 界面美化」页面显示正文字体、代码字体、输入框动效、PC 端快捷回复开关、界面增强四项与品牌四项。`BeautifySection` 的各行复用 `SettingsController` 的一份快照；快捷回复内容编辑行**暂时不挂载**（见「短语是可自定义的」），显示开关则已独立挂载。
 
 快捷回复的字段与 dock 的读取逻辑照旧，只是暂时没有 UI 去写它——要自定义就手改 profile 补丁里的 `quickReplies`；要恢复设置行，把 `<QuickReplyRow {...props} />` 加回动效行之后即可。
 
 品牌四项在它之后。`logo` 对应空白会话页标志，`brandIcon` 和 `brandName` 对应侧栏左上角，`tagline` 对应空白会话页标语。图片通过 `POST /plugins/dsh-ui-beautify/brand/upload/{logo|brandIcon}` 上传，限 2 MB 的 PNG/JPEG/WebP/GIF，按内容哈希保存到 `$DSH_HOME/assets/ui-beautify`，由同一路由下的 `assets/<sha>.<ext>` 读取。设置中仅保存图片 URL；留空时不注册品牌插槽，宿主默认内容继续显示。自定义侧栏插槽使用 priority -1 覆盖官方插件的 priority 0。标语当前由宿主组件直接渲染、无插槽；客户端以 DOM 观察同步可见文案，清空后恢复宿主文案。Electron 安装版的原生首次引导不加载浏览器插件。
 
-选择写进**当前 profile 的配置文件** `$DSH_HOME/profiles/<profile>/cordis.patch.yml` 里 `ui-beautify` 行的 `config`（`font` / `codeFont` / `motion` / `quickReplies` / `quickRepliesEnabled` / `logo` / `brandIcon` / `brandName` / `tagline`），改完立即生效、无需重启。新增字段在宿主仍跑着旧 schema 时会显示旧版本提示并禁用；重启 dsh 即可。
+选择写进**当前 profile 的配置文件** `$DSH_HOME/profiles/<profile>/cordis.patch.yml` 里 `ui-beautify` 行的 `config`（`font` / `codeFont` / `motion` / `quickReplies` / `quickRepliesEnabled` / `scrollToPromptEnabled` / `mobileLayoutEnabled` / `recentSessionsEnabled` / `remoteSettingsEnabled` / `logo` / `brandIcon` / `brandName` / `tagline`），改完立即生效、无需重启。新增字段在宿主仍跑着旧 schema 时会显示旧版本提示并禁用；重启 dsh 即可。
 
 > 更早的 DSH 版本把选择写在 `$DSH_HOME/settings.yaml`；该文件已被 DSH 迁移进 profile 的补丁文件并重命名为 `settings.yaml.imported`。现在手工改设置要改的是 profile 补丁。
 
@@ -343,6 +376,23 @@ composer 卡片正下方那条整宽插槽是 `conversation.composer.dock`（同
 `cacheDir` 留空时的解析顺序：`$DSH_HOME`（非空时）→ `~/.dsh`，再拼 `cache/ui-beautify/fonts`。插件自己展开 `~` / `~/` / `~\` 前缀，因为 `@deepseek-ai/dsh-home-paths` 是 harness 内部包，loader 从 profile 解析本插件的 import，那里没装它。填了值就 `resolve()` 成绝对路径，所以**相对路径按宿主进程的 cwd 解析**，不是 profile 目录。
 
 所有用户可配字段都是 volatile；显示开关是默认开启的 `z.boolean().volatile()`：字体、动效、品牌五项是 `z.string().volatile()`，快捷回复是 `z.array(z.string()).volatile()`（默认 `[]`，不写 `.max()`——schema 拒绝一个字段会让整份命名空间回落到上一个好值，超长列表在读取处裁掉，见「短语是可自定义的」）。字体和动效的未知值在读取处回落到默认值，图片地址、短语列表在使用时检查。`mirrors` / `cacheDir` 有默认值但不是 volatile，不出现在设置页。
+
+## 设置文案简化（2026-10-08）
+
+后续截图标注优先于上文历史展示规则：字体缓存行只显示缓存大小／未下载，不显示分片数量或刷新提示；思源黑体说明去掉可变分片细节。各开关说明仅保留功能用途，不重复默认开启、关闭后恢复、独立开关和操作权限说明；远程说明补充解决某些配置在手机端不生效问题。名称输入框提示为「当前名称：DeepSeek Harness」，仅为 placeholder，不写入配置、不覆盖已有名称。默认开启与只读等行为不变，旧宿主缺字段提示保留。`tests/ui-copy.test.mjs` 与客户端渲染测试保护这组文案约定。
+
+## 设置弹窗手机布局（2026-10-08）
+
+- `mobile-layout.css` 在 ≤600px 内仅通过 `data-shortcut-modal='settings'` 定位 body portal 的实际设置壳；用 grid + display:contents 重排为标题／宿主 actions 与关闭按钮、横滑原导航、全宽独立滚动内容。保留宿主组件、slots、焦点管理和权限；不修改 Harness，不复制设置壳。颜色和圆角使用宿主 token；桌面不覆盖。
+- 宿主通用偏好行仅在 `settings.general.item` 内按 CSS module local 后缀覆盖，选择器和描述堆叠，开关并排，三个主题选项同排。插件开关规则必须排除 `.desktopOnly`，避免较高选择器优先级把手机已隐藏的快捷回复设置重新显示。文字输入 16px／44px，避免 iOS 聚焦缩放。
+- `tests/settings-layout.test.mjs` 覆盖样式边界，`tests/settings-layout-browser.test.mjs` 设置 `DSH_SETTINGS_URL` 后验收实际已加载产物，无模拟响应或临时 CSS。已通过当前桌面宿主公开的 3081 入口：320/360/393/430/600px 触摸切换通用／美化分类、无内容横溢、开关、底部输入、浅深色、601/1280px 两栏和关闭／Esc；19387 的隔离浏览器请求为 401，未绕过认证。当前宿主改变 viewport 会重挂设置 owner，空白欢迎页的异步 onboarding 也会关闭设置；测试各宽度冷加载并在手机选择已有已开始会话，不把该行为称为插件 bug 或修改宿主。手机验收可用 `DSH_SETTINGS_SESSION` 指定现有会话标题片段。
+
+## 功能开关（2026-10-08）
+
+- 设置页「界面增强」使用宿主 Switch 显示 `scrollToPromptEnabled`、`mobileLayoutEnabled`、`recentSessionsEnabled`、`remoteSettingsEnabled`，均为默认 true 的 volatile 字段，中英文描述齐全，手机不隐藏。前三项在组件里收窄行为（回到最近提问的开关见「回到最近提问」一节），远程一项见下。
+- `feature-switch.ts` 等待已存配置，按开关安装／释放；手机适配释放控制器、Pocket shadow 和 CSS，最近对话有独立 `recent-sessions.css` 与插槽生命周期。二者不得相互绑定，关闭最近对话不影响手机抽屉，关闭手机适配不影响最近对话。宿主原生功能不由本插件关闭。
+- 远程只读安全边界不变；通过一次脱敏 describe 启动读取获知开关，false 时释放桥接与监听并通知已缓存表单消费者重读宿主快照。远程端在本机开关重新开启后需刷新页面，不保留后台轮询来绕过关闭。本机表单从不装饰。
+- `tests/feature-switch.test.mjs` 覆盖冷加载 false、旧配置默认开启、独立生命周期、恢复和清理；构建产物客户端测试覆盖各行控件／写入／缺字段／只读及插槽停用恢复；远程测试覆盖初始关闭与设置事件关闭后的方法、监听器和快照恢复。
 
 ## 构建
 
@@ -372,7 +422,7 @@ npm run probe -- <包>  # 联网：评估一个候选 npm 包能不能当字体�
 - `tests/client.mjs`：按浏览器加载器的姿势加载**构建产物** `lib/client.js`，用假 ctx、DOM 桩与 React 桩驱动 `apply()`，断言独立 `settings.section` 的注册、字体链接和 token、设置页控件、品牌图片上传写入与默认值恢复，以及 composer 车道和快捷回复。
   同一份桩还模拟了宿主 ref、commit 后 effect 与**可控时钟**，于是 composer 车道可以逐帧驱动：断言它注册进 `conversation.input.dock`、order 100、`aria-hidden`、**没有输出时位移与轮转都精确为 0**、有输出时前进并转轮、**输出停下后仍滑行 2 秒、8 秒后才完全停住**、以及**在车道上时从不跳回起点**（换行只允许发生在两端都基本在画面外的那一帧）；再加上三种动效选择的行为——`system` + 浏览器要求减少动效时不渲染也不申请帧、`always` 时照常播放并在动、`off` 时什么都不画。车道那一行也在这里渲染：三选一的选项、以及状态行写出「为什么带子是空的」。两个测量辅助函数把「没写过 transform」当成停住（0），而不是 `NaN`——停住的车道**什么都不写**，用 `NaN` 会让停住的断言全部假失败；`travelOf` / `turnOf` 读的是像素，所以「没跳回起点」要按**可见性**判断（换行那一帧两端都在画面外，DOM 上却是一次 800px 的跳跃）。车轮角度必须取模（`((to - from) % 360 + 360) % 360` 并只在单帧内测量）——绝对角度会绕圈，增量会因绕圈变成负数。
 - `tests/cdn.mjs`：对真实镜像逐个字体跑，除了 200 还检查两件容易踩的事——样式表里声明的 `font-family` 与表里写的一致，以及它**确实是 `unicode-range` 分片**而不是一个整字体文件。
-- 快捷回复在同一份 `tests/client.mjs` 里断言：注册进 `conversation.composer.dock`（不是 `settings.general.item`）、order 1、四个内置短语按字典顺序各占一个标签、外层的 `role="group"` 与 `aria-label`、每个标签自己的 `aria-label`、点击后先按捕获到的光标位置 `insertText` 再 `submit`、**插入被拒时一次都不提交**、以及 `submitting` 相位下全部禁用。再加上自定义那一段：存的短语整排顶替内置、空槽不占标签、超过 4 条被截断、四个都空回落内置、点击发的是自定义文本。设置行单独走一遍**点击 → 编辑 → 保存**：4 个标签按字典显示内置短语且都是灰的、`aria-label` 是「编辑「<显示的字>」」、点灰标签写入该内置短语并把这一格换成输入框（`defaultValue`/`placeholder`/`autoFocus`）、失焦写回裁剪后的文字、清空把这一格关掉、Esc 写回点击前的值并关掉输入框、点实心标签本身不写入、点「恢复默认」写入空列表、宿主 schema 缺字段时显示 `stale` 且标签禁用。**测试桩的 `useState` 会跨 mount 保留值**，所以「点击 → 再 mount 同一实例」就是一次重渲染。`src/quick-replies.ts` 的纯函数（裁剪、去空、保位）在 `tests/smoke.mjs` 里断言。设置行那一整块断言由 `pageComponents.has('QuickReplyRow')` 守卫：这一行现在不挂载，所以整块跳过并打一行 parked；把它挂回页面即 24 条全部重跑，不需要改测试。`Pill` 是为此加进桩表的——client 半边新增 import 同样要同步那一张（见易崩清单 12）。
+- 快捷回复在同一份 `tests/client.mjs` 里断言：注册进 `conversation.composer.dock`（不是 `settings.general.item`）、order 1、四个内置短语按字典顺序各占一个标签、外层的 `role="group"` 与 `aria-label`、每个标签自己的 `aria-label`、点击后先按捕获到的光标位置 `insertText` 再 `submit`、**插入被拒时一次都不提交**、以及 `submitting` 相位下全部禁用。再加上自定义那一段：存的短语整排顶替内置、空槽不占标签、超过 4 条被截断、四个都空回落内置、点击发的是自定义文本。设置行单独走一遍**点击 → 编辑 → 保存**：4 个标签按字典显示内置短语且都是灰的、`aria-label` 是「编辑「<显示的字>」」、点灰标签写入该内置短语并把这一格换成输入框（`defaultValue`/`placeholder`/`autoFocus`）、失焦写回裁剪后的文字、清空把这一格关掉、Esc 写回点击前的值并关掉输入框、点实心标签本身不写入、点「恢复默认」写入空列表、宿主 schema 缺字段时显示 `stale` 且标签禁用。**测试桩的 `useState` 会跨 mount 保留值**，所以「点击 → 再 mount 同一实例」就是一次重渲染。`src/quick-replies.ts` 的纯函数（裁剪、去空、保位）在 `tests/smoke.mjs` 里断言。设置行那一整块断言由 `pageComponents.has('QuickReplyRow')` 守卫：这一行现在不挂载，所以整块跳过并打一行 parked；把它挂回页面即 24 条全部重跑，不需要改测试。`Pill` 是为此加进桩表的——client 半边新增 import 同样要同步那一张（见易崩清单 12）。**一行放不下就少显示几条**那一节另有一组断言：桩里给行挂上假的 `classList`/`getBoundingClientRect` 与「每个可见条数对应多大的盒子」，再由 `ResizeObserver` 桩手动触发测量，断言放得下就四条、超出就丢尾部并加 `.hidden`、窄到一条都放不下时显示 0 条但行仍在（否则变宽后测不回来）、变宽后整排回来；`window` 桩因此补了 `addEventListener`/`removeEventListener`。
 
 三个测试都从 `lib/index.mjs` / `lib/client.js` 读产物，所以改完源码先 `npm run build` 再测。
 `tools/probe-font.mjs` 同样 `import { DEFAULT_MIRRORS } from '../lib/index.mjs'`，跑 probe 之前也要有 `lib/`。

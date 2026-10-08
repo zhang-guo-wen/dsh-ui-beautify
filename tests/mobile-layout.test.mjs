@@ -77,6 +77,13 @@ test('mobile rightbar keeps the host panel at the frame right edge, not offscree
   assert.ok(css.includes('[data-rightbar-col]:has([data-sidebar-right-open]) { z-index: 1250; }'))
 })
 
+test('phone frame isolates raised drawer and rightbar layers below body-portaled modals', () => {
+  const css = readFileSync(new URL('../src/client/mobile-layout.css', import.meta.url), 'utf8')
+  assert.match(css, /\[data-mobile-layout-frame\] \{[^}]*isolation: isolate;/)
+  const bundle = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  assert.match(bundle, /isolation:\s*isolate/)
+})
+
 test('phone opener joins the host leading header and matches the right opener geometry', () => {
   const source = readFileSync(new URL('../src/client/mobile-layout.tsx', import.meta.url), 'utf8')
   const css = readFileSync(new URL('../src/client/mobile-layout.css', import.meta.url), 'utf8')

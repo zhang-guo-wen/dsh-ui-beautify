@@ -32,7 +32,8 @@
       "default": "./lib/client.js"
     },
     "./package.json": "./package.json",
-    "./cordis.patch.yml": "./cordis.patch.yml"
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*": "./locale/*"
   },
   "engines": {
     "dsh": ">=0.2.0-rc.1"
@@ -63,6 +64,7 @@
     }
   },
   "files": [
+    "locale",
     "lib/index.mjs",
     "lib/client.js",
     "cordis.patch.yml",
@@ -73,10 +75,12 @@
     "NOTICE"
   ],
   "scripts": {
+    "test:metadata": "node --test tests/plugin-metadata.test.mjs",
     "build": "tsdown -c tsdown.config.ts && node build-client.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node tests/smoke.mjs && node tests/http.mjs && node tests/brand.mjs && node tests/client.mjs && node --experimental-strip-types --test tests/mobile-layout.test.mjs tests/recent-sessions.test.mjs tests/recent-session-status.test.mjs tests/recent-archives.test.mjs tests/remote-settings.test.mjs tests/mobile-browser.test.mjs",
-    "test:mobile": "node --experimental-strip-types --test tests/mobile-layout.test.mjs tests/recent-sessions.test.mjs tests/recent-session-status.test.mjs tests/recent-archives.test.mjs tests/remote-settings.test.mjs tests/mobile-browser.test.mjs",
+    "test": "node tests/smoke.mjs && node tests/http.mjs && node tests/brand.mjs && node tests/client.mjs && node --experimental-strip-types --test tests/output-rate.test.mjs tests/ui-copy.test.mjs tests/feature-switch.test.mjs tests/description-translations.test.mjs tests/description-model.test.mjs tests/description-controller.test.mjs tests/description-scope.test.mjs tests/description-adapters.test.mjs tests/description-plugin.test.mjs tests/description-rpc.test.mjs tests/description-process-lock.test.mjs tests/description-batch-model.test.mjs tests/description-batch-store.test.mjs tests/description-catalog.test.mjs tests/description-cancel.test.mjs tests/settings-layout.test.mjs tests/settings-layout-browser.test.mjs tests/mobile-layout.test.mjs tests/recent-sessions.test.mjs tests/recent-session-status.test.mjs tests/recent-archives.test.mjs tests/remote-settings.test.mjs tests/scroll-to-prompt.test.mjs tests/mobile-browser.test.mjs",
+    "test:mobile": "node --experimental-strip-types --test tests/output-rate.test.mjs tests/ui-copy.test.mjs tests/feature-switch.test.mjs tests/description-translations.test.mjs tests/description-model.test.mjs tests/description-controller.test.mjs tests/description-scope.test.mjs tests/description-adapters.test.mjs tests/description-plugin.test.mjs tests/description-rpc.test.mjs tests/description-process-lock.test.mjs tests/description-batch-model.test.mjs tests/description-batch-store.test.mjs tests/description-catalog.test.mjs tests/description-cancel.test.mjs tests/settings-layout.test.mjs tests/settings-layout-browser.test.mjs tests/mobile-layout.test.mjs tests/recent-sessions.test.mjs tests/recent-session-status.test.mjs tests/recent-archives.test.mjs tests/remote-settings.test.mjs tests/scroll-to-prompt.test.mjs tests/mobile-browser.test.mjs",
+    "test:scroll": "node --experimental-strip-types --test tests/scroll-to-prompt.test.mjs tests/scroll-to-prompt-browser.test.mjs",
     "test:remote-settings": "node --experimental-strip-types --test tests/remote-settings.test.mjs tests/remote-settings-browser.test.mjs",
     "test:cdn": "node tests/cdn.mjs",
     "probe": "node tools/probe-font.mjs"
@@ -95,6 +99,8 @@
     "@deepseek-ai/dsh-client-ui-slots": ">=0.1.7-0",
     "@deepseek-ai/dsh-client-ui-theme": ">=0.1.7-0",
     "@deepseek-ai/dsh-client-ui-workspace": ">=0.2.0-rc.1",
+    "@deepseek-ai/dsh-typert-protocol": ">=0.2.0-rc.1",
+    "@deepseek-ai/dsh-llm": ">=0.2.0-rc.1",
     "@deepseek-ai/schemastery": "*",
     "react": "*",
     "react-dom": "*"
@@ -137,6 +143,12 @@
       "optional": true
     },
     "@deepseek-ai/dsh-client-ui-theme": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-typert-protocol": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-llm": {
       "optional": true
     },
     "@deepseek-ai/schemastery": {

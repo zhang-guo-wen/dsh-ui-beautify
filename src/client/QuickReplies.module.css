@@ -1,11 +1,14 @@
 /* Quick replies: the row of tags in the strip below the composer card.
-   `Pill` owns the capsule itself, so only the row's own arrangement — wrapping
-   instead of squeezing, and the smaller gap a group of tags wants — lives
-   here. Colors come from the --dsw-* alias tokens through the pill. */
+   `Pill` owns the capsule itself, so only the row's own arrangement — a single
+   line and the smaller gap a group of tags wants — lives here. Colors come from
+   the --dsw-* alias tokens through the pill. */
 
 .row {
   display: flex;
-  flex-wrap: wrap;
+  /* One line, always: the row hides trailing phrases that do not fit rather
+     than wrapping onto a second line and moving the strip under it (see
+     QuickReplies.tsx for the measurement). */
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -13,11 +16,17 @@
   max-width: 100%;
 }
 
-/* A tag never shrinks: at the dock's width the row wraps to a second line
-   rather than clipping a phrase down to an ellipsis, which would hide the
-   message a click sends. */
+/* A tag never shrinks and never breaks: it is either whole on the line or not
+   shown, because the phrase a click sends is exactly what the tag shows. */
 .tag {
   flex: none;
+}
+
+/* Past the measured fit: mounted so the next measurement can try it again, and
+   out of the layout, the tab order, and the accessibility tree until it is
+   shown. */
+.hidden {
+  display: none;
 }
 
 /* A submission in flight locks the editor; the tags stay on screen, so they

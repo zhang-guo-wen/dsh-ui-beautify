@@ -86,6 +86,11 @@ export interface SettingsRowState {
   quickReplies: string[]
   /** Desktop visibility, defaulting on for existing profiles. */
   quickRepliesEnabled: boolean
+  mobileLayoutEnabled: boolean
+  recentSessionsEnabled: boolean
+  remoteSettingsEnabled: boolean
+  /** Whether the up button back to the latest sent question is shown. */
+  scrollToPromptEnabled: boolean
   /** What each face holds in the local cache; a face absent from it has downloaded nothing. */
   cache: FontCacheReport
 }
@@ -198,6 +203,10 @@ export class SettingsController {
         tagline: value?.tagline !== undefined,
         quickReplies: value?.quickReplies !== undefined,
         quickRepliesEnabled: value?.quickRepliesEnabled !== undefined,
+        mobileLayoutEnabled: value?.mobileLayoutEnabled !== undefined,
+        recentSessionsEnabled: value?.recentSessionsEnabled !== undefined,
+        remoteSettingsEnabled: value?.remoteSettingsEnabled !== undefined,
+        scrollToPromptEnabled: value?.scrollToPromptEnabled !== undefined,
       },
       // The document is hand-editable, so an unknown stored value must show as
       // the choice actually in effect rather than as nothing selected.
@@ -212,6 +221,10 @@ export class SettingsController {
       // dock drops the blanks itself.
       quickReplies: quickReplySlots(value?.quickReplies),
       quickRepliesEnabled: value?.quickRepliesEnabled !== false,
+      mobileLayoutEnabled: value?.mobileLayoutEnabled !== false,
+      recentSessionsEnabled: value?.recentSessionsEnabled !== false,
+      remoteSettingsEnabled: value?.remoteSettingsEnabled !== false,
+      scrollToPromptEnabled: value?.scrollToPromptEnabled !== false,
       cache: this.cache,
     }
   }

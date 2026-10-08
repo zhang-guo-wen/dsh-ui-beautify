@@ -46,6 +46,11 @@ export interface Config {
   quickReplies: Volatile<BeautifySettings['quickReplies']>
   /** Desktop visibility; mobile does not show quick replies. */
   quickRepliesEnabled: Volatile<BeautifySettings['quickRepliesEnabled']>
+  mobileLayoutEnabled: Volatile<BeautifySettings['mobileLayoutEnabled']>
+  recentSessionsEnabled: Volatile<BeautifySettings['recentSessionsEnabled']>
+  remoteSettingsEnabled: Volatile<BeautifySettings['remoteSettingsEnabled']>
+  /** Whether the composer's up button back to the latest question is shown. */
+  scrollToPromptEnabled: Volatile<BeautifySettings['scrollToPromptEnabled']>
   /** Registries a font file is downloaded from, tried in order. */
   mirrors: string[]
   /** Directory caching downloaded files; empty follows `$DSH_HOME`, then `~/.dsh`. */
@@ -66,6 +71,10 @@ export const Config = z.object({
   // would otherwise lose its defaults the moment the field is written once.
   quickReplies: z.array(z.string()).default([]).volatile(),
   quickRepliesEnabled: z.boolean().default(true).volatile(),
+  mobileLayoutEnabled: z.boolean().default(true).volatile(),
+  recentSessionsEnabled: z.boolean().default(true).volatile(),
+  remoteSettingsEnabled: z.boolean().default(true).volatile(),
+  scrollToPromptEnabled: z.boolean().default(true).volatile(),
   mirrors: z.array(z.string()).default([...DEFAULT_MIRRORS]),
   cacheDir: z.string().default(''),
 })

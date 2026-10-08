@@ -8,6 +8,11 @@ declare module '*mobile-layout.css' {
   export default css
 }
 
+declare module '*recent-sessions.css' {
+  const css: string
+  export default css
+}
+
 declare module '*.module.css' {
   const classes: Readonly<Record<string, string>>
   export default classes

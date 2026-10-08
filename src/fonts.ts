@@ -317,6 +317,14 @@ export interface BeautifySettings {
   quickReplies: string[]
   /** Whether quick replies appear on desktop; mobile always hides them. */
   quickRepliesEnabled: boolean
+  /** Plugin phone drawer and spacing overrides; defaults on. */
+  mobileLayoutEnabled: boolean
+  /** Plugin recent-conversation tabs on desktop and phone; defaults on. */
+  recentSessionsEnabled: boolean
+  /** Shared redacted settings reads on remote pages; defaults on. */
+  remoteSettingsEnabled: boolean
+  /** Up button that returns to the latest sent question; defaults on. */
+  scrollToPromptEnabled: boolean
 }
 
 /**
