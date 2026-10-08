@@ -101,13 +101,21 @@ test('installed settings shell: phone navigation, controls, scroll, themes and d
     await mkdir(new URL('../docs/images/', import.meta.url), { recursive: true })
     try {
       for (const theme of ['深色', '浅色']) {
+        await select('通用设置')
         await options.getByRole('button', { name: theme, exact: true }).click()
         await options.getByRole('button', { name: theme, exact: true }).getAttribute('aria-pressed').then(v => assert.equal(v, 'true'))
+        // The README documents the UI Beautify page, so capture that page per theme.
+        await select('界面美化')
         // Let Chromium's touch highlight fade before saving documentation.
         await page.waitForTimeout(400)
-        await page.screenshot({ path: new URL(`../docs/images/settings-mobile-${theme === '浅色' ? 'light' : 'dark'}.png`, import.meta.url).pathname.replace(/^\/(\w:)/, '$1') })
+        await page.screenshot({ path: new URL(`../docs/images/mobile-settings-${theme === '浅色' ? 'light' : 'dark'}.png`, import.meta.url).pathname.replace(/^\/(\w:)/, '$1') })
       }
-    } finally { if (originalTheme >= 0 && await dialog.isVisible()) await cubes.nth(originalTheme).tap() }
+    } finally {
+      if (originalTheme >= 0 && await dialog.isVisible()) {
+        await select('通用设置')
+        await cubes.nth(originalTheme).tap()
+      }
+    }
     for (const width of [601, 1280]) {
       await resize(width, 900)
       const g = await geometry()
