@@ -1082,10 +1082,22 @@ check('the control stays in the composer dock either way',
   registrations.filter(entry => entry.definition.id === 'ui-beautify-to-prompt').length === 1)
 conversationDom.content = null
 // Lifetime release/reinstall is verified with real registration disposers.
+const renderSettingsPage = () => {
+  mount('beautify-page', pageEntry.component, {
+    descriptions: pageEntry.definition.inject().descriptions,
+    t, useBeautify: selector => selector(snapshot()),
+    choose: () => {}, refreshCache: () => {}, close: () => {},
+  })
+  return elements.find(element => element.props.className?.endsWith('_page'))
+}
 setStored({ mobileLayoutEnabled: false })
+check('disabled mobile layout removes settings row reflow scope',
+  renderSettingsPage().props['data-beautify-mobile-layout'] === undefined)
 check('phone adaptation releases its Pocket shadows', !registrations.some(entry => entry.definition.id === 'mobile-nav-overlay'))
 check('phone adaptation leaves the recent strip enabled', registrations.some(entry => entry.definition.id === 'ui-beautify-recent-sessions'))
 setStored({ mobileLayoutEnabled: true, recentSessionsEnabled: false })
+check('re-enabled mobile layout restores settings row reflow scope independently of recent tabs',
+  renderSettingsPage().props['data-beautify-mobile-layout'] === '')
 check('recent switch removes only its own strip', !registrations.some(entry => entry.definition.id === 'ui-beautify-recent-sessions')
   && registrations.some(entry => entry.definition.id === 'mobile-nav-overlay'))
 setStored({ recentSessionsEnabled: true })

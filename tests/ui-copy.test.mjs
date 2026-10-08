@@ -11,6 +11,8 @@ test('enhancement descriptions stay concise without default/disable instructions
     assert.equal('cachePresent' in copy, false)
     assert.equal('cacheHint' in copy, false)
   }
+  assert.match(zh.mobileLayoutDesc, /设置页布局/)
+  assert.match(en.mobileLayoutDesc, /settings layout/)
   assert.match(zh.remoteSettingsDesc, /解决某些配置在手机端不生效问题/)
   assert.equal(zh.namePlaceholder, '当前名称：DeepSeek Harness')
   assert.equal(en.namePlaceholder, 'Current name: DeepSeek Harness')

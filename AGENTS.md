@@ -383,6 +383,8 @@ composer 下方那条带子是**同一条 flex 行**（会话统计胶囊 + 快�
 
 ## 设置弹窗手机布局（2026-10-08）
 
+- 设置弹窗与美化设置行的手机布局统一由 `mobileLayoutEnabled` 控制。`BeautifySection` 订阅同一设置快照，仅开启时添加 `data-beautify-mobile-layout`；`SettingRow.module.css` 的全部 ≤600px 布局／触摸尺寸规则必须以该属性为作用域。唯一例外是 `.desktopOnly` 的快捷回复设置手机隐藏规则，保持始终隐藏。关闭时恢复原控件排列、输入尺寸，重开实时恢复，不增加配置字段或绑定最近对话开关。回归须包括实际开关关→开、美化页与通用页、桌面和原始配置恢复。
+
 - `mobile-layout.css` 在 ≤600px 内仅通过 `data-shortcut-modal='settings'` 定位 body portal 的实际设置壳；用 grid + display:contents 重排为标题／宿主 actions 与关闭按钮、横滑原导航、全宽独立滚动内容。保留宿主组件、slots、焦点管理和权限；不修改 Harness，不复制设置壳。颜色和圆角使用宿主 token；桌面不覆盖。
 - 宿主通用偏好行仅在 `settings.general.item` 内按 CSS module local 后缀覆盖，选择器和描述堆叠，开关并排，三个主题选项同排。插件开关规则必须排除 `.desktopOnly`，避免较高选择器优先级把手机已隐藏的快捷回复设置重新显示。文字输入 16px／44px，避免 iOS 聚焦缩放。
 - `tests/settings-layout.test.mjs` 覆盖样式边界，`tests/settings-layout-browser.test.mjs` 设置 `DSH_SETTINGS_URL` 后验收实际已加载产物，无模拟响应或临时 CSS。已通过当前桌面宿主公开的 3081 入口：320/360/393/430/600px 触摸切换通用／美化分类、无内容横溢、开关、底部输入、浅深色、601/1280px 两栏和关闭／Esc；19387 的隔离浏览器请求为 401，未绕过认证。当前宿主改变 viewport 会重挂设置 owner，空白欢迎页的异步 onboarding 也会关闭设置；测试各宽度冷加载并在手机选择已有已开始会话，不把该行为称为插件 bug 或修改宿主。手机验收可用 `DSH_SETTINGS_SESSION` 指定现有会话标题片段。

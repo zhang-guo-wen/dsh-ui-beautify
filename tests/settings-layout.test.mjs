@@ -25,6 +25,24 @@ test('Pocket file-copy reflow is scoped to changed-file anchor siblings on phone
   assert.match(css, /\[data-changed-files\] \[data-mobile-nav='copy-file'\]:disabled/)
 })
 
+test('every settings row phone override requires the mobile layout switch, except desktop-only visibility', () => {
+  const phoneCss = rowCss.slice(rowCss.indexOf('@media (max-width: 600px)'))
+  const blocks = [...phoneCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+  assert.ok(blocks.length > 1)
+  for (const [, selectors, declarations] of blocks) {
+    if (selectors.trim() === '.desktopOnly') {
+      assert.match(declarations, /display: none/)
+      continue
+    }
+    for (const selector of selectors.split(',')) {
+      assert.ok(selector.trim().startsWith('[data-beautify-mobile-layout] '), selector)
+    }
+  }
+  const source = readFileSync(new URL('../src/client/BeautifySection.tsx', import.meta.url), 'utf8')
+  assert.match(source, /props\.useBeautify\(snapshot => snapshot\.mobileLayoutEnabled\)/)
+  assert.match(source, /data-beautify-mobile-layout=\{mobileLayoutEnabled \? '' : undefined\}/)
+})
+
 test('phone controls preserve readable labels, compact switches and touch-sized inputs', () => {
   assert.match(rowCss, /\.row:not\(\.desktopOnly\):has\(> button\[role='switch'\]\)/)
   assert.match(rowCss, /grid-template-columns: minmax\(0, 1fr\) auto/)

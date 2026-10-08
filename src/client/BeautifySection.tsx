@@ -20,8 +20,9 @@ export type BeautifySectionProps = PropsRuntime<'settings.section'> & PropsLocal
 // to bring it back — the copy, the styles, the `quickReplies` field, and the
 // dock's read of it are all still in place.
 export function BeautifySection(props: BeautifySectionProps): ReactNode {
+  const mobileLayoutEnabled = props.useBeautify(snapshot => snapshot.mobileLayoutEnabled)
   return (
-    <div className={css.page}>
+    <div className={css.page} data-beautify-mobile-layout={mobileLayoutEnabled ? '' : undefined}>
       <h2 className={css.heading}>{props.t('pageTitle')}</h2>
       <p className={css.intro}>{props.t('pageIntro')}</p>
       <h3 className={css.groupTitle}>{props.t('appearanceGroup')}</h3>

@@ -23,7 +23,7 @@ In the plugin list, display names and descriptions follow the Harness language s
 Open **Settings → UI Beautify → Interface enhancements** to control **Back to my latest question**, **Mobile layout**, **Recent conversation switches**, and **Remote settings reads** independently. Each includes a description and is **enabled by default**, including profiles without the new fields.
 
 - Disabling back to my latest question hides the up button; the host down button is unaffected, and re-enabling restores it immediately.
-- Disabling mobile layout removes this plugin’s drawer, spacing, and phone toolbar overrides, restoring the host (and other plugins). Recent tabs have their own switch.
+- Disabling mobile layout removes this plugin’s drawer, spacing, phone toolbar and settings layout overrides, including stacked UI Beautify controls and touch-sized inputs, restoring the original layout. Recent tabs have their own switch; quick replies and their setting remain hidden on phones.
 - Disabling recent conversations removes this plugin’s tabs and styles and restores the host view tabs; it does not disable the phone drawer or change session data. Native host recent strips are unaffected.
 - Change remote settings reads on the local host. Remote pages perform one redacted bootstrap read to learn the switch; when disabled, plugin synchronization and refresh listeners stop and native host reads are restored. Reload remote pages after re-enabling. Remote access remains read-only, without credential access or write permissions.
 
