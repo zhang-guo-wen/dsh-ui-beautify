@@ -387,6 +387,11 @@ composer 下方那条带子是**同一条 flex 行**（会话统计胶囊 + 快�
 - 宿主通用偏好行仅在 `settings.general.item` 内按 CSS module local 后缀覆盖，选择器和描述堆叠，开关并排，三个主题选项同排。插件开关规则必须排除 `.desktopOnly`，避免较高选择器优先级把手机已隐藏的快捷回复设置重新显示。文字输入 16px／44px，避免 iOS 聚焦缩放。
 - `tests/settings-layout.test.mjs` 覆盖样式边界，`tests/settings-layout-browser.test.mjs` 设置 `DSH_SETTINGS_URL` 后验收实际已加载产物，无模拟响应或临时 CSS。已通过当前桌面宿主公开的 3081 入口：320/360/393/430/600px 触摸切换通用／美化分类、无内容横溢、开关、底部输入、浅深色、601/1280px 两栏和关闭／Esc；19387 的隔离浏览器请求为 401，未绕过认证。当前宿主改变 viewport 会重挂设置 owner，空白欢迎页的异步 onboarding 也会关闭设置；测试各宽度冷加载并在手机选择已有已开始会话，不把该行为称为插件 bug 或修改宿主。手机验收可用 `DSH_SETTINGS_SESSION` 指定现有会话标题片段。
 
+## Pocket 文件复制按钮手机布局（2026-10-08）
+
+- Pocket 的远程 file guard 在 HoverCard anchor 内把 `data-mobile-nav='copy-file'` 按钮插在全宽文件行后；旧 Pocket mobile CSS 已停用，因此按钮会换行并显示浏览器默认边框。仅在 `mobile-layout.css` ≤600px 的 `[data-changed-files]` 内，把含直接 copy 子节点的 wrapper 改 flex、原文件按钮设 flex:1/width:0、长路径省略，复制按钮为 44px 触摸区域和宿主 token。不得移节点、复制事件处理器、修改远程 readFile 或开启 Pocket 旧全局 CSS。
+- `tests/file-copy-browser.test.mjs` 通过 `DSH_FILE_COPY_URL`（须为远程 LAN 源）和 `DSH_FILE_COPY_SESSION` 指定已有会话。已在当前实际 100.91.74.34:3081 的 320/393/600px 触摸验证折叠／展开、同排不重叠、增删统计、超长路径；只测布局，未宣称实际复制内容 RPC／剪贴板通过。回归不发送会话消息、不修改原始文件。
+
 ## 功能开关（2026-10-08）
 
 - 设置页「界面增强」使用宿主 Switch 显示 `scrollToPromptEnabled`、`mobileLayoutEnabled`、`recentSessionsEnabled`、`remoteSettingsEnabled`，均为默认 true 的 volatile 字段，中英文描述齐全，手机不隐藏。前三项在组件里收窄行为（回到最近提问的开关见「回到最近提问」一节），远程一项见下。

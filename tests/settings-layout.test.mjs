@@ -16,6 +16,15 @@ test('settings reflow is phone-only and scoped to the actual portaled settings s
   assert.doesNotMatch(css, /body\s*\{|\.wCInkW|\.v01cdW|role='dialog'/)
 })
 
+test('Pocket file-copy reflow is scoped to changed-file anchor siblings on phones', () => {
+  const selector = "[data-changed-files] li > :has(> [data-mobile-nav='copy-file'])"
+  assert.ok(css.indexOf(selector) > css.indexOf('@media (max-width: 600px)'))
+  assert.match(css, /\[data-mobile-nav-copy\] \{\s*flex: 1 1 0;\s*width: 0;/)
+  assert.match(css, /\[data-mobile-nav-copy\] > \[class\*='_path'\]/)
+  assert.match(css, /\[data-changed-files\] \[data-mobile-nav='copy-file'\]:focus-visible/)
+  assert.match(css, /\[data-changed-files\] \[data-mobile-nav='copy-file'\]:disabled/)
+})
+
 test('phone controls preserve readable labels, compact switches and touch-sized inputs', () => {
   assert.match(rowCss, /\.row:not\(\.desktopOnly\):has\(> button\[role='switch'\]\)/)
   assert.match(rowCss, /grid-template-columns: minmax\(0, 1fr\) auto/)

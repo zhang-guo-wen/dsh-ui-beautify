@@ -79,6 +79,59 @@
   [data-mobile-layout-frame][data-sidebar-collapsed]:has([data-mobile-layout-header-toggle]) [data-conversation-header-leading] { margin-left: -8px; margin-right: 8px; }
   [data-mobile-layout-frame][data-sidebar-collapsed] main > :first-child { padding-top: 42px; }
 
+  /* Pocket inserts its remote copy action beside the host's full-width file
+     button inside HoverCard's anchor wrapper. Reflow that wrapper, not the
+     card or its click handlers. Do not affect ordinary links or desktop. */
+  [data-changed-files] li > :has(> [data-mobile-nav='copy-file']) {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    gap: 6px;
+  }
+  [data-changed-files] li > :has(> [data-mobile-nav='copy-file']) > [data-mobile-nav-copy] {
+    flex: 1 1 0;
+    width: 0;
+    min-width: 0;
+    min-height: 44px;
+    padding-right: 6px;
+  }
+  [data-changed-files] [data-mobile-nav-copy] > [class*='_path'] {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  [data-changed-files] [data-mobile-nav='copy-file'] {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-width: 44px;
+    min-height: 44px;
+    margin: 0 12px 0 0;
+    padding: 0 8px;
+    border: 0;
+    border-radius: var(--dsw-radius-sm);
+    background: transparent;
+    color: var(--dsw-alias-label-primary);
+    font: inherit;
+    font-size: 12px;
+    line-height: 18px;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  [data-changed-files] [data-mobile-nav='copy-file']:is(:hover, :active):not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+  [data-changed-files] [data-mobile-nav='copy-file']:focus-visible {
+    outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+    outline-offset: -2px;
+  }
+  [data-changed-files] [data-mobile-nav='copy-file']:disabled { opacity: 0.55; cursor: progress; }
+
   /* The settings dialog portals beside the frame, including on native-mobile
      hosts. Keep its real navigation, slots, focus trap and close paths; only
      reflow this exact shell. No copied host component or translated selectors. */
