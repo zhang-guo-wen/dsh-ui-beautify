@@ -94,10 +94,29 @@ export function QuickReplies({ inputActions, useInput, useBeautify, t }: QuickRe
     const fit = (): number | null => {
       const tags = Array.from(rowElement.children) as HTMLElement[]
       const hidden = css.hidden
+      const tag = css.tag
       // No rendered tag or no hiding rule means there is nothing to price.
       if (tags.length === 0 || hidden === undefined) return null
+      /**
+       * Put the row into exactly the state React renders for this count.
+       *
+       * Both classes, not just the hiding one: React renders a hidden tag with
+       * `.hidden` *alone*, so a tag this exploration brings back would be
+       * missing `.tag` — the class that keeps a pill at its own width. It would
+       * then be squeezed into the box it is measured against, `spills` would
+       * read that squeezed span as "fits", and the answer would depend on what
+       * happened to be rendered instead of on the room there is: rendered-four
+       * answers three, rendered-three answers four, and since every answer
+       * resizes the row the observer fires again and the pair alternates
+       * forever. Restoring the class makes the answer a function of the layout
+       * alone, so measuring is idempotent.
+       */
       const show = (count: number): void => {
-        for (const [at, tag] of tags.entries()) tag.classList.toggle(hidden, at >= count)
+        for (const [at, element] of tags.entries()) {
+          const visible = at < count
+          element.classList.toggle(hidden, !visible)
+          if (tag !== undefined) element.classList.toggle(tag, visible)
+        }
       }
       const spills = (count: number): boolean => {
         const first = tags[0]?.getBoundingClientRect()

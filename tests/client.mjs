@@ -909,52 +909,89 @@ console.log('quick replies keep one line by dropping what does not fit')
 const TAG_WIDTHS = [40, 32, 64, 88]
 const TAG_GAP = 6
 const observersBefore = resizeObservers.length
-renderReplies('replies-fit', 'plain', inputActions)
+const initialTags = renderReplies('replies-fit', 'plain', inputActions)
 const fitObserver = resizeObservers[observersBefore]
 const rowNode = byClass('row')[0].props.ref.current
+/** The class a shown tag carries; the hidden one is whichever else is toggled. */
+const tagClass = String(initialTags[0].props.className)
+const swappedClasses = new Set()
+const hiddenClass = () => [...swappedClasses].find(name => name !== tagClass)
+/** Class names React last rendered, one entry per tag, in order. */
+let rendered = initialTags.map(tag => String(tag.props.className))
 // The tags are host nodes: the row hides them by class, and each one reports
-// where it sits on the line while it is shown.
+// where it sits on the line while it is shown. `.tag` is what holds a pill at
+// its own width (`flex: none` in the stylesheet), so a *shown* tag that has lost
+// the class is squeezed into the box instead — the state that made the old
+// measurement read a squeezed row as "everything fits" and flip answers.
 const tagNodes = TAG_WIDTHS.map((width, at) => {
   const node = {
     width,
-    hidden: false,
-    classList: { toggle: (_name, on) => { node.hidden = on === true } },
+    classes: new Set(),
+    classList: {
+      toggle(name, on) {
+        swappedClasses.add(name)
+        if (on === true) node.classes.add(name)
+        else node.classes.delete(name)
+      },
+    },
   }
+  Object.defineProperty(node, 'hidden', {
+    get: () => node.classes.has(hiddenClass()),
+  })
   node.getBoundingClientRect = () => {
     if (node.hidden) return { left: 0, right: 0 }
     let left = 0
     for (let before = 0; before < at; before += 1) {
-      if (!tagNodes[before].hidden) left += TAG_WIDTHS[before] + TAG_GAP
+      const width = tagNodes[before].hidden ? 0 : TAG_WIDTHS[before]
+      const held = tagNodes[before].classes.has(tagClass) ? width : 0
+      left += held + TAG_GAP
     }
-    return { left, right: left + width }
+    return { left, right: left + (node.classes.has(tagClass) ? width : 0) }
   }
   return node
 })
+/** Put React's last render onto the nodes, the way a commit does. */
+const commit = () => {
+  for (const [at, node] of tagNodes.entries()) {
+    node.classes.clear()
+    for (const name of rendered[at].split(/\s+/)) if (name !== '') node.classes.add(name)
+  }
+}
+/** What React would render for the tags, sorted so the order never matters. */
+const renderClasses = () => rendered.map(name => name.split(/\s+/).filter(Boolean).sort().join(' '))
 const visibleTags = () => tagNodes.filter(node => !node.hidden).length
 rowNode.children = tagNodes
 // The box the line leaves for the row, per visible count, for one scenario.
 let rowBoxes = { 0: 0, 1: 40, 2: 78, 3: 148, 4: 210 }
 rowNode.getBoundingClientRect = () => ({ width: rowBoxes[visibleTags()] ?? 0 })
 const fitsTo = (boxes) => {
+  commit()
   rowBoxes = boxes
   fitObserver.notify()
+  // What the measurement itself wrote, read before React commits on top of it:
+  // the next measurement can run in this window, so this is what it would see.
+  const measured = tagNodes.map(node => [...node.classes].sort().join(' '))
   const tags = renderReplies('replies-fit', 'plain', inputActions)
+  rendered = tags.map(tag => String(tag.props.className))
   const shown = tags.filter(tag => !String(tag.props.className).includes('hidden'))
   return {
     shown: shown.map(tag => tag.props.children).join(','),
     hiddenClass: tags.length - shown.length,
     hiddenNodes: tagNodes.filter(node => node.hidden).length,
+    measured: measured.join('|'),
+    rendered: renderClasses().join('|'),
   }
 }
 const ROOMY = { 0: 0, 1: 40, 2: 78, 3: 148, 4: 300 }
+const OUTGROWN = { 0: 0, 1: 40, 2: 78, 3: 148, 4: 210 }
 check('a line wide enough for every tag keeps all four',
   fitsTo({ 0: 0, 1: 40, 2: 78, 3: 148, 4: 242 }).shown
     === 'quickContinue,quickOk,quickNoUnderstand,quickStatus')
 check('a line the tags outgrow drops the tail',
-  fitsTo({ 0: 0, 1: 40, 2: 78, 3: 148, 4: 210 }).shown === 'quickContinue,quickOk,quickNoUnderstand')
+  fitsTo(OUTGROWN).shown === 'quickContinue,quickOk,quickNoUnderstand')
 check('the tags past the fit stay mounted but hidden',
-  fitsTo({ 0: 0, 1: 40, 2: 78, 3: 148, 4: 210 }).hiddenClass === 1
-    && fitsTo({ 0: 0, 1: 40, 2: 78, 3: 148, 4: 210 }).hiddenNodes === 1)
+  fitsTo(OUTGROWN).hiddenClass === 1
+    && fitsTo(OUTGROWN).hiddenNodes === 1)
 check('a line too narrow for even one tag shows none',
   fitsTo({ 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 }).shown === ''
     && fitsTo({ 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 }).hiddenNodes === 4)
@@ -962,6 +999,20 @@ check('and the whole row comes back when the line widens again',
   fitsTo(ROOMY).shown === 'quickContinue,quickOk,quickNoUnderstand,quickStatus')
 check('the row is a direct child of the line it measures',
   byClass('row').length === 1 && rowNode.parentElement === null)
+
+// The answer has to follow from the room there is, not from what happened to be
+// rendered: a measurement that leaves a brought-back tag without `.tag` measures
+// a squeezed pill, so the following measurement (taken before React's commit, as
+// a resize observer's is) answers differently — and since each answer resizes
+// the row, the two alternate forever. That was the flicker.
+const measuredLeaves = fitsTo(OUTGROWN)
+check('the measurement leaves exactly the classes React renders for its answer',
+  measuredLeaves.measured === measuredLeaves.rendered,
+  `${measuredLeaves.measured} vs ${measuredLeaves.rendered}`)
+const repeated = [fitsTo(OUTGROWN).shown, fitsTo(OUTGROWN).shown, fitsTo(OUTGROWN).shown]
+check('measuring the same line again answers the same',
+  repeated[0] !== '' && repeated.every(shown => shown === repeated[0]),
+  repeated.join(' then '))
 
 console.log('desktop quick-reply toggle')
 check('the page includes only visibility, not phrase editing',
