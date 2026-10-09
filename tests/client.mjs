@@ -188,6 +188,31 @@ Object.defineProperty(globalThis, 'performance', { configurable: true, value: { 
 globalThis.requestAnimationFrame = (callback) => { clock.frame = callback; return 1 }
 globalThis.cancelAnimationFrame = () => { clock.frame = null }
 
+// The PDF compatibility patch wraps these three globals. Node has no Worker of
+// its own and its engine lacks the 2025 typed-array APIs, so this is already the
+// environment the patch exists for: it installs here exactly as it would on a
+// phone, and the stub records what each Worker was built from.
+const workerCreations = []
+const blobUrls = new Map()
+let blobSerial = 0
+URL.createObjectURL = (blob) => {
+  const url = `blob:client-test/${blobSerial++}`
+  blobUrls.set(url, blob)
+  return url
+}
+URL.revokeObjectURL = (url) => { blobUrls.delete(url) }
+// The patch restores whatever it found, which is these two stubs, not Node's own.
+const stubCreateObjectURL = URL.createObjectURL
+const stubRevokeObjectURL = URL.revokeObjectURL
+const NativeWorkerStub = class {
+  constructor(url, options) {
+    this.url = url
+    this.options = options
+    workerCreations.push(this)
+  }
+}
+globalThis.Worker = NativeWorkerStub
+
 const externals = {
   react: { ...reactStub, createElement: record, useMemo: factory => factory(), useSyncExternalStore: (_subscribe, snapshot) => snapshot() },
   'react/jsx-runtime': { jsx: record, jsxs: record, Fragment: 'Fragment' },
@@ -1359,7 +1384,51 @@ if (pageComponents.has('QuickReplyRow')) {
   console.log('the quick-reply settings row (parked: the page does not mount it)')
 }
 
+console.log('the PDF Worker compatibility patch')
+// The Harness builds its PDF Worker from an inline text/javascript Blob and a
+// module Worker; the patch has to recognize exactly that call and nothing else.
+const pdfWorkerSource = 'export const WorkerMessageHandler = {}'
+const pdfBlobUrl = URL.createObjectURL(new Blob([pdfWorkerSource], { type: 'text/javascript' }))
+const pdfWorker = new Worker(pdfBlobUrl, { type: 'module', name: 'dsh-pdf' })
+check(
+  'hands the PDF module Worker a Blob that carries the PDF.js shim',
+  pdfWorker.url !== pdfBlobUrl,
+  `${pdfWorker.url} vs ${pdfBlobUrl}`,
+)
+const patchedWorkerSource = await blobUrls.get(pdfWorker.url).text()
+check(
+  'with the shim in front of the Harness Worker source',
+  patchedWorkerSource.includes('function installPdfApis')
+  && patchedWorkerSource.indexOf('function installPdfApis') < patchedWorkerSource.indexOf(pdfWorkerSource),
+  `length ${patchedWorkerSource.length}`,
+)
+check(
+  'and completes the page realm the Harness font path reads',
+  typeof Uint8Array.prototype.toHex === 'function'
+  && typeof Uint8Array.prototype.toBase64 === 'function'
+  && typeof Uint8Array.fromBase64 === 'function'
+  && typeof Math.sumPrecise === 'function'
+  && typeof Promise.try === 'function'
+  && typeof Map.prototype.getOrInsertComputed === 'function'
+  && typeof WeakMap.prototype.getOrInsertComputed === 'function',
+  [typeof Uint8Array.prototype.toHex, typeof Map.prototype.getOrInsertComputed].join(','),
+)
+const excelBlobUrl = URL.createObjectURL(new Blob(['self.onmessage = () => {}'], { type: 'text/javascript' }))
+new Worker(excelBlobUrl, { name: 'dsh-excel' })
+check('leaves the spreadsheet parser Worker alone', workerCreations.at(-1).url === excelBlobUrl, workerCreations.at(-1).url)
+const imageBlobUrl = URL.createObjectURL(new Blob(['x'], { type: 'image/png' }))
+new Worker(imageBlobUrl, { type: 'module' })
+check('and only ever substitutes JavaScript Blobs', workerCreations.at(-1).url === imageBlobUrl, workerCreations.at(-1).url)
+URL.revokeObjectURL(pdfBlobUrl)
+check('releases the shim Blob with the Blob URL the Harness revokes', !blobUrls.has(pdfWorker.url))
+
 for (const dispose of disposers) dispose()
+check(
+  'the PDF Worker patch releases every global it wrapped',
+  URL.createObjectURL === stubCreateObjectURL && URL.revokeObjectURL === stubRevokeObjectURL
+  && globalThis.Worker === NativeWorkerStub,
+  [URL.createObjectURL === stubCreateObjectURL, globalThis.Worker === NativeWorkerStub].join(','),
+)
 
 if (failures.length > 0) {
   console.error(`\n${failures.length} check(s) failed`)

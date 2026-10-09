@@ -52,6 +52,7 @@ import { applyTagline } from './tagline.ts'
 import { applyMobileLayout } from './mobile-layout.tsx'
 import { installRemoteSettings } from './remote-settings.ts'
 import { applyDescriptionTranslation } from './description-translation.ts'
+import { installPdfWorkerCompat } from './pdf-worker-compat.ts'
 
 export type { LightBeamProps } from './LightBeam.tsx'
 export type { CodeFontRowProps, FontRowProps } from './FontRows.tsx'
@@ -61,6 +62,9 @@ export type { SettingsRowFace, SettingsRowState } from './settings-controller.ts
 export { NS } from './locales.ts'
 // Pure/UI adapter exports let regression tests exercise the installed handoff.
 export { descriptionProjection, translateSkillMenu, installDescriptionAdapters } from './description-adapters.tsx'
+// The PDF Worker patch is exported for the same reason: its shim text has to be
+// checked against a realm that lacks the APIs, not only against the pages here.
+export { installPdfWorkerCompat, pdfWorkerCompatSource } from './pdf-worker-compat.ts'
 
 /** Identity of this plugin's stylesheet links and its theme override layer. */
 const PLUGIN_ID = '@guowenzhang/dsh-ui-beautify'
@@ -109,6 +113,10 @@ export const inject = ['theme', 'slots', 'locale', 'configForms', 'layout', 'rem
  * @param ctx - client cordis context.
  */
 export async function apply(ctx: Context): Promise<void> {
+  // First, before the awaits below: a page that reloaded with a document tab
+  // open can mount the PDF body while this body is still waiting on the remote
+  // settings read, and the Worker is built the moment a document opens.
+  ctx.effect(() => installPdfWorkerCompat(), 'ui-beautify: PDF Worker compatibility')
   const remoteSettings = installRemoteSettings(ctx)
   if (remoteSettings) {
     ctx.effect(() => () => { remoteSettings.dispose() }, 'ui-beautify: remote settings reads')

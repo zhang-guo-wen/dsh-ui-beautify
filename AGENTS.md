@@ -403,6 +403,16 @@ composer 下方那条带子是**同一条 flex 行**（会话统计胶囊 + 快�
 - 远程只读安全边界不变；通过一次脱敏 describe 启动读取获知开关，false 时释放桥接与监听并通知已缓存表单消费者重读宿主快照。远程端在本机开关重新开启后需刷新页面，不保留后台轮询来绕过关闭。本机表单从不装饰。
 - `tests/feature-switch.test.mjs` 覆盖冷加载 false、旧配置默认开启、独立生命周期、恢复和清理；构建产物客户端测试覆盖各行控件／写入／缺字段／只读及插槽停用恢复；远程测试覆盖初始关闭与设置事件关闭后的方法、监听器和快照恢复。
 
+## PDF/Office 预览手机兼容补丁（2026-10-09）
+
+- **问题不在转换，在渲染**：宿主把 pptx/docx 转成 PDF 是成功的，失败发生在浏览器渲染 PDF 的第一步。Harness 打包的是 PDF.js 6 的**默认构建**，它调用一组最新 API 且**全都没有特性检测**：`Uint8Array.prototype.toHex`（每次加载都算 `fingerprints`）、`toBase64`/`fromBase64`（字体与 base64 传输编码）、`Math.sumPrecise`（字体字节数）、`Promise.try`（Worker 消息处理）、`Map`/`WeakMap.prototype.getOrInsertComputed`（`WorkerTransport#cacheSimpleMethod`，在加载路径上，`getMetadata` 等都会走）、`URL.parse`（链接与 fetch URL 检查）。缺任何一个的浏览器（移动 Safari、旧 Chrome/WebView）都会对**每一份 PDF** 报错，界面显示「无法显示 PDF：…」；Office 预览走同一条链路，所以 pptx 也一并失效。桌面 Chrome 版本新，只在手机上复现——这就是它看起来像「pptx 打不开」的原因。
+- **这一组是一次补完的，不是一轮补一个**：第一轮只按报错补了 `toHex` 一类，手机随即在 `getOrInsertComputed` 上报第二次错；扫过 pdf.js 两个构建里全部「新 API 调用」后才把整组补上。改这个文件时若要收窄范围，必须先重跑下面的端到端命令，而不是只看当前报错。
+- **插件改注入点，不改 Harness**：Worker 源码内联在 Harness 的 bundle 里，插件唯一的接触点是它交给 `URL.createObjectURL` 的那个 Blob。`src/client/pdf-worker-compat.ts` 记住脚本类型的 Blob，在 Harness 用 `new Worker(url, { type: 'module', name: 'dsh-pdf' })` 建 Worker 时改交一个把补丁源码前置的 Blob。判据是「**模块** Worker + 脚本 Blob」，不是 Worker 名字：名字改了补丁仍生效；excel（`dsh-excel`）与 file-upload 的 Worker 不是模块 Worker，保持原样。
+- **一个函数，两个 realm**：`installPdfApis` 只写缺失的方法（已有实现一律不覆盖），页面半边直接调用，Worker 半边把 `installPdfApis.toString()` 拼进 Blob 文本——所以它必须自包含，不引用模块作用域的任何值；改它等于同时改两个 realm。页面与 Worker 同一引擎，所以只探测页面这一侧就够。
+- **门槛看 realm 的出生状态，不看当前状态**：第一次安装把「这个引擎天生缺这些 API」记在 realm 上（`Symbol.for` 标记，见 `MISSING_MARKER`）。只看当前状态会漏：插件重载时页面已被上一个实例补过，再按现状判断就会以为浏览器是新的，于是不再挂 Worker 补丁，PDF 又报同样的错。现代浏览器（整组 API 齐全且从未被标记）一个全局都不动。
+- **与 Harness 的耦合是明说出来的**：补丁认的是「`text/javascript`/`application/javascript` Blob + `{ type: 'module' }` 的 `new Worker`」。Harness 换 PDF 引擎、改成非内联 Worker、或改掉模块 Worker 的建法，补丁会静默失效（退回报错，不会更坏）；Harness 自己换到 `legacy/` 构建或补上特性检测后，这个文件可以整体删掉。
+- 验证：`tests/pdf-worker-compat.test.mjs` 拿**构建产物里的**补丁源码在删掉这些 API 的 `node:vm` realm 里跑——toHex、base64 往返与 padding、`Math.sumPrecise` 的补偿求和、`Promise.try` 的 then／catch、Map/WeakMap 两个 upsert（含「回调抛错不入表」「回调收到 key」）、`URL.parse` 的 null 语义、已有实现不被覆盖、Worker 替换与 Blob 释放、二次安装与 dispose 后重装；`tests/client.mjs` 断言 `apply()` 真的装了它、只动 PDF 那个模块 Worker、释放后还原三个全局。另有一次性端到端复核（`.scratch/ui-beautify-e2e-probe.mjs`）：在删掉整组 API 的环境里，用**未修改的** Harness 现代 Worker + 主构建、经真实 Worker 线程**加载并渲染**真实 PDF 成功（`numPages`、指纹、`getMetadata`、`getTextContent`、canvas 像素全部通过）；不前置补丁时同一环境报 `hashOriginal.toHex is not a function`。
+
 ## 构建
 
 ```sh
@@ -664,6 +674,9 @@ Get-ChildItem "$env:USERPROFILE\.dsh\cache\ui-beautify\fonts" -Recurse -File | S
 16. 把车道位置按**像素**记而不是按行程比例记 → 车道一变窄就提前取模，车凭空跳回左边，看起来像「重置」。
 17. 把动画状态放进 effect 闭包而不是 ref → effect 一重跑，车就从起点重新出发。
 18. `MAX_QUICK_REPLIES` 与 `QUICK_REPLY_PHRASE_KEYS` 的条数不一致 → 设置行按字典渲染标签（再按常量截断），槽位模型按常量裁剪：字典比常量**少**时后面那几个槽位在界面上没有标签，用户改不到，也不会有报错。加短语时两处一起改。
+19. 把 PDF 补丁的安装门槛写成「当前 realm 缺这些 API」→ 插件重载后页面已被上一个实例补过，于是以为浏览器是新的，不再挂 Worker 补丁，手机上的 PDF/Office 预览又报 `toHex`。门槛必须看 realm 的出生标记（`MISSING_MARKER`）。
+20. 把替换条件放宽到「所有脚本 Blob」或「所有 Worker」→ excel 与 file-upload 的 Worker 也用小写 `text/javascript`，会被前置一段与它们无关的代码；保持「`{ type: 'module' }` 的 `new Worker`」这一条，`tests/pdf-worker-compat.test.mjs` 与 `tests/client.mjs` 都有对应断言。
+21. 在 `installPdfApis` 里引用模块作用域的变量或常量 → 页面半边正常，Worker 半边（只有 `toString()` 的文本）直接 ReferenceError，而这只在缺少这些 API 的浏览器上出现，桌面测不出来。
 
 ## 接下来可以加的
 
@@ -677,3 +690,11 @@ Get-ChildItem "$env:USERPROFILE\.dsh\cache\ui-beautify\fonts" -Recurse -File | S
 - **车道可调速度**：加第二个 `z.number().volatile()` 字段做倍率即可，`SettingsController` 与 `MotionRow` 的写法可以照抄。
 - **把快捷回复的设置行挂回来**：`QuickReplyRow.tsx`（4 个槽位标签、点开就地编辑）、它的文案与样式、`quickReplies` 字段与 dock 的读取、以及 `tests/client.mjs` 里那 24 条断言都还在仓库里；`BeautifySection` 加一行 `<QuickReplyRow {...props} />`（连 import）即恢复，测试块由 `pageComponents.has('QuickReplyRow')` 守卫、会自动重跑。呈现方式想好了再挂。
 - PC 端快捷回复显示开关已实现（`quickRepliesEnabled`），手机始终隐藏；四条全空仍是「用内置短语」，与显示开关独立。
+
+## README 截图（2026-10-09）
+
+- 双语 README 仅保留背景、npm 安装、截图、许可。设置页三个分组 `settings-appearance` / `settings-enhance` / `settings-branding` 用一个三列表格放在同一行；手机对话与设置各用一张合成前后对比图，编号框和图下注释标注区别。`mobile-conversation-comparison.{zh,en}.png` / `mobile-settings-comparison.{zh,en}.png` 分别提供中英文标注，底图界面均为中文。
+- 截图只能使用独立 `DSH_HOME` 的 npm 发布版宿主，禁止改日常实例设置。本轮 npm 精确版本 `0.2.0-rc.2`（查询时 latest=next），随机端口 64769，命名空间 `C:/02-codespace/DeepSeek/.scratch/harness-tests/readme-0.2.0-rc.2-20261009-0905`。演示会话内容为人工准备的截图数据，不复制真实会话或凭据，也不调用模型；不是翻译端到端验收。
+- 设置分组在 1440px 宽视口截图：增加截图视口高度、将设置壳及有裁剪的祖先改为 `overflow: visible` / `height: auto`，再按 `h3` 临时分组截图；仅截图浏览器做这种处理，不修改产品 CSS。必须读图确认品牌分组四项都没有裁掉。两张近景及抽屉、深色设置原图也重新截取，但精简 README 不单独展示。
+- 手机原图采用同一个已开始的演示会话、393×844 视口。对话「适配前」关闭 `mobileLayoutEnabled` 与 `recentSessionsEnabled`，「适配后」两者开启；设置对比仅比较手机适配，最近对话不影响设置。开关会写入测试 profile：点击后必须等待真实 `aria-checked` 和设置壳 flex/grid 变化，再截图，不能将点击后旧帧误作新状态；结束恢复 true。标注用 Pillow 合成，不生成或修改底图内容。
+- 原图 `mobile-before` / `mobile-after` / `mobile-settings-before` / `mobile-settings-light` 用于重新合成；`tests/settings-layout-browser.test.mjs` 在设置 `DSH_SETTINGS_URL` 时仍会重写 `mobile-settings-light|dark.png`，之后需要重新合成对比图以保持一致。
