@@ -1,7 +1,7 @@
 {
   "name": "@guowenzhang/dsh-ui-beautify",
   "description": "UI beautification for DeepSeek Harness: body and code fonts, composer motion, and uploaded branding images",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "type": "module",
   "license": "Apache-2.0",
   "publishConfig": {
