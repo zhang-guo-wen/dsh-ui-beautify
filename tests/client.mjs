@@ -1243,10 +1243,23 @@ check('the row spans the transcript\'s message column and divides with one hairl
   && /\.chip\s*\{[^}]*background:\s*var\(--dsw-alias-bg-base\)/.test(chipCss)
   && !/\.chip\s*\{[^}]*border-radius/.test(chipCss)
   && !/\.chip\s*\{[^}]*box-shadow/.test(chipCss))
-check('the line reads in the darker label tier and deepens on hover',
-  /\.chip\s*\{[^}]*color:\s*var\(--dsw-alias-label-secondary\)/.test(chipCss)
+check('the line reads two label tiers under body text and reaches primary on hover',
+  /\.chip\s*\{[^}]*color:\s*var\(--dsw-alias-label-primary-dimmed\)/.test(chipCss)
   && /\.chip:hover\s*\{[^}]*color:\s*var\(--dsw-alias-label-primary\)/.test(chipCss)
+  && !chipCss.includes('--dsw-alias-label-secondary')
   && !chipCss.includes('--dsw-alias-label-tertiary'))
+const chipBlock = /\.chip\s*\{([^}]*)\}/.exec(chipCss)?.[1] ?? ''
+check('the floating line is bold, declared after the font shorthand that would reset it',
+  chipBlock.search(/font:\s*inherit/) !== -1
+  && chipBlock.search(/font:\s*inherit/) < chipBlock.search(/font-weight:\s*600/))
+check('the marker hugs the right end of a full-width row, not a shrunk box',
+  chipBlock.search(/justify-content:\s*flex-end/) !== -1
+  && /\.chip\s*\{[^}]*width:\s*min\(var\(--dsh-chat-content-width/.test(chipCss))
+check('the line centres in the row\'s own height instead of above a bottom pad',
+  /align-items:\s*center/.test(chipBlock)
+  && /height:\s*calc\(33px \+ var\(--dsh-content-font-delta/.test(chipBlock)
+  && /padding:\s*0(;|\s*$)/.test(chipBlock)
+  && !/padding-bottom/.test(chipBlock))
 check('the hover preview is gone from the stylesheet entirely', !chipCss.includes('preview'))
 conversationDom.content = null
 conversationDom.content = null

@@ -18,23 +18,41 @@
 }
 
 /* No box: the row mirrors the host's own collapsed turn-process line — one
-   muted line of text with a hairline beneath it. The page-colored backdrop is
-   only what keeps the floating row readable over the transcript it covers. */
+   line of text with a hairline beneath it. The page-colored backdrop is only
+   what keeps the floating row readable over the transcript it covers. */
 .chip {
   box-sizing: border-box;
   display: flex;
   align-items: center;
+  /* The marker sits at the right end of the message column: the chevron and
+     the opening line read as one group against the row's right edge. The row
+     itself still spans the transcript width, hairline included. */
+  justify-content: flex-end;
   gap: 6px;
   width: min(var(--dsh-chat-content-width, 100%), 100%);
   min-width: 0;
   height: calc(33px + var(--dsh-content-font-delta, 0px));
-  padding: 0 0 8px;
+  /* The line centres in the row's own height. The host's folded row carries an
+     8px bottom pad instead — it is inline, where the pad just keeps the label
+     off the hairline; here the row floats, so the same pad shifts the text 4px
+     above the row's middle and the gap under the text reads twice the gap over
+     it. Vertical padding stays symmetric (none) and `align-items` does the
+     centring. */
+  padding: 0;
   border: none;
   border-bottom: 0.5px solid var(--dsw-alias-border-l2);
   background: var(--dsw-alias-bg-base);
-  color: var(--dsw-alias-label-secondary);
+  /* Deeper than the host's own folded line, which rests on tertiary and only
+     reaches secondary on hover: the user twice asked for this floating row to
+     read more strongly, so it rests just under full body text and reaches
+     primary on hover. */
+  color: var(--dsw-alias-label-primary-dimmed);
   font: inherit;
   font-size: var(--dsh-content-font-size, 14px);
+  /* Bold as well as deeper: colour alone still read as a whisper on the
+     transcript, so the row carries the emphasis in its weight too. Declared
+     after `font` — the shorthand would reset it to the inherited 400. */
+  font-weight: 600;
   text-align: left;
   cursor: pointer;
   pointer-events: auto;
