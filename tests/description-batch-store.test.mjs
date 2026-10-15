@@ -209,7 +209,7 @@ for (const cancellation of ['abort', 'timeout']) {
     assert.deepEqual(statuses(retry), entries.map(() => 'translated'))
     assert.equal(calls, 2)
     assert.equal((await jsonFiles(store)).length, entries.length)
-    assert.ok((await readdir(store.recordDir)).every(name => name.endsWith('.json')))
+    assert.ok((await readdir(store.recordDir)).every(name => name.endsWith('.json') || name.includes('.lock.retired-')))
   })
 }
 
@@ -286,5 +286,5 @@ test('independent processes acquire reverse-order batch locks without duplicate 
   for (const e of entries) {
     assert.deepEqual(batches[0].results.find(result => result.entry.id === e.id).record, batches[1].results.find(result => result.entry.id === e.id).record)
   }
-  assert.equal((await readdir(join(dataDir, 'description-translations', 'v1'))).length, entries.length)
+  assert.equal((await readdir(join(dataDir, 'description-translations', 'v1'))).filter(name => !name.includes('.lock.retired-')).length, entries.length)
 })

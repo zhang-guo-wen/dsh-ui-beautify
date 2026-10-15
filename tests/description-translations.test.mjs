@@ -91,7 +91,7 @@ test('lookup never generates or creates directories; successful records survive 
   assert.deepEqual(result(await restarted.lookup([original], 'zh-CN')).record, translated.record)
   assert.equal(result(await restarted.translate([original], 'zh-CN')).status, 'cached')
   assert.equal(await readFile(originalFile, 'utf8'), original.source)
-  const files = await readdir(s.recordDir)
+  const files = (await readdir(s.recordDir)).filter(name => !name.includes('.lock.retired-'))
   assert.deepEqual(files, [`${descriptionTranslationKey(original, 'zh-CN')}.json`])
   assert.deepEqual(JSON.parse(await readFile(join(s.recordDir, files[0]), 'utf8')), translated.record)
 })
@@ -124,7 +124,7 @@ test('changed source, kind, id and language each get separate reusable records',
   assert.equal(calls, 5)
   assert.ok((await s.translate(entries, 'fr')).results.every(r => r.status === 'cached'))
   assert.equal(calls, 5)
-  assert.equal((await readdir(s.recordDir)).length, 5)
+  assert.equal(((await readdir(s.recordDir)).filter(name => !name.includes('.lock.retired-'))).length, 5)
 })
 
 test('duplicates and concurrent requests across instances single-flight once per key', async () => {
@@ -163,7 +163,7 @@ test('generator failures and invalid outputs are not cached; batch preserves par
   assert.ok(batch.results.slice(1, -1).every(r => r.status === 'error' && r.error.code === 'invalid-output'))
   assert.equal(batch.results.at(-1).error.code, 'generation-failed')
   assert.doesNotMatch(JSON.stringify(batch), /secret credential/u)
-  assert.equal((await readdir(s.recordDir)).length, 1)
+  assert.equal(((await readdir(s.recordDir)).filter(name => !name.includes('.lock.retired-'))).length, 1)
   assert.ok((await s.lookup(entries.slice(1), 'en')).results.every(r => r.status === 'missing'))
   valid = true
   const retry = await s.translate(entries, 'en')
@@ -256,7 +256,7 @@ test('corrupt, oversized and mismatched disk records are misses and repairable w
     assert.equal(result(await s.lookup([e], 'en')).status, 'missing')
   }
   assert.equal(result(await s.translate([e], 'en')).status, 'translated')
-  assert.equal((await readdir(s.recordDir)).filter(name => name.endsWith('.tmp')).length, 0)
+  assert.equal(((await readdir(s.recordDir)).filter(name => !name.includes('.lock.retired-'))).filter(name => name.endsWith('.tmp')).length, 0)
 })
 
 test('storage errors return partial error metadata and constructor rejects unbounded options', async () => {

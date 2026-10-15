@@ -420,72 +420,122 @@ export class DescriptionTranslationStore {
     return target
   }
 
-  /** Remove only our exact token, never recursively delete a lock or unknown files. */
-  private async releaseRecordLock(target: string, owner: string): Promise<void> {
-    if (dirname(target) !== this.recordDir || !target.endsWith('.lock') || !LOCK_OWNER_PATTERN.test(owner)) throw new Error('Invalid lock path')
-    if (!(await lstat(target)).isDirectory()) throw new Error('Invalid lock directory')
-    const marker = join(target, owner)
-    if (dirname(marker) !== target) throw new Error('Invalid lock owner path')
+  /** Unknown, empty, malformed and symlink locks are never candidates for recovery. */
+  private async recordLockOwner(target: string): Promise<string | undefined> {
     try {
-      await unlink(marker)
+      if (!(await lstat(target)).isDirectory()) return undefined
+      const files = await readdir(target)
+      if (files.length !== 1 || !LOCK_OWNER_PATTERN.test(files[0]!)) return undefined
+      const marker = await lstat(join(target, files[0]!))
+      return marker.isFile() && marker.size === 0 ? files[0] : undefined
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
       throw error
     }
-    // Only the process that successfully removed the token may remove this directory.
-    // A second stale observer must not remove a newly acquired (temporarily empty) lock.
-    await rmdir(target).catch(error => {
-      if (!['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error
-    })
+  }
+
+  private deadLockOwner(owner: string): boolean {
+    const pid = Number(LOCK_OWNER_PATTERN.exec(owner)?.[1])
+    if (!Number.isSafeInteger(pid) || pid < 1 || pid > 2_147_483_647) return false
+    try {
+      process.kill(pid, 0)
+      return false // Live, including PID reuse. Age is never proof of death.
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === 'ESRCH'
+    }
+  }
+
+  /**
+   * Rename, NOT unlink, is the single-winner primitive. The destination is derived
+   * from the observed generation and stays nonempty forever: even a paused observer
+   * cannot rename a successor over it (ABA). Never clean these fences while hosts run.
+   * Both release and recovery use the SAME destination, including live-owner release.
+   */
+  private async retireRecordLock(target: string, owner: string, deadOnly: boolean): Promise<void> {
+    if (dirname(target) !== this.recordDir || !/^[a-f0-9]{64}\.lock$/u.test(target.slice(this.recordDir.length + 1)) || !LOCK_OWNER_PATTERN.test(owner)) throw new Error('Invalid lock path')
+    const retired = `${target}.retired-${owner}`
+    for (let attempt = 0; ; attempt++) {
+      // Repeat the token and death checks on EVERY transient retry.
+      if (await this.recordLockOwner(target) !== owner || (deadOnly && !this.deadLockOwner(owner))) return
+      try {
+        await rename(target, retired)
+        return
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code ?? ''
+        if (code === 'ENOENT' || ['ENOTEMPTY', 'EEXIST'].includes(code)) return
+        // Windows may report an existing nonempty destination as EPERM/EACCES.
+        // The fence is evidence another observer already retired this generation.
+        if (await this.recordLockOwner(retired) === owner) return
+        if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'EBUSY'].includes(code) || attempt >= 4) throw error
+        await new Promise(resolve => setTimeout(resolve, LOCK_POLL_MS))
+      }
+    }
+  }
+
+  private async releaseRecordLock(target: string, owner: string): Promise<void> {
+    await this.retireRecordLock(target, owner, false)
   }
 
   private async recoverDeadRecordLock(target: string): Promise<void> {
-    try {
-      if (!(await lstat(target)).isDirectory()) return
-      const files = await readdir(target)
-      if (files.length !== 1) return
-      const match = LOCK_OWNER_PATTERN.exec(files[0]!)
-      if (!match) return
-      const pid = Number(match[1])
-      if (!Number.isSafeInteger(pid) || pid > 2_147_483_647) return
-      const marker = await lstat(join(target, files[0]!))
-      if (!marker.isFile() || marker.size !== 0) return
-      try {
-        process.kill(pid, 0)
-        return // Live (including PID reuse): never steal its lock, regardless of age.
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ESRCH') return // EPERM is not proof of death.
-      }
-      await this.releaseRecordLock(target, files[0]!)
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    }
+    const owner = await this.recordLockOwner(target)
+    if (owner && this.deadLockOwner(owner)) await this.retireRecordLock(target, owner, true)
   }
 
   private async acquireRecordLock(key: string, signal: AbortSignal, deadline: number): Promise<() => Promise<void>> {
     const target = this.lockPath(key)
-    // PID + UUID live in the exclusively created filename; there is no partially written metadata.
     const owner = `${process.pid}.${randomUUID()}.owner`
+    // Initialize off-path, then publish the complete nonempty directory atomically.
+    // A crash before publication leaves only an inert candidate, never an empty lock.
+    const candidate = `${target}.candidate-${owner}`
     await mkdir(this.recordDir, { recursive: true })
-    while (true) {
-      checkDeadline(signal, deadline)
-      try {
-        await mkdir(target, { mode: 0o700 })
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-        await this.recoverDeadRecordLock(target)
-        await waitForLock(signal, deadline)
-        continue
-      }
-      // If token creation fails, retain the incomplete lock: without an owned token
-      // cleanup cannot safely distinguish it from a directory replaced by another actor.
-      const handle = await open(join(target, owner), 'wx', 0o600)
+    await mkdir(candidate, { mode: 0o700 })
+    let published = false
+    try {
+      const handle = await open(join(candidate, owner), 'wx', 0o600)
       await handle.close()
-      let released = false
-      return async () => {
-        if (released) return
-        released = true
-        await this.releaseRecordLock(target, owner)
+      let transientAttempts = 0
+      while (true) {
+        checkDeadline(signal, deadline)
+        let exists = true
+        try { await lstat(target) } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+          exists = false
+        }
+        if (exists) {
+          await this.recoverDeadRecordLock(target)
+          await waitForLock(signal, deadline)
+          continue
+        }
+        try {
+          // All participating writers publish nonempty directories; rename cannot
+          // replace them. Pre-existing empty/unknown legacy locks stay untouched above.
+          await rename(candidate, target)
+          published = true
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code ?? ''
+          if (!['EEXIST', 'ENOTEMPTY'].includes(code)) {
+            if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'EBUSY'].includes(code) || transientAttempts++ >= 4) throw error
+          }
+          await waitForLock(signal, deadline)
+          continue
+        }
+        let released = false
+        return async () => {
+          if (released) return
+          released = true
+          await this.releaseRecordLock(target, owner)
+        }
+      }
+    } finally {
+      if (!published) {
+        // Only this invocation knows this UUID; no other actor cleans candidates.
+        // Never recursively remove anything, even here.
+        await unlink(join(candidate, owner)).catch(error => {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        })
+        await rmdir(candidate).catch(error => {
+          if (!['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error
+        })
       }
     }
   }

@@ -1,18 +1,42 @@
-/* Recent tabs own their styles independently of phone drawer adaptation. */
+/* Recent tabs own their styles independently of code view and phone adaptation. */
 [data-ui-beautify-recent-anchor] { display: none; }
 [data-ui-beautify-recent-tabs] { align-items: stretch; gap: 24px !important; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-[data-ui-beautify-recent-tabs]::-webkit-scrollbar { display: none; }
+[data-ui-beautify-recent-tabs]::-webkit-scrollbar,
+[data-ui-beautify-recent]::-webkit-scrollbar { display: none; }
 [data-ui-beautify-recent] { min-width: 0; flex: none; }
+header > [data-ui-beautify-recent] { grid-column: 1 / -1; margin-top: 10px; padding-left: 8px; overflow-x: auto; scrollbar-width: none; }
 [data-ui-beautify-recent]:empty { display: none; }
 [data-mobile-recent-sessions] { display: flex; align-items: stretch; gap: 20px; min-width: 0; width: max-content; }
-/* The host's actual tab/tabActive classes own typography, color and underline. */
-[data-mobile-recent-sessions] button { flex: none; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+[data-mobile-recent-sessions] button {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 0 9px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--dsw-font-family, inherit);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+[data-mobile-recent-sessions] button::after { content: ''; position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: transparent; }
+[data-mobile-recent-sessions] button[aria-current='page'] { color: var(--dsw-alias-state-business-primary); }
+[data-mobile-recent-sessions] button[aria-current='page']::after { background: var(--dsw-alias-state-business-primary); }
+[data-mobile-recent-sessions] button:hover { background: var(--dsw-alias-interactive-bg-hover); }
 [data-recent-session-title] { max-width: 5em; overflow: hidden; text-overflow: ellipsis; }
 [data-recent-session-status] { display: inline-flex; align-items: center; flex: none; }
 [data-mobile-recent-sessions] button:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: -2px; }
 @media (max-width: 600px) {
   [data-ui-beautify-recent-tabs] > button[role='tab'] { display: none; }
   [data-ui-beautify-recent-tabs] { padding-left: 0 !important; gap: 0 !important; }
-  [data-ui-beautify-recent] { min-width: 100%; margin-top: 0; }
+  [data-ui-beautify-recent] { min-width: 100%; }
+  header > [data-ui-beautify-recent] { padding-left: 0; }
   [data-mobile-recent-sessions] { gap: 16px; }
 }

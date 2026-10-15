@@ -20,6 +20,16 @@ npx @deepseek-ai/dsh plugin --profile web add @guowenzhang/dsh-ui-beautify
 
 Restart the corresponding host and reload the browser, then open **Settings → UI Beautify**. Click **Translate descriptions** to generate translations; this uses the default model's quota, caches results, and leaves original files unchanged.
 
+Translations sharing the same local data directory are deduplicated across host processes, including recovery after an owner exits. Unknown locks are preserved rather than deleted. Recovery retains small generation-marker directories to prevent stale processes from taking a newer lock; do not clean these markers while any host is running.
+
+## Recent conversations
+
+Recent conversations have their own switch in **Settings → UI Beautify** and do not require the code work view or mobile adaptation. The strip shows up to five eligible conversations in activity order; selecting one does not reorder it. Tabs use the host theme tokens in light and dark mode, including when the host has no conversation/trace tab bar.
+
+Enabling or disabling the code work view moves the same strip into or out of the host tab bar. Without that bar, the strip spans the header width and scrolls horizontally when needed. Desktop conversation/trace tabs remain available; at widths of 600px or less, only the recent tabs are shown in that bar. A host-native recent strip takes precedence. Disabling recent conversations or unloading the plugin removes its strip and restores the host tabs.
+
+For development, `npm run test:recent` runs catalog/status tests and a real Chrome/React fixture at 1200, 601, 600 and 393px, including delayed tab bars, removal/reappearance, session navigation and cleanup. It uses the existing desktop-profile Playwright installation and local Chrome; set `DSH_MOBILE_PLAYWRIGHT` and `DSH_MOBILE_CHROME` to use other installations. It does not launch or change a running DSH host.
+
 ## Screenshots
 
 ### 1. Settings

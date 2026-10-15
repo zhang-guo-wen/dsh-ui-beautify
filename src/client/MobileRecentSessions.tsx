@@ -8,7 +8,6 @@ import { recentSessionStatus, type RecentSessionStatuses, type RecentStatusKind 
 import { NS } from './locales.ts'
 
 interface RecentWorkspaceSnapshot { archivedSessionIds: readonly string[]; phase?: string }
-interface HostTabStyle { target: HTMLElement; tab: string; active: string }
 
 const statusPresentation = {
   approval: ['warning', 'mobileStatusApproval'],
@@ -20,7 +19,7 @@ const statusPresentation = {
   idle: ['idle', 'mobileStatusIdle'],
 } as const satisfies Record<RecentStatusKind, readonly [StateDotState, string]>
 
-/** Reuse the host catalog, archive/status snapshots, tab styles and session navigation. */
+/** Reuse host session data/navigation; keep recent tabs styled without a code-view tab bar. */
 export function MobileRecentSessions({ sessionId, useSessions, useSessionStatus, useWorkspaces, openSession, t }:
   PropsLocale<typeof NS> & { sessionId: string; openSession: (id: string) => void;
     useSessions<T>(selector: (list: RecentSessionList) => T, equal?: (left: T, right: T) => boolean): T;
@@ -32,30 +31,44 @@ export function MobileRecentSessions({ sessionId, useSessions, useSessionStatus,
   const statuses = useSessionStatus(state => state)
   const rows = deriveRecentSessions(list, sessionId, archives)
   const anchor = useRef<HTMLSpanElement>(null)
-  const [style, setStyle] = useState<HostTabStyle | null>(null)
+  const [target, setTarget] = useState<HTMLElement | null>(null)
+  const hasRows = rows.length > 0
   useLayoutEffect(() => {
     const header = anchor.current?.closest('header')
-    if (!header || header.querySelector('[class*="_recentSessions"]')) return
-    const tabs = header.querySelector<HTMLElement>('[data-conversation-tabs]')
-    const hostTabs = Array.from(tabs?.querySelectorAll<HTMLButtonElement>(':scope > button[role="tab"]') ?? [])
-    const tab = hostTabs.flatMap(node => Array.from(node.classList)).find(name => name.endsWith('_tab')) ?? ''
-    const active = hostTabs.flatMap(node => Array.from(node.classList)).find(name => name.endsWith('_tabActive')) ?? ''
+    if (!header || !hasRows) { setTarget(null); return }
     const node = document.createElement('div')
     node.dataset.uiBeautifyRecent = ''
-    if (tabs) {
-      tabs.setAttribute('data-ui-beautify-recent-tabs', '')
-      tabs.appendChild(node)
-    } else header.appendChild(node)
-    setStyle({ target: node, tab, active })
-    return () => { node.remove(); tabs?.removeAttribute('data-ui-beautify-recent-tabs') }
-  }, [])
-  return <><span ref={anchor} data-ui-beautify-recent-anchor="" />{style && rows.length > 0 && createPortal(
+    let tabs: HTMLElement | null = null
+    const sync = (): void => {
+      const native = header.querySelector('[class*="_recentSessions"]')
+      const nextTabs = native ? null : header.querySelector<HTMLElement>('[data-conversation-tabs]')
+      if (tabs !== nextTabs) {
+        tabs?.removeAttribute('data-ui-beautify-recent-tabs')
+        tabs = nextTabs
+        tabs?.setAttribute('data-ui-beautify-recent-tabs', '')
+      }
+      if (native) { node.remove(); return }
+      // Move the same portal when the optional host tab bar mounts or disappears.
+      const parent = tabs ?? header
+      if (node.parentElement !== parent) parent.appendChild(node)
+    }
+    sync()
+    setTarget(node)
+    const observer = new MutationObserver(sync)
+    observer.observe(header, { childList: true, subtree: true })
+    return () => {
+      observer.disconnect()
+      node.remove()
+      tabs?.removeAttribute('data-ui-beautify-recent-tabs')
+    }
+  }, [hasRows])
+  return <><span ref={anchor} data-ui-beautify-recent-anchor="" />{target && hasRows && createPortal(
     <nav aria-label={t('mobileRecent')} data-mobile-recent-sessions="">
       {rows.map(row => {
         const kind = recentSessionStatus(row, list, statuses)
         const [state, labelKey] = statusPresentation[kind]
         const label = t(labelKey)
-        return <button key={row.id} type="button" className={`${style.tab} ${row.id === sessionId ? style.active : ''}`}
+        return <button key={row.id} type="button"
           title={`${row.displayTitle} · ${label}`} data-recent-session-id={row.id} data-recent-status={kind}
           aria-label={`${t('mobileSwitch', { title: row.displayTitle })} · ${label}`}
           aria-current={row.id === sessionId ? 'page' : undefined}
@@ -64,5 +77,5 @@ export function MobileRecentSessions({ sessionId, useSessions, useSessionStatus,
           <span data-recent-session-title="">{recentTitle(row.displayTitle)}</span>
         </button>
       })}
-    </nav>, style.target)}</>
+    </nav>, target)}</>
 }
