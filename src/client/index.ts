@@ -17,6 +17,9 @@
  *    user's own text once they have customized the row.
  * 4. **The light beam** reports actual output speed in a fixed 1px strip.
  *    Its default-on settings switch controls whether it can play.
+ * 5. **The conversation-start chip** floats at the transcript's top edge and
+ *    previews the round the reader is inside; its own switch controls it, and
+ *    the up button walks back through earlier rounds one press at a time.
  *
  * Only the chosen faces' stylesheets are linked, so the browser never fetches
  * the shard layout of a face the user is not using. The files behind them are
@@ -47,6 +50,7 @@ import { applyBranding } from './branding.tsx'
 import { en, NS, zh, type SettingsKey } from './locales.ts'
 import { QuickReplies } from './QuickReplies.tsx'
 import { ScrollToPrompt } from './ScrollToPrompt.tsx'
+import { SessionStartChip } from './SessionStartChip.tsx'
 import { SettingsController } from './settings-controller.ts'
 import { applyTagline } from './tagline.ts'
 import { applyMobileLayout } from './mobile-layout.tsx'
@@ -92,6 +96,14 @@ const LANE_ORDER = 100
  */
 const REPLIES_ID = 'ui-beautify-replies'
 const REPLIES_ORDER = 1
+
+/**
+ * The conversation-start chip's cell in the composer dock, right after the
+ * up-button entry. Both are zero-height anchors; order only fixes a stable
+ * identity among the dock's rows.
+ */
+const CHIP_ID = 'ui-beautify-session-start'
+const CHIP_ORDER = 102
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -145,6 +157,11 @@ export async function apply(ctx: Context): Promise<void> {
     name: 'conversation.input.dock', id: 'ui-beautify-to-prompt', order: 101, locale: NS,
     inject: () => controller.inject(),
   }, ScrollToPrompt))
+
+  ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+    name: 'conversation.input.dock', id: CHIP_ID, order: CHIP_ORDER, locale: NS,
+    inject: () => controller.inject(),
+  }, SessionStartChip))
 
   // Registered unconditionally, and given the stored answer rather than the
   // browser's: a lane the user switched off is a lane they can switch back on,

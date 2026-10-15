@@ -287,13 +287,21 @@ composer 卡片正上方那条整宽插槽是 `conversation.input.dock`（ui-con
 
 `.lane` 用 `margin-bottom: calc(2px - var(--dsh-composer-stack-gap, 6px))` 把 `composerStack` 的 6px 行距吃掉大半：小人要看起来**坐在输入框上**，而不是和下方面板一样属于上方那组卡片。留 2px 免得贴死。用变量而不是写死 -4px，是为了 stack 行距变了这里跟着变。
 
-## 回到最近提问
+## 回到最近提问（2026-10-15 起逐轮向上跳）
 
-`ScrollToPrompt.tsx` 在 `conversation.input.dock` 注册零高度定位锚点，通过 portal 把向上按钮放入当前 Chat frame，保持宿主向下按钮不变。按钮复用宿主 Button、向上图标与 floating token，位于向下按钮左侧 42px；提问已在视口顶部或无提问时隐藏。仅操作当前会话的最近可见 `user` / `steering` 已发送消息，不跳到整个历史开头、不读取草稿。滚动后立即交付 scroll/scrollend，让宿主结束读者位置采样、停止追随输出；切换轨迹视图或卸载时释放 portal、滚动监听与观察器。
+`ScrollToPrompt.tsx` 在 `conversation.input.dock` 注册零高度定位锚点，通过 portal 把向上按钮放入当前 Chat frame，保持宿主向下按钮不变。按钮复用宿主 Button、向上图标与 floating token，位于向下按钮左侧 42px。**2026-10-15 用户把目标从「最近一条提问」改成逐轮向上**：目标一律是「当前视口上方最近的一条可见 `user` / `steering` 已发送消息」——也就是读者正处的那一轮的开头；跳过去后（24px 阅读缩进）下一次点击落到再上一轮，连续点击逐轮走回更早的对话。`nearestPromptAbove(flow, scroller)` 是这一判据的唯一实现，按钮与胶囊共用；切到没有可见提问（如空会话、或已停在最早一轮）时隐藏。不跳到整个历史开头、不读取草稿。滚动后立即交付 scroll/scrollend，让宿主结束读者位置采样、停止追随输出；切换轨迹视图或卸载时释放 portal、滚动监听与观察器。
 
 设置页「界面增强」第一行是它的开关：`scrollToPromptEnabled`（默认 `true` 的 volatile 字段）。注册时带上 `inject: () => controller.inject()`，组件读同一份设置快照；关闭时组件返回 `null`（**插槽条目照常注册**，否则重开就没法恢复），定位 effect 以该开关为依赖重跑——关着的时候没有锚点，重新打开必须重新定位，否则按钮再也不会出现。新增字段需要宿主重启一次，旧 schema 会把这一行显示成 `stale`。
 
-`npm run test:scroll` 覆盖定位与空白/隐藏消息；真实浏览器回归设置 `DSH_SCROLL_URL`、`DSH_SCROLL_WORKSPACE`、`DSH_SCROLL_SESSION`，选择已有长对话，隔离测试浏览器仅替换本次 client bundle 响应，不覆盖正在使用的插件目录。验收包括向上/原向下、393px/桌面、浅色/深色、轨迹切换清理，以及关掉开关后按钮消失、重开立即恢复。
+`npm run test:scroll` 覆盖逐轮定位与空白/隐藏消息；真实浏览器回归设置 `DSH_SCROLL_URL`、`DSH_SCROLL_WORKSPACE`、`DSH_SCROLL_SESSION`，选择已有长对话，隔离测试浏览器仅替换本次 client bundle 响应，不覆盖正在使用的插件目录。验收包括向上/原向下、393px/桌面、浅色/深色、轨迹切换清理（按钮与胶囊都清掉），以及关掉开关后按钮消失、重开立即恢复。
+
+## 会话开始胶囊（2026-10-15）
+
+`SessionStartChip.tsx` 与向上按钮同在 `conversation.input.dock`（`ui-beautify-session-start`，order **102**），是 IDEA 折叠标记的对话版：当读者所在那轮的开头滚出视口，**一行该轮提问的开头文本**悬浮在 Chat frame 顶部，下方一条 0.5px 分割线（用户先后明确：「不是显示会话开始一个按钮，是显示简短的一行字」「不要区块，参考 idea，一条线分割就行。且只显示一行」「然后也不需要悬浮显示」；此前依次做过「会话开始」小胶囊、等宽圆角区块和悬停弹出层，全部按用户反馈改掉或删掉）。行与消息列同宽（`min(var(--dsh-chat-content-width, 100%), 100%)`），样式照宿主折叠轮次行（TurnProcessNodeView）：无底色块、`border-bottom: 0.5px solid var(--dsw-alias-border-l2)`、正文字号、单行省略；唯一例外是行底加 `--dsw-alias-bg-base`——悬浮行必须有一层页面底色才能遮住身后的滚动正文，否则文字叠文字不可读。文字比宿主折叠行加深一档（用户明确「字体样式加深一下」）：常态 `--dsw-alias-label-secondary`（宿主折叠行是 tertiary），悬停 `--dsw-alias-label-primary`，箭头继承行色；点击与向上按钮落同一点（24px 缩进 + scroll/scrollend 交付）。**没有悬停弹出层**，整行就是全部内容。**只显示一个**——目标就是 `nearestPromptAbove` 给出的最近一轮开头，绝不按轮嵌套。行内文字由 `promptPreviewText` 克隆行后剥掉 `[data-clock]` 与 `[data-message-attachments]` 得到；行内没有文字时回退读附件的 `title`/`alt` 名称，仍为空时才显示字典兜底「本轮提问」。
+
+定位portal 的宿主结构依赖有二，均已核对安装版 0.2.0-rc.2：Chat frame 是 `position: relative; display: flex; flex-direction: column`，`.slot` 借 `order: -1` 排到最前（sticky 的自然位置必须在 frame 顶部，portal 只能追加在末尾）；宿主用户行带 `data-clock`（图标动作行）与 `data-message-attachments`（附件胶囊），行内文字据此剥壳。frame 改掉 flex 列或换掉这两个属性时，行会退化成停在 frame 底部或文字混入时间——先核对再改。独立（无 `[data-conversation-scroll]`）聊天里 sticky 同样成立。
+
+开关是新的 volatile 字段 `sessionStartChipEnabled`（默认 `true`）：行为照「环境开关不要挡在注册前面」的旧规——插槽条目照常注册，关闭只让组件返回 `null`，重开立即恢复；旧宿主 schema 缺字段时该行显示 `stale` 并禁用开关，但功能按默认开启生效，重启宿主后开关才可写。`tests/client.mjs` 覆盖注册（dock/order 102/共享快照）、开关、行内文字剥壳与附件名回退、点击落点与 sticky/order/无底色块的样式回归；`npm run test:scroll` 的浏览器回归在 393px/桌面断言行框内、点击落点与轨迹清理。
 
 ## composer 下方的快捷回复
 
@@ -357,7 +365,7 @@ composer 下方那条带子是**同一条 flex 行**（会话统计胶囊 + 快�
 
 品牌四项在它之后。`logo` 对应空白会话页标志，`brandIcon` 和 `brandName` 对应侧栏左上角，`tagline` 对应空白会话页标语。图片通过 `POST /plugins/dsh-ui-beautify/brand/upload/{logo|brandIcon}` 上传，限 2 MB 的 PNG/JPEG/WebP/GIF，按内容哈希保存到 `$DSH_HOME/assets/ui-beautify`，由同一路由下的 `assets/<sha>.<ext>` 读取。设置中仅保存图片 URL；留空时不注册品牌插槽，宿主默认内容继续显示。自定义侧栏插槽使用 priority -1 覆盖官方插件的 priority 0。标语当前由宿主组件直接渲染、无插槽；客户端以 DOM 观察同步可见文案，清空后恢复宿主文案。Electron 安装版的原生首次引导不加载浏览器插件。
 
-选择写进**当前 profile 的配置文件** `$DSH_HOME/profiles/<profile>/cordis.patch.yml` 里 `ui-beautify` 行的 `config`（`font` / `codeFont` / `motion` / `quickReplies` / `quickRepliesEnabled` / `scrollToPromptEnabled` / `mobileLayoutEnabled` / `recentSessionsEnabled` / `remoteSettingsEnabled` / `logo` / `brandIcon` / `brandName` / `tagline`），改完立即生效、无需重启。新增字段在宿主仍跑着旧 schema 时会显示旧版本提示并禁用；重启 dsh 即可。
+选择写进**当前 profile 的配置文件** `$DSH_HOME/profiles/<profile>/cordis.patch.yml` 里 `ui-beautify` 行的 `config`（`font` / `codeFont` / `motion` / `quickReplies` / `quickRepliesEnabled` / `scrollToPromptEnabled` / `sessionStartChipEnabled` / `mobileLayoutEnabled` / `recentSessionsEnabled` / `remoteSettingsEnabled` / `logo` / `brandIcon` / `brandName` / `tagline`），改完立即生效、无需重启。新增字段在宿主仍跑着旧 schema 时会显示旧版本提示并禁用；重启 dsh 即可。
 
 > 更早的 DSH 版本把选择写在 `$DSH_HOME/settings.yaml`；该文件已被 DSH 迁移进 profile 的补丁文件并重命名为 `settings.yaml.imported`。现在手工改设置要改的是 profile 补丁。
 
@@ -398,7 +406,7 @@ composer 下方那条带子是**同一条 flex 行**（会话统计胶囊 + 快�
 
 ## 功能开关（2026-10-08）
 
-- 设置页「界面增强」使用宿主 Switch 显示 `scrollToPromptEnabled`、`mobileLayoutEnabled`、`recentSessionsEnabled`、`remoteSettingsEnabled`，均为默认 true 的 volatile 字段，中英文描述齐全，手机不隐藏。前三项在组件里收窄行为（回到最近提问的开关见「回到最近提问」一节），远程一项见下。
+- 设置页「界面增强」使用宿主 Switch 显示 `scrollToPromptEnabled`、`sessionStartChipEnabled`、`mobileLayoutEnabled`、`recentSessionsEnabled`、`remoteSettingsEnabled`，均为默认 true 的 volatile 字段，中英文描述齐全，手机不隐藏。前三项在组件里收窄行为（回到最近提问与会话开始胶囊的开关见各自一节），远程一项见下。
 - `feature-switch.ts` 等待已存配置，按开关安装／释放；手机适配释放控制器、Pocket shadow 和 CSS，最近对话有独立 `recent-sessions.css` 与插槽生命周期。二者不得相互绑定，关闭最近对话不影响手机抽屉，关闭手机适配不影响最近对话。宿主原生功能不由本插件关闭。
 - 远程只读安全边界不变；通过一次脱敏 describe 启动读取获知开关，false 时释放桥接与监听并通知已缓存表单消费者重读宿主快照。远程端在本机开关重新开启后需刷新页面，不保留后台轮询来绕过关闭。本机表单从不装饰。
 - `tests/feature-switch.test.mjs` 覆盖冷加载 false、旧配置默认开启、独立生命周期、恢复和清理；构建产物客户端测试覆盖各行控件／写入／缺字段／只读及插槽停用恢复；远程测试覆盖初始关闭与设置事件关闭后的方法、监听器和快照恢复。

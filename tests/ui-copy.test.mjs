@@ -4,7 +4,7 @@ import { en, zh } from '../src/client/locales.ts'
 
 test('enhancement descriptions stay concise without default/disable instructions', () => {
   for (const copy of [zh, en]) {
-    for (const key of ['mobileLayoutDesc', 'recentSessionsDesc', 'remoteSettingsDesc', 'scrollToPromptDesc']) {
+    for (const key of ['mobileLayoutDesc', 'recentSessionsDesc', 'remoteSettingsDesc', 'scrollToPromptDesc', 'sessionStartChipDesc']) {
       assert.doesNotMatch(copy[key], /默认开启|关闭后|独立开关|请在本机修改|重新开启|写权限|Enabled by default|Turn off|controlled separately|re-enabling|write permissions/)
     }
     assert.doesNotMatch(copy.fontNotoSansScDesc, /可变字体|分片|variable file|shard/)

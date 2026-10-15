@@ -325,6 +325,8 @@ export interface BeautifySettings {
   remoteSettingsEnabled: boolean
   /** Up button that returns to the latest sent question; defaults on. */
   scrollToPromptEnabled: boolean
+  /** Floating "conversation start" chip above the transcript; defaults on. */
+  sessionStartChipEnabled: boolean
 }
 
 /**

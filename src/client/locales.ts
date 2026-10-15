@@ -19,7 +19,9 @@ export const NS = 'settings.uiBeautify'
 /** English copy. */
 export const en = {
   nav: 'UI Beautify',
-  backToPrompt: 'Back to my latest message',
+  backToPrompt: 'Back to the previous question',
+  sessionStartChipAria: 'Back to the start of this round: {text}',
+  sessionStartChipFallback: 'This round’s question',
   mobileOpen: 'Open sidebar',
   mobileClose: 'Close sidebar',
   mobileRecent: 'Recent conversations',
@@ -59,7 +61,9 @@ export const en = {
   remoteSettingsTitle: 'Remote settings reads',
   remoteSettingsDesc: 'Remote pages sync the host’s redacted settings as read-only, fixing settings that do not take effect on phones.',
   scrollToPromptTitle: 'Back to my latest question',
-  scrollToPromptDesc: 'Shows an up button that returns to your latest sent question.',
+  scrollToPromptDesc: 'Shows an up button that steps back through your sent questions, one round per press.',
+  sessionStartChipTitle: 'Conversation start preview',
+  sessionStartChipDesc: 'Floats one short line of this round’s opening question above the transcript; click to jump back, hover to see more.',
   title: 'Body font',
   groupSystem: 'Baseline',
   groupCjk: 'Chinese faces',
@@ -149,7 +153,9 @@ export const en = {
 /** Chinese copy. */
 export const zh: typeof en = {
   nav: '界面美化',
-  backToPrompt: '回到我的最新提问',
+  backToPrompt: '回到上一条提问',
+  sessionStartChipAria: '回到本轮开头：{text}',
+  sessionStartChipFallback: '本轮提问',
   mobileOpen: '打开侧边栏',
   mobileClose: '收起侧边栏',
   mobileRecent: '最近对话',
@@ -189,7 +195,9 @@ export const zh: typeof en = {
   remoteSettingsTitle: '远程设置同步读取',
   remoteSettingsDesc: '远程页面同步读取宿主脱敏设置，始终只读，解决某些配置在手机端不生效问题。',
   scrollToPromptTitle: '回到最近提问',
-  scrollToPromptDesc: '显示向上按钮，回到最近一条已发送的提问。',
+  scrollToPromptDesc: '显示向上按钮，逐轮跳回更早的已发送提问。',
+  sessionStartChipTitle: '会话开始预览',
+  sessionStartChipDesc: '在对话顶部悬浮一行本轮提问的开头：点击跳回，悬停查看更多。',
   title: '正文字体',
   groupSystem: '基准',
   groupCjk: '中文字体',

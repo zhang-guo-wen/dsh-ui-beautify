@@ -6,7 +6,7 @@ English | [中文](<README.zh.md>)
 
 A third-party interface enhancement plugin for [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/), focused on **mobile usability**: making conversations, the sidebar, and settings easier to use on small screens.
 
-It also offers independent body and code font choices, custom logos, icons, names and welcome taglines, and translation of English skill and plugin descriptions into the interface language using the default model. Other improvements include recent conversation tabs, a return-to-your-message button, a composer light beam, and desktop quick replies.
+It also offers independent body and code font choices, custom logos, icons, names and welcome taglines, and translation of English skill and plugin descriptions into the interface language using the default model. Other improvements include recent conversation tabs, upward navigation through your sent questions, a floating one-line preview of the round you are reading that jumps back to its start, a composer light beam, and desktop quick replies.
 
 On phones whose browser predates the newest JavaScript APIs, the plugin completes the ones the PDF engine calls, so PDF and Word/PowerPoint previews open instead of failing with `... is not a function`.
 

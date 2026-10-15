@@ -91,6 +91,8 @@ export interface SettingsRowState {
   remoteSettingsEnabled: boolean
   /** Whether the up button back to the latest sent question is shown. */
   scrollToPromptEnabled: boolean
+  /** Whether the floating "conversation start" chip above the transcript is shown. */
+  sessionStartChipEnabled: boolean
   /** What each face holds in the local cache; a face absent from it has downloaded nothing. */
   cache: FontCacheReport
 }
@@ -207,6 +209,7 @@ export class SettingsController {
         recentSessionsEnabled: value?.recentSessionsEnabled !== undefined,
         remoteSettingsEnabled: value?.remoteSettingsEnabled !== undefined,
         scrollToPromptEnabled: value?.scrollToPromptEnabled !== undefined,
+        sessionStartChipEnabled: value?.sessionStartChipEnabled !== undefined,
       },
       // The document is hand-editable, so an unknown stored value must show as
       // the choice actually in effect rather than as nothing selected.
@@ -225,6 +228,7 @@ export class SettingsController {
       recentSessionsEnabled: value?.recentSessionsEnabled !== false,
       remoteSettingsEnabled: value?.remoteSettingsEnabled !== false,
       scrollToPromptEnabled: value?.scrollToPromptEnabled !== false,
+      sessionStartChipEnabled: value?.sessionStartChipEnabled !== false,
       cache: this.cache,
     }
   }

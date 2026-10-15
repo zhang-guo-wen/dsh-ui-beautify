@@ -4,7 +4,7 @@ import { Button, IconChevronUpOutlineRegular } from '@deepseek-ai/dsh-client-ui-
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { NS } from './locales.ts'
-import { latestPrompt, scrollToPrompt } from './scroll-to-prompt.ts'
+import { nearestPromptAbove, promptScrollerOf, scrollToPrompt } from './scroll-to-prompt.ts'
 import type { SettingsRowFace } from './settings-controller.ts'
 import css from './ScrollToPrompt.module.css'
 
@@ -36,9 +36,10 @@ export function ScrollToPrompt({ t, useBeautify }: ScrollToPromptProps): ReactNo
     let scroller: HTMLElement | null = null
     let resize: ResizeObserver | null = null
     const update = (): void => {
-      const row = flow === null ? null : latestPrompt(flow)
-      setVisible(row !== null && scroller !== null
-        && row.getBoundingClientRect().top < scroller.getBoundingClientRect().top - 1)
+      // Visible while some sent input sits above the reader's viewport: the
+      // round the reader is inside has begun, so one press returns to it and
+      // the next one reaches the round before it.
+      setVisible(flow !== null && scroller !== null && nearestPromptAbove(flow, scroller) !== null)
     }
     const sync = (): void => {
       const next = content.querySelector<HTMLElement>('[data-chat-flow]')
@@ -50,7 +51,7 @@ export function ScrollToPrompt({ t, useBeautify }: ScrollToPromptProps): ReactNo
         // also belongs to frame; do not insert into the message list itself.
         const list = flow?.parentElement ?? null
         const frame = list?.parentElement?.parentElement ?? null
-        scroller = flow?.closest<HTMLElement>('[data-conversation-scroll]') ?? list
+        scroller = flow === null ? null : promptScrollerOf(flow)
         setTarget(flow !== null && frame !== null ? { flow, frame } : null)
         scroller?.addEventListener('scroll', update, { passive: true })
         if (flow !== null && scroller !== null && typeof ResizeObserver !== 'undefined') {

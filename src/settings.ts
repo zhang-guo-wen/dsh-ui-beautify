@@ -51,6 +51,8 @@ export interface Config {
   remoteSettingsEnabled: Volatile<BeautifySettings['remoteSettingsEnabled']>
   /** Whether the composer's up button back to the latest question is shown. */
   scrollToPromptEnabled: Volatile<BeautifySettings['scrollToPromptEnabled']>
+  /** Whether the transcript's floating "conversation start" chip is shown. */
+  sessionStartChipEnabled: Volatile<BeautifySettings['sessionStartChipEnabled']>
   /** Registries a font file is downloaded from, tried in order. */
   mirrors: string[]
   /** Directory caching downloaded files; empty follows `$DSH_HOME`, then `~/.dsh`. */
@@ -75,6 +77,7 @@ export const Config = z.object({
   recentSessionsEnabled: z.boolean().default(true).volatile(),
   remoteSettingsEnabled: z.boolean().default(true).volatile(),
   scrollToPromptEnabled: z.boolean().default(true).volatile(),
+  sessionStartChipEnabled: z.boolean().default(true).volatile(),
   mirrors: z.array(z.string()).default([...DEFAULT_MIRRORS]),
   cacheDir: z.string().default(''),
 })

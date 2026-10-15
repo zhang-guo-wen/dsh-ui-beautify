@@ -1087,6 +1087,7 @@ for (const [componentName, field, title, desc] of [
   ['RecentSessionsToggleRow', 'recentSessionsEnabled', 'recentSessionsTitle', 'recentSessionsDesc'],
   ['RemoteSettingsToggleRow', 'remoteSettingsEnabled', 'remoteSettingsTitle', 'remoteSettingsDesc'],
   ['ScrollToPromptToggleRow', 'scrollToPromptEnabled', 'scrollToPromptTitle', 'scrollToPromptDesc'],
+  ['SessionStartChipToggleRow', 'sessionStartChipEnabled', 'sessionStartChipTitle', 'sessionStartChipDesc'],
 ]) {
   const render = (overrides = {}) => {
     mount(`feature-${field}`, pageComponents.get(componentName), {
@@ -1156,6 +1157,98 @@ check('switching it on restores the up button',
   JSON.stringify(shownPrompt.map(element => element.props['aria-label'])))
 check('the control stays in the composer dock either way',
   registrations.filter(entry => entry.definition.id === 'ui-beautify-to-prompt').length === 1)
+
+console.log('the conversation-start chip previews the round above')
+// The same host-node stand-in, extended for the chip: the target row carries a
+// message body behind the chrome the preview must strip, and the scroller
+// records the jump a click performs.
+const chipScroller = {
+  scrollTop: 0,
+  addEventListener() {},
+  removeEventListener() {},
+  getBoundingClientRect: () => ({ top: 120 }),
+  scrollTo(options) { chipJumps.push(options); this.scrollTop = options.top },
+  dispatchEvent(event) { chipEvents.push(event.type) },
+}
+const chipJumps = []
+const chipEvents = []
+const chipRow = {
+  closest: () => null,
+  getClientRects: () => [{}],
+  getBoundingClientRect: () => ({ top: 40 }),
+  cloneNode() {
+    return {
+      querySelectorAll: () => [],
+      textContent: ' 帮我看看这个报错，顺便补上回归测试 ',
+    }
+  },
+}
+const chipFrame = { tag: 'chip-frame' }
+const chipFlow = {
+  querySelectorAll: () => [chipRow],
+  closest: () => chipScroller,
+  parentElement: { parentElement: { parentElement: chipFrame } },
+}
+conversationDom.content = {
+  querySelector: selector => selector === '[data-chat-flow]' ? chipFlow : null,
+}
+const chipEntry = registrations.find(entry => entry.definition.id === 'ui-beautify-session-start')
+check('registers the chip after the up button in the same composer dock',
+  chipEntry?.definition.name === 'conversation.input.dock' && chipEntry.definition.order === 102
+  && chipEntry.definition.locale === 'settings.uiBeautify')
+check('the chip reads the same settings snapshot its switch writes',
+  chipEntry.definition.inject().hooks.beautify === pageEntry.definition.inject().hooks.beautify)
+const mountChip = (key, enabled) => {
+  const props = {
+    t,
+    useBeautify: selector => selector({ ...snapshot(), sessionStartChipEnabled: enabled }),
+  }
+  mount(key, chipEntry.component, props)
+  mount(key, chipEntry.component, props)
+  return elements
+}
+const hiddenChip = mountChip('chip-off', false)
+check('only the invisible anchor shows while the chip switch is off',
+  hiddenChip.every(element => element.type !== 'button'), String(hiddenChip.length))
+const shownChip = mountChip('chip-on', true)
+const chipButton = shownChip.find(element => element.type === 'button')
+check('switching the chip on mounts the floating chip',
+  chipButton !== undefined
+  && chipButton.props['aria-label'] === 'sessionStartChipAria({"text":"帮我看看这个报错，顺便补上回归测试"})',
+  JSON.stringify(shownChip.map(element => element.type)))
+const chipLine = shownChip.find(element => element.type === 'span' && typeof element.props.className === 'string' && element.props.className.includes('line'))
+check('the floating line shows the round\'s opening text, not a label',
+  chipLine !== undefined && chipLine.props.children === '帮我看看这个报错，顺便补上回归测试',
+  JSON.stringify(chipLine?.props.children))
+check('the chip is the line alone: no hover panel element is rendered',
+  shownChip.every(element => element.props?.['data-ui-beautify-session-start-preview'] === undefined),
+  JSON.stringify(shownChip.map(element => element.type)))
+chipButton.props.onClick()
+check('a chip click jumps to the round above and settles host reading',
+  chipJumps.length === 1 && chipJumps[0].top === 0
+  && chipEvents.join(',') === 'scroll,scrollend',
+  `${JSON.stringify(chipJumps)} ${chipEvents.join(',')}`)
+check('the chip stays in the composer dock either way',
+  registrations.filter(entry => entry.definition.id === 'ui-beautify-session-start').length === 1)
+const chipCss = readFileSync(new URL('../src/client/SessionStartChip.module.css', import.meta.url), 'utf8')
+check('the chip slot sticks to the transcript top as the frame\'s first flex item',
+  /\.slot\s*\{[^}]*position:\s*sticky/.test(chipCss) && /\.slot\s*\{[^}]*order:\s*-1/.test(chipCss))
+check('the floating line stays one ellipsized line, never a wrapped block',
+  /\.line\s*\{[^}]*white-space:\s*nowrap/.test(chipCss)
+  && /\.line\s*\{[^}]*text-overflow:\s*ellipsis/.test(chipCss)
+  && /\.line\s*\{[^}]*min-width:\s*0/.test(chipCss))
+check('the row spans the transcript\'s message column and divides with one hairline',
+  /\.chip\s*\{[^}]*--dsh-chat-content-width/.test(chipCss)
+  && /\.chip\s*\{[^}]*border-bottom:\s*0\.5px solid var\(--dsw-alias-border-l2\)/.test(chipCss)
+  && /\.chip\s*\{[^}]*background:\s*var\(--dsw-alias-bg-base\)/.test(chipCss)
+  && !/\.chip\s*\{[^}]*border-radius/.test(chipCss)
+  && !/\.chip\s*\{[^}]*box-shadow/.test(chipCss))
+check('the line reads in the darker label tier and deepens on hover',
+  /\.chip\s*\{[^}]*color:\s*var\(--dsw-alias-label-secondary\)/.test(chipCss)
+  && /\.chip:hover\s*\{[^}]*color:\s*var\(--dsw-alias-label-primary\)/.test(chipCss)
+  && !chipCss.includes('--dsw-alias-label-tertiary'))
+check('the hover preview is gone from the stylesheet entirely', !chipCss.includes('preview'))
+conversationDom.content = null
 conversationDom.content = null
 // Lifetime release/reinstall is verified with real registration disposers.
 const renderSettingsPage = () => {

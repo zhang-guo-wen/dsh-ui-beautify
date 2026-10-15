@@ -7,12 +7,27 @@ import type { SettingsRowFace } from './settings-controller.ts'
 import css from './SettingRow.module.css'
 
 type Props = PropsLocale<typeof NS> & InjectFace<SettingsRowFace>
-type Feature = 'mobileLayoutEnabled' | 'recentSessionsEnabled' | 'remoteSettingsEnabled' | 'scrollToPromptEnabled'
+type Feature =
+  | 'mobileLayoutEnabled'
+  | 'recentSessionsEnabled'
+  | 'remoteSettingsEnabled'
+  | 'scrollToPromptEnabled'
+  | 'sessionStartChipEnabled'
 
 function FeatureToggleRow({ useBeautify, t, choose, field, title, description }: Props & {
   field: Feature
-  title: 'mobileLayoutTitle' | 'recentSessionsTitle' | 'remoteSettingsTitle' | 'scrollToPromptTitle'
-  description: 'mobileLayoutDesc' | 'recentSessionsDesc' | 'remoteSettingsDesc' | 'scrollToPromptDesc'
+  title:
+    | 'mobileLayoutTitle'
+    | 'recentSessionsTitle'
+    | 'remoteSettingsTitle'
+    | 'scrollToPromptTitle'
+    | 'sessionStartChipTitle'
+  description:
+    | 'mobileLayoutDesc'
+    | 'recentSessionsDesc'
+    | 'remoteSettingsDesc'
+    | 'scrollToPromptDesc'
+    | 'sessionStartChipDesc'
 }): ReactNode {
   const state = useBeautify(snapshot => snapshot)
   const detail = !state.available ? t('unavailable')
@@ -40,4 +55,7 @@ export function RemoteSettingsToggleRow(props: Props): ReactNode {
 }
 export function ScrollToPromptToggleRow(props: Props): ReactNode {
   return <FeatureToggleRow {...props} field="scrollToPromptEnabled" title="scrollToPromptTitle" description="scrollToPromptDesc" />
+}
+export function SessionStartChipToggleRow(props: Props): ReactNode {
+  return <FeatureToggleRow {...props} field="sessionStartChipEnabled" title="sessionStartChipTitle" description="sessionStartChipDesc" />
 }

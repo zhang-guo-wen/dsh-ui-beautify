@@ -28,8 +28,11 @@ test('real host up/down navigation, phone sizing, themes, and view-switch cleanu
     await session.click()
     await page.locator('[data-chat-flow]').first().waitFor()
     const scroller = page.locator('[data-conversation-scroll]')
-    const up = page.getByRole('button', { name: '回到我的最新提问', exact: true })
+    const up = page.getByRole('button', { name: '回到上一条提问', exact: true })
     const down = page.getByRole('button', { name: '回到底部', exact: true })
+    // The host keeps other conversations mounted behind the view, so every chip
+    // locator below takes only the visible one of the open session.
+    const chip = page.locator('[data-ui-beautify-session-start] button:visible')
     for (const width of [1280, 393]) {
       await page.setViewportSize({ width, height: 900 })
       await scroller.evaluate(e => { e.scrollTo({ top: e.scrollHeight, behavior: 'instant' }) })
@@ -37,7 +40,11 @@ test('real host up/down navigation, phone sizing, themes, and view-switch cleanu
       const box = await up.boundingBox()
       assert.ok(box && box.x >= 0 && box.x + box.width <= width && box.y >= 0 && box.y + box.height <= 900)
       assert.equal(box.width, 34)
-      await up.click()
+      await chip.waitFor()
+      const chipBox = await chip.boundingBox()
+      assert.ok(chipBox && chipBox.x >= 0 && chipBox.x + chipBox.width <= width && chipBox.y >= 0, 'chip stays inside the viewport')
+      assert.ok((await chip.textContent() ?? '').trim().length > 0, 'the line shows the round\'s opening text')
+      await chip.click()
       await page.waitForFunction(() => !document.querySelector('[data-chat-following-tail]'))
       const offset = await page.evaluate(() => {
         const prompt = [...document.querySelectorAll('[data-chat-flow-kind="user"], [data-chat-flow-kind="steering"]')]
@@ -45,6 +52,11 @@ test('real host up/down navigation, phone sizing, themes, and view-switch cleanu
         return prompt.getBoundingClientRect().top - document.querySelector('[data-conversation-scroll]').getBoundingClientRect().top
       })
       assert.ok(Math.abs(offset - 24) < 1, `prompt reading inset: ${offset}`)
+      // The click leaves the chip targeting the round before the one it landed on:
+      // the line follows the reader upward instead of repeating the last target.
+      if (await chip.count() > 0) {
+        assert.ok(((await chip.textContent()) ?? '').trim().length > 0, 'the line follows the jump upward')
+      }
       await down.click()
       await page.waitForFunction(() => !!document.querySelector('[data-chat-following-tail]'))
       const distance = await scroller.evaluate(e => e.scrollHeight - e.clientHeight - e.scrollTop)
@@ -59,6 +71,7 @@ test('real host up/down navigation, phone sizing, themes, and view-switch cleanu
     await page.setViewportSize({ width: 1280, height: 900 })
     await page.getByRole('tab', { name: '轨迹', exact: true }).click()
     assert.equal(await up.count(), 0)
+    assert.equal(await chip.count(), 0)
     await page.getByRole('tab', { name: '对话', exact: true }).click()
     await page.locator('[data-chat-flow]').first().waitFor()
     assert.equal(await page.locator('[data-slot-error]').count(), 0)
