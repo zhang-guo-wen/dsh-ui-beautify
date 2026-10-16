@@ -2,26 +2,37 @@
   display: flex;
   flex-direction: column;
   width: 100%;
+  /* This plugin contributes a settings section, not a page: the settings dialog
+     keeps its own width (about 560px of content), so the section caps itself at
+     the host inventory section's 760px instead of the 960px page column. */
+  max-width: 760px;
   padding: 8px 0 24px;
+  /* The rows lay themselves out against this width rather than the window's:
+     the settings panel keeps its 188px navigation down to a 601px window, so a
+     window 1px wider than the phone breakpoint can still leave the rows about
+     312px.
+     Anonymous on purpose: CSS Modules rewrites a named container per file, so a
+     name declared here and queried from SettingRow.module.css becomes two
+     different names and the query never matches (measured: the query was dead
+     code in lib/client.js). Only the nearest container matters, and this is it. */
+  container-type: inline-size;
 }
 
 .heading {
   margin: 0 0 4px;
-  font-size: 20px;
-  font-weight: 600;
+  font: var(--dsw-font-l-20);
   color: var(--dsw-alias-label-primary);
 }
 
 .intro {
   margin: 0 0 20px;
-  font-size: 13px;
-  line-height: 20px;
+  font: var(--dsw-font-xs-13);
   color: var(--dsw-alias-label-tertiary);
 }
 
 .groupTitle {
   margin: 16px 0 0;
-  font-size: 14px;
+  font: var(--dsw-font-s-14);
   font-weight: 600;
   color: var(--dsw-alias-label-primary);
 }

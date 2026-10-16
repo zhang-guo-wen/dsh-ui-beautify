@@ -1,6 +1,10 @@
-/* General-settings row for the body font: label plus selector pill.
-   Colors come from the --dsw-* alias tokens, so the row follows the active
-   palette and sits flush with the preference rows beside it. */
+/* General-settings rows for the font pickers, the switches, the brand fields and
+   the quick-reply slots. Colours come from the --dsw-* alias tokens, so the rows
+   follow the active palette and sit flush with the preference rows beside them.
+
+   Two control tiers are used here: 36px for a row's own control (the font
+   dropdown, the image picker, a text field) and 28px for the compact inline
+   actions inside one (restore, the save retry, a quick-reply tag). */
 
 .row {
   display: flex;
@@ -16,29 +20,26 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding-right: 48px;
+  /* Enough to keep the description off the control without reserving a column
+     of its own: at the panel's narrowest two-column width this gutter was the
+     48px that pushed the text under the selectors. */
+  padding-right: 16px;
 }
 
 .title {
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 22px;
+  font: var(--dsw-font-s-14);
   color: var(--dsw-alias-label-primary);
 }
 
 .desc {
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 18px;
+  font: var(--dsw-font-xxs-12);
   color: var(--dsw-alias-label-tertiary);
 }
 
 /* The cache reading: a third line, kept quieter than the description because
    it is a status rather than a description of the face. */
 .meta {
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 18px;
+  font: var(--dsw-font-xxs-12);
   font-variant-numeric: tabular-nums;
   color: var(--dsw-alias-label-tertiary);
   opacity: 0.75;
@@ -48,18 +49,53 @@
   display: none;
 }
 
+/* The write state of the row, shown only while a write is in flight or after it
+   settled. Success is a quiet confirmation; a failure is the row's own colour
+   and carries the retry, so it can never be mistaken for a settled value. */
+.saveNote {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.saveNote[data-save='saved'] {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.saveNote[data-save='error'] {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.saveRetry {
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-link);
+  cursor: pointer;
+}
+
+.saveRetry:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
 .selector {
   display: inline-flex;
   align-items: center;
   gap: 12px;
+  box-sizing: border-box;
   height: 36px;
   padding: 0 14px;
   border: none;
-  border-radius: 18px;
+  border-radius: 999px;
+  corner-shape: round;
   background: var(--dsw-alias-bg-module-platform);
-  font: inherit;
-  font-size: 14px;
-  line-height: 22px;
+  font: var(--dsw-font-s-14);
   color: var(--dsw-alias-label-primary);
   cursor: pointer;
 }
@@ -70,7 +106,7 @@
 
 .selector:disabled {
   cursor: default;
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
 .chevron {
@@ -81,17 +117,31 @@
   width: min(300px, 45%);
   min-width: 120px;
   box-sizing: border-box;
-  padding: 8px 12px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
-  background: var(--dsw-alias-bg-module-platform);
+  height: 32px;
+  padding: 0 12px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
-  font: inherit;
-  font-size: 13px;
+  font: var(--dsw-font-s-14);
+}
+
+.textInput::placeholder {
+  color: var(--dsw-alias-label-dimmed);
 }
 
 .textInput:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
+}
+
+.selector:focus-visible,
+.textInput:focus-visible,
+.reset:focus-visible,
+.saveRetry:focus-visible,
+.replyTag:focus-visible,
+.replyInput:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
 }
 
 .imageControl {
@@ -114,15 +164,16 @@
 }
 
 .replyTag {
+  box-sizing: border-box;
   max-width: 100%;
-  padding: 6px 12px;
+  height: 28px;
+  padding: 0 12px;
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 999px;
+  corner-shape: round;
   background: var(--dsw-alias-bg-module-platform);
+  font: var(--dsw-font-xs-13);
   color: var(--dsw-alias-label-primary);
-  font: inherit;
-  font-size: 13px;
-  line-height: 20px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -135,7 +186,7 @@
 
 .replyTag:disabled {
   cursor: default;
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
 /* Grey and dashed means "this slot sends nothing"; the text is the built-in
@@ -149,20 +200,20 @@
 /* The tag while it is being edited: same capsule, same size class of text, so
    clicking one changes its contents rather than the shape of the row. */
 .replyInput {
-  width: 140px;
   box-sizing: border-box;
-  padding: 6px 12px;
+  width: 140px;
+  height: 28px;
+  padding: 0 12px;
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 999px;
+  corner-shape: round;
   background: var(--dsw-alias-bg-module-platform);
   color: var(--dsw-alias-label-primary);
-  font: inherit;
-  font-size: 13px;
-  line-height: 20px;
+  font: var(--dsw-font-xs-13);
 }
 
 .replyInput:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
 .replyInput::placeholder {
@@ -177,21 +228,94 @@
   width: 40px;
   height: 40px;
   object-fit: contain;
-  border-radius: 6px;
+  border-radius: var(--dsw-radius-sm);
 }
 
 .reset {
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 8px;
   border: 0;
+  border-radius: var(--dsw-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
-  font: inherit;
-  font-size: 12px;
+  font: var(--dsw-font-xxs-12);
+}
+
+.reset:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .reset:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: default;
+}
+
+/* The settings panel's content column can be narrow while the window is wide:
+   an 800px panel keeps its 188px navigation, so the rows get about 312px at a
+   601px window. The row adapts to the width it is actually given, gated by the
+   same switch as the phone reflow so turning that off restores the desktop
+   arrangement. The container is anonymous (see BeautifySection.module.css): a
+   name declared in one CSS Module and queried from another is rewritten twice,
+   so the query would never match. */
+@container (max-width: 440px) {
+  [data-beautify-mobile-layout] .row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  [data-beautify-mobile-layout] .rowText {
+    padding-right: 0;
+  }
+
+  [data-beautify-mobile-layout] .selector {
+    align-self: flex-start;
+    max-width: 100%;
+    white-space: nowrap;
+  }
+
+  [data-beautify-mobile-layout] .textInput,
+  [data-beautify-mobile-layout] .replyControl {
+    width: 100%;
+    min-width: 0;
+  }
+
+  [data-beautify-mobile-layout] .imageControl,
+  [data-beautify-mobile-layout] .replyControl {
+    justify-content: flex-start;
+  }
+}
+
+/* Touch targets follow the pointer, not the window: a phone held in landscape,
+   or a tablet, is wider than the 600px phone breakpoint and needs the same
+   44px. A switch row's own press handler makes that whole band a target; the
+   host switch keeps its 36x20 body, which a plugin may not resize. */
+@media (pointer: coarse) {
+  [data-beautify-mobile-layout] .row:has(> button[role='switch']) {
+    min-height: 44px;
+    cursor: pointer;
+  }
+
+  /* Every row control, including the host Button the translation row renders. */
+  [data-beautify-mobile-layout] .row > button:not([role='switch']) {
+    min-height: 44px;
+  }
+
+  /* 16px keeps iOS from zooming on focus; the line height is the 16/24 step. */
+  [data-beautify-mobile-layout] .textInput {
+    min-height: 44px;
+    font-size: 16px;
+    line-height: 24px;
+  }
+
+  [data-beautify-mobile-layout] .reset,
+  [data-beautify-mobile-layout] .saveRetry,
+  [data-beautify-mobile-layout] .replyTag,
+  [data-beautify-mobile-layout] .replyInput {
+    min-height: 44px;
+  }
 }
 
 /* Settings reflow follows the same saved switch as the portaled settings shell.
@@ -239,6 +363,7 @@
   [data-beautify-mobile-layout] .textInput {
     min-height: 44px;
     font-size: 16px;
+    line-height: 24px;
   }
 
   [data-beautify-mobile-layout] .imageControl,

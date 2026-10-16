@@ -3,18 +3,19 @@
  * read-out onto the General-settings rows' snapshots.
  *
  * It reads the stored choices, writes a new one through the settings form, and
- * carries what the local cache holds for each face. Applying a choice to the
- * document is not this class's job — the plugin body owns that, so a row can
- * render a snapshot without touching the DOM.
+ * carries what the local cache holds for each face and how each write settled.
+ * Applying a choice to the document is not this class's job — the plugin body
+ * owns that, so a row can render a snapshot without touching the DOM.
  *
  * Every row shares one snapshot and one store: the choices live in one
  * namespace, so three subscriptions would only give three views of the same
  * document and three chances to disagree about it.
  *
  * The cache reading is a sample, not a subscription: the Host answers when
- * asked, and a row asks when it renders and shortly after a choice lands, which
- * is when a download has had time to put something on disk. Both font rows share
- * one reading, because they share one cache.
+ * asked, and a row asks when it renders and shortly after a font choice lands,
+ * which is when a download has had time to put something on disk. Both font rows
+ * share one reading, and overlapping callers share one request, because they
+ * share one cache.
  *
  * @module @guowenzhang/dsh-ui-beautify/client/settings-controller
  */
@@ -39,6 +40,20 @@ export { FONT_SETTINGS_NS } from '../params.ts'
 const CACHE_REREAD_DELAY_MS = 1500
 
 /**
+ * How long a settled write keeps saying so.
+ *
+ * Success is reported, not asked about, so the note has to retire itself; a
+ * failure stays until the retry replaces it.
+ */
+const SAVED_NOTE_MS = 2500
+
+/** The value a row can write: the three JSON shapes the namespace fields use. */
+type Writable = string | boolean | readonly string[]
+
+/** What one row's last write is doing, as the row shows it. */
+export type SaveState = 'saving' | 'saved' | 'error'
+
+/**
  * Whether a field already holds the value a row is about to write.
  *
  * Pickers store strings, the visibility switch stores a boolean, and the
@@ -49,7 +64,7 @@ const CACHE_REREAD_DELAY_MS = 1500
  * @param next - the value about to be written.
  * @returns whether writing it would change anything.
  */
-function sameValue(current: string | boolean | readonly string[] | undefined, next: string | boolean | readonly string[]): boolean {
+function sameValue(current: Writable | undefined, next: Writable): boolean {
   if (!Array.isArray(next)) return current === next
   return Array.isArray(current) && current.length === next.length
     && current.every((entry, at) => entry === next[at])
@@ -95,6 +110,11 @@ export interface SettingsRowState {
   sessionStartChipEnabled: boolean
   /** What each face holds in the local cache; a face absent from it has downloaded nothing. */
   cache: FontCacheReport
+  /**
+   * What each field's last write from this page is doing. A field with no entry
+   * has not been written here, which is every field on a freshly opened page.
+   */
+  save: Readonly<Partial<Record<keyof BeautifySettings, SaveState>>>
 }
 
 /** What one settings row needs from the plugin body: the shared snapshot and its writers. */
@@ -110,7 +130,9 @@ export interface SettingsRowFace {
    * choice that belongs to no font role, and because quick replies use both
    * a phrase list and a boolean visibility setting.
    */
-  choose: (key: keyof BeautifySettings, value: string | boolean | readonly string[]) => void
+  choose: (key: keyof BeautifySettings, value: Writable) => void
+  /** Send the value the last failed write for this field carried, again. */
+  retry: (key: keyof BeautifySettings) => void
   /** Ask the Host what the cache holds and publish the answer. */
   refreshCache: () => void
 }
@@ -121,22 +143,37 @@ export class SettingsController {
   private readonly unsubscribe: () => void
   private cache: FontCacheReport = {}
   private pending: ReturnType<typeof setTimeout> | undefined
+  /** The read a second caller joins instead of asking the Host again. */
+  private reading: Promise<void> | undefined
+  /** Font choices the cache read was last scheduled for. */
+  private fonts: { body: string; code: string }
+  /** What each field's newest write is doing, and which attempt owns it. */
+  private readonly save = new Map<keyof BeautifySettings, SaveState>()
+  private readonly attempts = new Map<keyof BeautifySettings, { token: number; value: Writable }>()
+  private readonly notes = new Map<keyof BeautifySettings, ReturnType<typeof setTimeout>>()
+  private token = 0
 
   /**
    * @param scope - the `ui-beautify` configuration form.
    */
   constructor(private readonly scope: ConfigForm<BeautifySettings>) {
     this.store = createSnapshotStore(this.projection())
+    this.fonts = this.fontChoices()
     this.unsubscribe = scope.subscribe(() => {
       this.publish()
-      this.scheduleCacheRead()
+      // Only a face choice starts a download. Anything else in this namespace —
+      // a switch, a phrase, a brand image — would otherwise schedule a walk of
+      // the font directory that no answer could change.
+      if (this.fontChoicesMoved()) this.scheduleCacheRead()
     })
   }
 
-  /** Stop observing settings and drop the pending cache read. */
+  /** Stop observing settings and drop the pending cache read and save notes. */
   dispose(): void {
     this.unsubscribe()
     if (this.pending !== undefined) clearTimeout(this.pending)
+    for (const note of this.notes.values()) clearTimeout(note)
+    this.notes.clear()
   }
 
   /**
@@ -146,14 +183,28 @@ export class SettingsController {
   inject(): SettingsRowFace {
     return {
       hooks: { beautify: this.store },
-      choose: (key, value) => { this.choose(key, value) },
+      choose: (key, value) => { this.write(key, value, false) },
+      retry: (key) => { this.retry(key) },
       refreshCache: () => { this.refreshCache() },
     }
   }
 
   /** Read the cache once and publish what it holds. */
   refreshCache(): void {
-    void this.read()
+    void this.readOnce()
+  }
+
+  /**
+   * Join the read already in flight, or start one.
+   *
+   * Both font rows ask when they mount, and a font choice asks again shortly
+   * after; the Host answer is one reading of one directory, so the callers share
+   * it rather than queueing their own.
+   * @returns the read every caller of this burst shares.
+   */
+  private readOnce(): Promise<void> {
+    this.reading ??= this.read().finally(() => { this.reading = undefined })
+    return this.reading
   }
 
   private async read(): Promise<void> {
@@ -180,11 +231,87 @@ export class SettingsController {
     }, CACHE_REREAD_DELAY_MS)
   }
 
-  private choose(key: keyof BeautifySettings, value: string | boolean | readonly string[]): void {
+  /** The face each role resolves to right now. */
+  private fontChoices(): { body: string; code: string } {
+    const value = this.scope.getSnapshot().value
+    return {
+      body: resolveFontChoice(value?.font, 'body'),
+      code: resolveFontChoice(value?.codeFont, 'code'),
+    }
+  }
+
+  /**
+   * Whether a face choice moved since the last check.
+   * @returns whether the cache is worth reading again.
+   */
+  private fontChoicesMoved(): boolean {
+    const next = this.fontChoices()
+    const moved = next.body !== this.fonts.body || next.code !== this.fonts.code
+    this.fonts = next
+    return moved
+  }
+
+  /**
+   * Send one value the value a row asked for.
+   * @param key - the namespace field.
+   * @param value - the value to store.
+   * @param force - send it even when it equals the stored value, for a retry.
+   */
+  private write(key: keyof BeautifySettings, value: Writable, force: boolean): void {
     const snapshot = this.scope.getSnapshot()
     if (snapshot.status !== 'ready' || !snapshot.writable) return
-    if (sameValue(snapshot.value?.[key], value)) return
-    void this.scope.set(key, value)
+    // Compared against the newest value this row asked for rather than the
+    // stored one: while a write is in flight the store has not caught up yet, so
+    // a second click on the same choice would otherwise be sent a second time.
+    const last = this.attempts.get(key)?.value ?? snapshot.value?.[key]
+    if (!force && sameValue(last, value)) return
+    const token = ++this.token
+    this.attempts.set(key, { token, value })
+    this.setSave(key, 'saving')
+    // The form queues writes in order and fences each on the latest revision, so
+    // a newer value supersedes this one at the Host; what this settles is only
+    // the note the row shows.
+    this.scope.set(key, value).then(
+      accepted => { this.settle(key, token, accepted) },
+      () => { this.settle(key, token, false) },
+    )
+  }
+
+  /** Re-send the value whose write failed. */
+  private retry(key: keyof BeautifySettings): void {
+    const attempt = this.attempts.get(key)
+    if (attempt === undefined || this.save.get(key) !== 'error') return
+    this.write(key, attempt.value, true)
+  }
+
+  /**
+   * Record how one attempt settled, unless a newer one owns the field.
+   * @param key - the namespace field.
+   * @param token - the attempt this settlement belongs to.
+   * @param accepted - whether the Host took the write.
+   */
+  private settle(key: keyof BeautifySettings, token: number, accepted: boolean): void {
+    if (this.attempts.get(key)?.token !== token) return
+    this.setSave(key, accepted ? 'saved' : 'error')
+    if (!accepted) return
+    const note = this.notes.get(key)
+    if (note !== undefined) clearTimeout(note)
+    this.notes.set(key, setTimeout(() => {
+      this.notes.delete(key)
+      if (this.save.get(key) !== 'saved') return
+      this.save.delete(key)
+      this.publish()
+    }, SAVED_NOTE_MS))
+  }
+
+  /**
+   * Publish one field's new write state.
+   * @param key - the namespace field.
+   * @param state - what its newest write is doing.
+   */
+  private setSave(key: keyof BeautifySettings, state: SaveState): void {
+    this.save.set(key, state)
+    this.publish()
   }
 
   private projection(): SettingsRowState {
@@ -230,7 +357,15 @@ export class SettingsController {
       scrollToPromptEnabled: value?.scrollToPromptEnabled !== false,
       sessionStartChipEnabled: value?.sessionStartChipEnabled !== false,
       cache: this.cache,
+      save: this.saveStates(),
     }
+  }
+
+  /** The write states as a plain object, for the rows that read the snapshot. */
+  private saveStates(): Partial<Record<keyof BeautifySettings, SaveState>> {
+    const states: Partial<Record<keyof BeautifySettings, SaveState>> = {}
+    for (const [key, state] of this.save) states[key] = state
+    return states
   }
 
   private publish(): void {

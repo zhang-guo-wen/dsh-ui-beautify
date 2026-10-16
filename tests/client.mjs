@@ -57,15 +57,53 @@ const makeElement = tag => ({
     if (at >= 0) head.splice(at, 1)
   },
 })
+/** Document-level listeners, keyed by event type; the composition guard adds its own. */
+const documentListeners = new Map()
 globalThis.document = {
   body: {},
   documentElement: {},
-  addEventListener() {},
-  removeEventListener() {},
+  addEventListener(type, listener) {
+    const set = documentListeners.get(type) ?? new Set()
+    set.add(listener)
+    documentListeners.set(type, set)
+  },
+  removeEventListener(type, listener) { documentListeners.get(type)?.delete(listener) },
   head: { appendChild(element) { head.push(element) } },
   querySelector: () => null,
   querySelectorAll: selector => selector === '[class*="_headline"] [class*="_titleGroup"] > span:first-child' ? [headline] : [],
   createElement: tag => makeElement(tag),
+}
+/** Deliver one document-level event, the way the browser would. */
+const fireDocument = (type, event = {}) => {
+  for (const listener of [...(documentListeners.get(type) ?? [])]) listener(event)
+}
+/**
+ * The host's composition guard. The real one lives in ui-primitives
+ * (`keyboard-composition.ts`) and its own tests own its semantics; this stand-in
+ * keeps the same lifetime contract so this file can check that the brand rows
+ * install it and hand it the real native event.
+ */
+const observeComposition = (doc) => {
+  let composing = false
+  let ended = false
+  const start = () => { composing = true }
+  const end = () => { composing = false; ended = true }
+  const release = () => { ended = false }
+  doc.addEventListener('compositionstart', start, true)
+  doc.addEventListener('compositionend', end, true)
+  doc.addEventListener('keyup', release, true)
+  return {
+    guards: (event) => {
+      const guarded = composing || ended || event.isComposing || event.keyCode === 229
+      ended = false
+      return guarded
+    },
+    dispose: () => {
+      doc.removeEventListener('compositionstart', start, true)
+      doc.removeEventListener('compositionend', end, true)
+      doc.removeEventListener('keyup', release, true)
+    },
+  }
 }
 
 // Every bare specifier the bundle requires has to be answered here. A new
@@ -104,8 +142,11 @@ const makeNode = tag => ({
       : null
   },
 })
-const record = (type, props) => {
-  const element = { type, props }
+const record = (type, props, key) => {
+  // The key is kept so a row that keys an element by a stored value — which
+  // remounts that element whenever the value moves — can be told apart from one
+  // that does not.
+  const element = { type, props, key }
   elements.push(element)
   if (typeof type === 'function') return type(props)
   // React attaches a host ref when the node mounts and keeps that same node
@@ -215,9 +256,9 @@ globalThis.Worker = NativeWorkerStub
 
 const externals = {
   react: { ...reactStub, createElement: record, useMemo: factory => factory(), useSyncExternalStore: (_subscribe, snapshot) => snapshot() },
-  'react/jsx-runtime': { jsx: record, jsxs: record, Fragment: 'Fragment' },
+  'react/jsx-runtime': { jsx: (type, props, key) => record(type, props, key), jsxs: (type, props, key) => record(type, props, key), Fragment: 'Fragment' },
   'react-dom': { createPortal: node => node },
-  '@deepseek-ai/dsh-client-ui-primitives': { Menu, IconChevronDownOutlineRegular, IconChevronUpOutlineRegular: () => null, IconPanelLeftOutlineRegular: () => null, Button: props => record('button', props), StateDot: props => record('state-dot', props), Pill, Switch, Tag: () => null },
+  '@deepseek-ai/dsh-client-ui-primitives': { Menu, IconChevronDownOutlineRegular, IconChevronUpOutlineRegular: () => null, IconPanelLeftOutlineRegular: () => null, Button: props => record('button', props), StateDot: props => record('state-dot', props), Pill, Switch, Tag: () => null, observeComposition },
   '@deepseek-ai/dsh-client-store': {
     createSnapshotStore: (initial) => {
       let current = initial
@@ -281,10 +322,17 @@ const disposers = []
 const registrations = []
 let tokens
 let released = 0
+/**
+ * How the next write settles. The default accepts and stores it; the sections
+ * below swap it for a refusal, a transport failure, or a write they hold open to
+ * observe the state a row shows while it is in flight.
+ */
+let writeOrder = []
+let setWrite = async (key, value) => { stored = { ...stored, [key]: value }; return true }
 const scope = {
   getSnapshot: () => ({ status: 'ready', writable: true, value: stored }),
   subscribe: (listener) => { subscribers.push(listener); return () => {} },
-  set: async (key, value) => { stored = { ...stored, [key]: value } },
+  set: (key, value) => { writeOrder.push([key, value]); return setWrite(key, value) },
 }
 const makeCtx = (into) => ({
   get(name) {
@@ -338,6 +386,8 @@ const setStored = (values) => {
 }
 const snapshot = () => stores.at(-1)?.get()
 const settle = () => new Promise(resolve => { setTimeout(resolve, 10) })
+/** Wait out a real delay the plugin owns, such as its cache re-read. */
+const wait = milliseconds => new Promise(resolve => { setTimeout(resolve, milliseconds) })
 mount('beautify-page', pageEntry.component, {
   descriptions: pageEntry.definition.inject().descriptions,
   t: key => key,
@@ -470,6 +520,23 @@ check(
   Object.keys(tokens?.table ?? {}).sort().join(',') === '--ds-font-family-code,--dsw-font-family,--dsw-font-mono',
   Object.keys(tokens?.table ?? {}).join(','),
 )
+
+// Only the role that moved is re-linked. A link element that survives the other
+// role's change is what keeps the browser from re-validating its stylesheets and
+// laying its text out again.
+const codeLink = links().find(link => link.href.includes(codeFace.id))
+const bodyLink = links().find(link => link.href.includes(singleSheet.id))
+setStored({ font: 'geist' })
+check('choosing a body face re-links only the body face',
+  links().find(link => link.href.includes(singleSheet.id)) === undefined
+  && links().find(link => link.href.includes(codeFace.id)) === codeLink
+  && head.includes(codeLink),
+  hrefs().join(','))
+setStored({ font: singleSheet.id })
+check('and changing it back still leaves the code link in place',
+  links().find(link => link.href.includes(codeFace.id)) === codeLink
+  && links().find(link => link.href.includes(singleSheet.id)) !== bodyLink,
+  hrefs().join(','))
 
 setStored({ codeFont: SYSTEM_FONT_ID })
 check('the code default drops only the code link', hrefs().join(',') === `${FONTS_ROUTE}/${singleSheet.id}/${singleSheet.source.sheets[0]}`, hrefs().join(','))
@@ -1080,6 +1147,17 @@ check('a tag past the fit is hidden rather than reached',
   /\.hidden\s*\{[^}]*display:\s*none/.test(replyCss))
 check('phones also hide the desktop-only setting',
   /@media\s*\(max-width:\s*600px\)\s*\{\s*\.desktopOnly\s*\{\s*display:\s*none/.test(rowCss))
+// CSS Modules rewrite a named container per file, so a container declared in
+// BeautifySection.module.css and queried from SettingRow.module.css became two
+// hashed names and the query never matched (the 601px fix was dead code until
+// another reviewer caught it in a real browser). Assert on the built stylesheet:
+// the section must carry an anonymous container and no `@container` may be named.
+const builtStyles = readFileSync(bundle, 'utf8')
+check('the narrow-panel container query survives the build with no container name',
+  /container-type:inline-size/.test(builtStyles)
+  && /@container\s*\(/.test(builtStyles)
+  && !/@container\s+[^\s(]/.test(builtStyles),
+  'a named @container would be rewritten per CSS Module and never match')
 
 console.log('independent interface enhancement toggles')
 for (const [componentName, field, title, desc] of [
@@ -1104,6 +1182,18 @@ for (const [componentName, field, title, desc] of [
   check(`${field} stays visible on phones`, !byClass('row')[0].props.className.includes('desktopOnly'))
   control.props.onChange(false)
   check(`${field} writes false to only its own field`, JSON.stringify(toggleWrites.at(-1)) === JSON.stringify([field, false]))
+  // A coarse pointer needs a 44px target, and the host switch is a fixed 36x20
+  // body no plugin may resize: the row's own press is the wider target.
+  const rowElement = elements.find(element => element.props?.className?.endsWith('_row'))
+  const writesBeforeRowPress = toggleWrites.length
+  rowElement?.props.onClick({ target: { closest: () => null } })
+  check(`${field} flips from a press anywhere on its row`,
+    JSON.stringify(toggleWrites.at(-1)) === JSON.stringify([field, !control.props.checked]),
+    JSON.stringify(toggleWrites.at(-1)))
+  rowElement?.props.onClick({ target: { closest: selector => selector.includes('button') ? {} : null } })
+  check(`${field} leaves the switch's own press to the switch`,
+    toggleWrites.length === writesBeforeRowPress + 1,
+    String(toggleWrites.length - writesBeforeRowPress))
   face.choose(field, false)
   await settle()
   for (const notify of subscribers) notify()
@@ -1489,6 +1579,161 @@ if (pageComponents.has('QuickReplyRow')) {
 } else {
   console.log('the quick-reply settings row (parked: the page does not mount it)')
 }
+
+console.log('a settings write reports its own state')
+/** The write state every row shares, as the snapshot carries it. */
+const writeState = () => snapshot()?.save ?? {}
+const writeFace = pageEntry.definition.inject()
+const acceptWrite = async (key, value) => { stored = { ...stored, [key]: value }; return true }
+
+// One gesture, one write. While the first is open the store still holds the old
+// value, so a second click on the same choice must not be sent again.
+setStored({ font: 'lxgw-wenkai' })
+const held = []
+let heldWrites = 0
+setWrite = (key, value) => { heldWrites += 1; return new Promise(resolve => { held.push(resolve) }) }
+writeFace.choose('font', 'geist')
+writeFace.choose('font', 'geist')
+check('a repeated choice during one write is sent once', heldWrites === 1, String(heldWrites))
+check('and the row says the write is in flight', writeState().font === 'saving', String(writeState().font))
+held.shift()(true)
+await settle()
+check('then that it landed', writeState().font === 'saved', String(writeState().font))
+writeFace.choose('font', 'geist')
+check('and a choice already asked for is not sent again', heldWrites === 1, String(heldWrites))
+
+// A write the Host refuses is a failure with something to retry, not a control
+// that silently keeps its old value.
+const refused = []
+let refuse = true
+setWrite = async (key, value) => { refused.push([key, value]); return !refuse }
+writeFace.choose('brandName', 'Harness')
+await settle()
+check('a refused write is reported as a failure', writeState().brandName === 'error', String(writeState().brandName))
+refuse = false
+writeFace.retry('brandName')
+await settle()
+check('the retry sends the same value again', refused.length === 2 && refused[1]?.join(':') === 'brandName:Harness', JSON.stringify(refused))
+check('and clears the failure once the Host takes it', writeState().brandName === 'saved', String(writeState().brandName))
+
+// Transport failures reject rather than resolve false, and are just as visible.
+setWrite = async () => { throw new Error('offline') }
+writeFace.choose('tagline', 'Into the Unknown')
+await settle()
+check('a transport failure is reported, not swallowed', writeState().tagline === 'error', String(writeState().tagline))
+
+setWrite = acceptWrite
+setStored({ motion: 'always' })
+writeFace.choose('motion', 'off')
+await settle()
+check('a landed write says so', writeState().motion === 'saved', String(writeState().motion))
+// Success is reported rather than asked about, so the note retires itself.
+await wait(2700)
+check('and its note retires itself', writeState().motion === undefined, String(writeState().motion))
+
+console.log('a row shows its write state')
+const retried = []
+mount('row-write-error', pageComponents.get('FontRow'), {
+  t, useBeautify: selector => selector({ ...snapshot(), save: { font: 'error' } }),
+  choose: () => {}, refreshCache: () => {}, retry: key => { retried.push(key) },
+})
+check('a failed write is shown on its own row',
+  byClass('saveNote')[0]?.props['data-save'] === 'error' && byClass('saveNote')[0]?.props.role === 'alert',
+  String(byClass('saveNote')[0]?.props['data-save']))
+check('with a retry that reaches the shared writer',
+  byClass('saveRetry')[0]?.props.children === 'retry' && byClass('saveRetry')[0]?.props.type === 'button',
+  String(byClass('saveRetry')[0]?.props.children))
+byClass('saveRetry')[0]?.props.onClick()
+check('for the field that failed', retried.join(',') === 'font', retried.join(','))
+mount('row-write-saving', pageComponents.get('FontRow'), {
+  t, useBeautify: selector => selector({ ...snapshot(), save: { font: 'saving' } }),
+  choose: () => {}, refreshCache: () => {},
+})
+check('a write in flight says so on the row', byClass('saveNote')[0]?.props.children === 'saving', String(byClass('saveNote')[0]?.props.children))
+mount('row-write-idle', pageComponents.get('FontRow'), {
+  t, useBeautify: selector => selector({ ...snapshot(), save: {} }),
+  choose: () => {}, refreshCache: () => {},
+})
+check('and an untouched field shows no note at all', byClass('saveNote').length === 0, String(byClass('saveNote').length))
+
+console.log('one cache reading per burst, and only after a font choice')
+// Drain whatever an earlier font change scheduled, so the windows below start
+// with no read pending.
+setStored({ font: 'lxgw-wenkai' })
+await wait(1700)
+const readsBefore = cacheRequests.length
+setStored({ brandName: 'Unrelated' })
+await wait(1700)
+check(
+  'a setting that cannot change the cache does not read it',
+  cacheRequests.length === readsBefore,
+  String(cacheRequests.length - readsBefore),
+)
+setStored({ font: 'geist' })
+await wait(1700)
+check(
+  'a font choice reads it exactly once',
+  cacheRequests.length === readsBefore + 1,
+  String(cacheRequests.length - readsBefore),
+)
+const beforeBurst = cacheRequests.length
+writeFace.refreshCache()
+writeFace.refreshCache()
+await settle()
+check(
+  'and two rows mounting join the reading already in flight',
+  cacheRequests.length === beforeBurst + 1,
+  String(cacheRequests.length - beforeBurst),
+)
+
+console.log('the brand name field yields to the input method')
+const imeWrites = []
+let blurs = 0
+mount('row-ime', pageComponents.get('BrandNameRow'), {
+  t, useBeautify: selector => selector(snapshot()),
+  choose: (key, value) => { imeWrites.push([key, value]) },
+})
+const imeInput = elements.find(element => element.type === 'input')
+check(
+  'the field is not keyed by its saved value, which would remount it',
+  imeInput?.key === undefined,
+  String(imeInput?.key),
+)
+check(
+  'the field installs the host composition guard',
+  (documentListeners.get('compositionstart')?.size ?? 0) > 0,
+  String(documentListeners.get('compositionstart')?.size),
+)
+/** Press Enter on the field, counting the blurs the handler asks the DOM for. */
+const pressEnter = (nativeEvent = {}) => {
+  imeInput?.props.onKeyDown({ key: 'Enter', nativeEvent, currentTarget: { blur() { blurs += 1 } } })
+}
+fireDocument('compositionstart')
+pressEnter({ isComposing: true })
+check('Enter that confirms a candidate does not commit the field', blurs === 0, String(blurs))
+// The legacy signal, for engines that report composition only through keyCode.
+pressEnter({ isComposing: false, keyCode: 229 })
+check('a browser that reports only keyCode 229 is honoured as well', blurs === 0, String(blurs))
+// The closing keydown arrives after `compositionend`, with no composing flag on
+// it; the host guard is what keeps it from committing the field.
+fireDocument('compositionend')
+pressEnter({ isComposing: false, keyCode: 13 })
+check('the keydown that closes a candidate list does not commit either', blurs === 0, String(blurs))
+// A blur after the candidate list closed is the moment the finished text must be
+// saved — guarding it would drop the value the user just confirmed.
+fireDocument('keyup')
+imeInput?.props.onBlur({ currentTarget: { value: '半成品' } })
+check(
+  'a blur after the candidate list closes still saves the field',
+  imeWrites.at(-1)?.join(':') === 'brandName:半成品',
+  JSON.stringify(imeWrites.at(-1)),
+)
+pressEnter({ isComposing: false, keyCode: 13 })
+check('an ordinary Enter after composition commits', blurs === 1, String(blurs))
+imeInput?.props.onBlur({ currentTarget: { value: '  Harness  ' } })
+check('and the committed text is saved trimmed', imeWrites.at(-1)?.join(':') === 'brandName:Harness', JSON.stringify(imeWrites.at(-1)))
+pressEnter({})
+check('an Enter with no composition signal at all still commits', blurs === 2, String(blurs))
 
 console.log('the PDF Worker compatibility patch')
 // The Harness builds its PDF Worker from an inline text/javascript Blob and a

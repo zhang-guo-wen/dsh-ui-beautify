@@ -12,7 +12,7 @@
   display: flex;
   justify-content: flex-end;
   padding-right: max(
-    var(--dsh-chat-side-inset, calc(var(--dsh-composer-side-clearance, 16px) + 16px)),
+    var(--beautify-chat-side-inset, calc(var(--dsh-composer-side-clearance, 16px) + 16px)),
     calc((100% - var(--dsh-chat-content-width)) / 2)
   );
   pointer-events: none;
@@ -23,7 +23,9 @@
   bottom: calc(var(--dsh-composer-height, 152px) + 16px);
 }
 
-/* Match the host's floating down button; reserve its position even while hidden. */
+/* Match the host's floating down button; reserve its position even while hidden.
+   The surface is elevation alone: the hairline comes from the elevation's own
+   stroke, so no border token is painted around it. */
 .slot .button {
   display: flex;
   align-items: center;
@@ -36,13 +38,18 @@
   padding: 0;
   border: 0;
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l3);
-  border-radius: 100px;
+  border-radius: 999px;
   corner-shape: round;
   color: var(--dsw-alias-label-primary);
   background: var(--dsw-alias-button-floating-fill);
   box-shadow: var(--dsw-elevation-panel);
   cursor: pointer;
   pointer-events: auto;
+}
+
+.slot .button:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
 }
 
 .slot .button:hover {

@@ -24,6 +24,7 @@ import {
   FONT_ROLES, SYSTEM_FONT_ID, type FontCacheUsage, type FontRole,
 } from '../fonts.ts'
 import type { SettingsRowFace, SettingsRowState } from './settings-controller.ts'
+import { SaveNote } from './SaveNote.tsx'
 import type { SettingsKey } from './locales.ts'
 import { NS } from './locales.ts'
 import css from './SettingRow.module.css'
@@ -177,10 +178,11 @@ function menuEntries(t: Translate, role: FontRole, state: SettingsRowState): Men
  * @returns the row body.
  */
 function FontPicker({ role, ...props }: FontRowProps & { role: FontRole }): ReactNode {
-  const { useBeautify, t, choose, refreshCache } = props
+  const { useBeautify, t, choose, retry, refreshCache } = props
   const state = useBeautify(snapshot => snapshot)
   const [open, setOpen] = useState(false)
-  const choice = state[FONT_ROLES[role].key]
+  const field = FONT_ROLES[role].key
+  const choice = state[field]
   const selected = copyFor(role, choice)
 
   // The reading is taken when the row renders: the numbers only move while a
@@ -193,6 +195,7 @@ function FontPicker({ role, ...props }: FontRowProps & { role: FontRole }): Reac
         <div className={css.title}>{t(ROW_TITLE[role])}</div>
         <div className={css.desc}>{selected === undefined ? '' : t(selected.desc)}</div>
         <div className={css.meta}>{detailLine(t, role, state)}</div>
+        <SaveNote state={state} field={field} t={t} retry={retry} />
       </div>
       <Menu
         open={open}
@@ -201,7 +204,7 @@ function FontPicker({ role, ...props }: FontRowProps & { role: FontRole }): Reac
         selectedId={choice}
         onSelect={(id) => {
           setOpen(false)
-          choose(FONT_ROLES[role].key, id)
+          choose(field, id)
         }}
         align="end"
         portal
@@ -211,7 +214,7 @@ function FontPicker({ role, ...props }: FontRowProps & { role: FontRole }): Reac
             className={css.selector}
             aria-haspopup="menu"
             aria-expanded={open}
-            disabled={!state.available || !state.writable || !state.fields[FONT_ROLES[role].key]}
+            disabled={!state.available || !state.writable || !state.fields[field]}
             onClick={() => { setOpen(previous => !previous) }}
           >
             {selected === undefined ? t(ROW_TITLE[role]) : t(selected.name)}

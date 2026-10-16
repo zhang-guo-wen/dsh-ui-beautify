@@ -41,7 +41,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import {
-  faceById, fontStack, resolveFontChoice, FONT_ROLES, type BeautifySettings, type FontRole,
+  faceById, fontStack, resolveFontChoice, FONT_ROLES, type BeautifySettings, type FontFace, type FontRole,
 } from '../fonts.ts'
 import { FONTS_ROUTE, FONT_SETTINGS_NS } from '../params.ts'
 import { LightBeam } from './LightBeam.tsx'
@@ -189,9 +189,14 @@ export async function apply(ctx: Context): Promise<void> {
 /**
  * Point the document at the stored choices and keep it there.
  *
- * Every role's links and tokens are installed in one pass, and the token
- * override is one call: the theme service keeps one layer per source, so a
- * second call would replace the first role's tokens rather than add to them.
+ * Each role is tracked on its own: a role whose id did not move keeps the links
+ * it already has, so choosing a code face cannot make the browser re-validate
+ * the body face's stylesheets or lay its text out again.
+ *
+ * The token override is still one call for both roles: the theme service keeps
+ * one layer per source, so a second call would replace the first role's tokens
+ * rather than add to them. It is rebuilt from the roles in effect, which is
+ * cheap — a style object the theme service writes once.
  *
  * A role set to the system default contributes neither links nor tokens, which
  * is what lets its token resolve to ui-theme's own declaration — the only way
@@ -205,17 +210,60 @@ export async function apply(ctx: Context): Promise<void> {
  * @returns disposer removing the links, the overrides, and the subscription.
  */
 function applyFonts(ctx: Context, scope: ConfigForm<BeautifySettings>): () => void {
-  let applied: Record<FontRole, string> | undefined
+  /** The id each role is currently applied at. */
+  const applied = new Map<FontRole, string>()
+  /** The stylesheet links each role is currently carried by. */
+  const links = new Map<FontRole, HTMLLinkElement[]>()
   let releaseTokens: (() => void) | undefined
-  let links: HTMLLinkElement[] = []
 
-  // Every change starts from nothing applied, so the system default needs no
-  // separate path: it simply stops before installing anything.
-  const detach = (): void => {
+  const removeLinks = (role: FontRole): void => {
+    for (const link of links.get(role) ?? []) link.remove()
+    links.delete(role)
+  }
+
+  /**
+   * Link one role's stylesheets, replacing whatever it had.
+   * @param role - the role being applied.
+   * @param face - the face it resolves to.
+   */
+  const installLinks = (role: FontRole, face: FontFace): void => {
+    const created: HTMLLinkElement[] = []
+    // One link per sheet: a face may declare several weights, and each sheet
+    // carries its own `@font-face` rules and its own shard set.
+    for (const sheet of face.source.sheets) {
+      const link = document.createElement('link')
+      link.rel = 'stylesheet'
+      link.dataset.plugin = PLUGIN_ID
+      link.href = `${FONTS_ROUTE}/${face.id}/${sheet}`
+      document.head.appendChild(link)
+      created.push(link)
+    }
+    links.set(role, created)
+  }
+
+  /** Rebuild the single token layer from the roles in effect. */
+  const syncTokens = (): void => {
     releaseTokens?.()
     releaseTokens = undefined
-    for (const link of links) link.remove()
-    links = []
+    const tokens: Record<string, { light: string; dark: string }> = {}
+    for (const role of ROLE_ORDER) {
+      const choice = applied.get(role)
+      const face = choice === undefined ? undefined : faceById(choice, role)
+      if (face === undefined) continue
+      const stack = fontStack(face, role)
+      // A font carries no colour scheme, so both modes take the same stack
+      // rather than leaving one palette uncovered.
+      for (const token of FONT_ROLES[role].tokens) tokens[token] = { light: stack, dark: stack }
+    }
+    if (Object.keys(tokens).length > 0) releaseTokens = ctx.theme.overrideTokens(PLUGIN_ID, tokens)
+  }
+
+  /** Apply one role's choice: its links, and bookkeeping for the token layer. */
+  const settle = (role: FontRole, choice: string): void => {
+    applied.set(role, choice)
+    removeLinks(role)
+    const face = faceById(choice, role)
+    if (face !== undefined) installLinks(role, face)
   }
 
   const sync = (): void => {
@@ -224,35 +272,18 @@ function applyFonts(ctx: Context, scope: ConfigForm<BeautifySettings>): () => vo
       body: resolveFontChoice(value?.font, 'body'),
       code: resolveFontChoice(value?.codeFont, 'code'),
     } satisfies Record<FontRole, string>
-    if (applied !== undefined && ROLE_ORDER.every(role => applied?.[role] === choices[role])) return
-    applied = choices
-    detach()
-    const tokens: Record<string, { light: string; dark: string }> = {}
-    for (const role of ROLE_ORDER) {
-      const face = faceById(choices[role], role)
-      if (face === undefined) continue
-      const stack = fontStack(face, role)
-      // A font carries no colour scheme, so both modes take the same stack
-      // rather than leaving one palette uncovered.
-      for (const token of FONT_ROLES[role].tokens) tokens[token] = { light: stack, dark: stack }
-      // One link per sheet: a face may declare several weights, and each sheet
-      // carries its own `@font-face` rules and its own shard set.
-      for (const sheet of face.source.sheets) {
-        const link = document.createElement('link')
-        link.rel = 'stylesheet'
-        link.dataset.plugin = PLUGIN_ID
-        link.href = `${FONTS_ROUTE}/${face.id}/${sheet}`
-        document.head.appendChild(link)
-        links.push(link)
-      }
-    }
-    if (Object.keys(tokens).length > 0) releaseTokens = ctx.theme.overrideTokens(PLUGIN_ID, tokens)
+    const moved = ROLE_ORDER.filter(role => applied.get(role) !== choices[role])
+    if (moved.length === 0) return
+    for (const role of moved) settle(role, choices[role])
+    syncTokens()
   }
 
   sync()
   const stop = scope.subscribe(sync)
   return () => {
     stop()
-    detach()
+    releaseTokens?.()
+    releaseTokens = undefined
+    for (const role of ROLE_ORDER) removeLinks(role)
   }
 }

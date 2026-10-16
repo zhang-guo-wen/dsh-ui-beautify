@@ -32,6 +32,7 @@ import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { MAX_QUICK_REPLIES, MAX_QUICK_REPLY_LENGTH, quickReplySlots } from '../quick-replies.ts'
 import { NS, QUICK_REPLY_PHRASE_KEYS } from './locales.ts'
 import type { SettingsRowFace, SettingsRowState } from './settings-controller.ts'
+import { SaveNote } from './SaveNote.tsx'
 import css from './SettingRow.module.css'
 
 /** Full component props. */
@@ -66,7 +67,7 @@ function detailLine(t: QuickReplyRowProps['t'], state: SettingsRowState): string
  * @returns the row: one tag per slot, plus a reset once anything is stored.
  */
 export function QuickReplyRow(props: QuickReplyRowProps): ReactNode {
-  const { useBeautify, t, choose } = props
+  const { useBeautify, t, choose, retry } = props
   const state = useBeautify(snapshot => snapshot)
   const [editing, setEditing] = useState<Editing | null>(null)
   // Escape unmounts the field, and a browser may deliver that unmount's blur
@@ -130,6 +131,7 @@ export function QuickReplyRow(props: QuickReplyRowProps): ReactNode {
         <div className={css.title}>{t('quickReplyTitle')}</div>
         <div className={css.desc}>{t('quickReplyDesc')}</div>
         <div className={css.meta}>{detailLine(t, state)}</div>
+        <SaveNote state={state} field="quickReplies" t={t} retry={retry} />
       </div>
       <div className={css.replyControl}>
         {slots.map(({ at, key, phrase }) => {

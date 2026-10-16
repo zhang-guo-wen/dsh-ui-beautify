@@ -1,11 +1,13 @@
 /** Image-upload controls and the sidebar name field on this plugin's page. */
 import type { ChangeEvent, ReactNode } from 'react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { observeComposition } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { BRAND_ROUTE, MAX_BRAND_IMAGE_BYTES } from '../params.ts'
 import type { SettingsRowFace, SettingsRowState } from './settings-controller.ts'
 import { imageUrl } from './branding.tsx'
 import { NS } from './locales.ts'
+import { SaveNote } from './SaveNote.tsx'
 import css from './SettingRow.module.css'
 
 export type BrandRowProps = PropsLocale<typeof NS> & InjectFace<SettingsRowFace>
@@ -20,7 +22,7 @@ function detail(state: SettingsRowState, field: ImageField | 'brandName' | 'tagl
 }
 
 function ImageRow({ field, ...props }: BrandRowProps & { field: ImageField }): ReactNode {
-  const { useBeautify, t, choose } = props
+  const { useBeautify, t, choose, retry } = props
   const state = useBeautify(snapshot => snapshot)
   const input = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<'idle' | 'uploading' | 'failed' | 'large'>('idle')
@@ -43,6 +45,9 @@ function ImageRow({ field, ...props }: BrandRowProps & { field: ImageField }): R
       if (!response.ok) throw new Error(String(response.status))
       const result = await response.json() as { url?: string }
       if (typeof result.url !== 'string' || imageUrl(result.url) === '') throw new Error('invalid upload response')
+      // The file is stored; the address still has to reach the settings
+      // document, and the note below reports that write rather than letting the
+      // row look settled the moment the upload returns.
       choose(field, result.url)
       setStatus('idle')
     } catch {
@@ -56,6 +61,7 @@ function ImageRow({ field, ...props }: BrandRowProps & { field: ImageField }): R
         <div className={css.title}>{title}</div>
         <div className={css.desc}>{t(field === 'logo' ? 'logoDesc' : 'brandIconDesc')}</div>
         <div className={css.meta}>{status === 'failed' ? t('uploadFailed') : status === 'large' ? t('imageTooLarge') : detail(state, field, t)}</div>
+        <SaveNote state={state} field={field} t={t} retry={retry} />
       </div>
       <div className={css.imageControl}>
         {url !== '' && <img className={css.preview} src={url} alt="" aria-hidden="true" />}
@@ -81,28 +87,63 @@ export function LogoRow(props: BrandRowProps): ReactNode { return <ImageRow fiel
 export function BrandIconRow(props: BrandRowProps): ReactNode { return <ImageRow field="brandIcon" {...props} /> }
 
 function TextRow({ field, ...props }: BrandRowProps & { field: 'brandName' | 'tagline' }): ReactNode {
-  const { useBeautify, t, choose } = props
+  const { useBeautify, t, choose, retry } = props
   const state = useBeautify(snapshot => snapshot)
+  const input = useRef<HTMLInputElement>(null)
+  // The host's composition observer: the same guard the host's own text fields,
+  // menus and shortcut recorder use. It also swallows the closing keydown a
+  // browser sends right after `compositionend`, which an inline check for
+  // `isComposing`/229 alone cannot see.
+  const composition = useRef<ReturnType<typeof observeComposition> | null>(null)
   const title = t(field === 'brandName' ? 'brandNameTitle' : 'taglineTitle')
   const disabled = !state.available || !state.writable || !state.fields[field]
+  const stored = state[field]
+
+  useEffect(() => {
+    const guard = observeComposition(document)
+    composition.current = guard
+    return () => { guard.dispose(); composition.current = null }
+  }, [])
+
+  // The stored value follows the write, and a write follows a blur, so this only
+  // lands while the field is not being typed into. The element is deliberately
+  // not keyed by the value: a key that moves would remount the field and drop
+  // both the draft and the focus, and a focused field is never overwritten here
+  // even when the Host republishes.
+  useEffect(() => {
+    const node = input.current
+    if (node === null || node === document.activeElement) return
+    if (node.value !== stored) node.value = stored
+  }, [stored])
+
   return (
     <div className={css.row}>
       <div className={css.rowText}>
         <div className={css.title}>{title}</div>
         <div className={css.desc}>{t(field === 'brandName' ? 'brandNameDesc' : 'taglineDesc')}</div>
         <div className={css.meta}>{detail(state, field, t)}</div>
+        <SaveNote state={state} field={field} t={t} retry={retry} />
       </div>
       <input
-        key={state[field]}
+        ref={input}
         className={css.textInput}
         type="text"
         aria-label={title}
         placeholder={t(field === 'brandName' ? 'namePlaceholder' : 'taglinePlaceholder')}
-        defaultValue={state[field]}
+        defaultValue={stored}
         maxLength={field === 'brandName' ? 80 : 120}
         disabled={disabled}
+        // A blur commits whatever the field holds. The guard is deliberately not
+        // applied here: it is true for a composition that just ended, and the blur
+        // that follows a confirmed candidate is exactly when the finished value
+        // must be saved. Enter is where a half-composed value would otherwise be
+        // committed, so that is where the guard belongs.
         onBlur={event => { choose(field, event.currentTarget.value.trim()) }}
-        onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }}
+        onKeyDown={event => {
+          if (event.key !== 'Enter') return
+          if (composition.current?.guards(event.nativeEvent) === true) return
+          event.currentTarget.blur()
+        }}
       />
     </div>
   )

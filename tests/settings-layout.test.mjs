@@ -50,3 +50,16 @@ test('phone controls preserve readable labels, compact switches and touch-sized 
   assert.match(rowCss, /white-space: nowrap/)
   assert.match(rowCss, /\.textInput \{\s*min-height: 44px;\s*font-size: 16px/)
 })
+
+test('the narrow-panel container query stays anonymous across the two CSS Modules', () => {
+  const sectionCss = readFileSync(new URL('../src/client/BeautifySection.module.css', import.meta.url), 'utf8')
+  // The declaration and the query live in different CSS Modules. Naming the
+  // container lets CSS Modules rewrite the name per file, so the two hashes no
+  // longer match and the query becomes dead code (measured in lib/client.js:
+  // `container: VrIHLG_beautify-page/inline-size` vs
+  // `@container xrCt8G_beautify-page (width<=440px)`).
+  assert.match(sectionCss, /container-type:\s*inline-size/)
+  assert.doesNotMatch(sectionCss, /container\s*:\s*[A-Za-z]/)
+  assert.match(rowCss, /@container\s*\(/)
+  assert.doesNotMatch(rowCss, /@container\s+[^\s(]/)
+})

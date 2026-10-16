@@ -391,6 +391,19 @@ composer 下方那条带子是**同一条 flex 行**（会话统计胶囊 + 快�
 
 后续截图标注优先于上文历史展示规则：字体缓存行只显示缓存大小／未下载，不显示分片数量或刷新提示；思源黑体说明去掉可变分片细节。各开关说明仅保留功能用途，不重复默认开启、关闭后恢复、独立开关和操作权限说明；远程说明补充解决某些配置在手机端不生效问题。名称输入框提示为「当前名称：DeepSeek Harness」，仅为 placeholder，不写入配置、不覆盖已有名称。默认开启与只读等行为不变，旧宿主缺字段提示保留。`tests/ui-copy.test.mjs` 与客户端渲染测试保护这组文案约定。
 
+## 设置行的保存反馈与请求去重（2026-10-16）
+
+- **单项保存有保存中／成功／失败+重试三态**：`SettingsController` 按字段记 `saving|saved|error`，随共享快照发布；`SaveNote.tsx` 渲染在描述行下方（空闲时不渲染，所以没写过的字段仍是原来一行描述）。成功约 2.5 秒后由定时器自行退场，失败保留到重试成功。`retry(key)` 重发该字段上次的尝试值；`writable`/`status` 不允许时 `choose` 不写也不报错。
+- **同一手势只发一次写**：`write()` 比较的是「本行最近一次请求的值」而不是 store 里的旧值——写还在飞时 store 尚未追上，按旧值比较会让第二次点击重复提交同一选择。每次尝试带自增 token，只有最新一次结算能改行内状态（后写覆盖前写）。底层顺序写队列、revision fence 与「只有最新结算才发布」都是既有能力，这里补的只是可见反馈。
+- **一次缓存读取服务所有调用者**：`readOnce()` 复用在飞 Promise，两个字体行挂载时只发一次 `GET /plugins/dsh-ui-beautify/cache`。延迟重读的触发条件从「任意美化快照变化」收窄为「`font`/`codeFont` 的解析值变化」（`fontChoicesMoved()`）——开关、短语、品牌图变化不再安排一次遍历字体目录并逐项 `stat` 的读取。
+- **IME 用宿主 `observeComposition`，不手写 `isComposing`/`keyCode 229`**：`BrandRows.tsx` 的文本行在挂载时安装宿主 guard，Enter 交给 `composition.guards(event.nativeEvent)`（它还覆盖 `compositionend` 之后紧跟的那个关闭键，宿主自己的内联判断看不到这一条）。**失焦不做守卫**：`guards()` 对「刚刚结束的组合」同样返回 true，而候选确认后的失焦正是必须保存完成文本的时刻，套上去会把用户刚确认的字丢掉；宿主 `ui-theme/FontFamilyRow.tsx` 也只在 Enter 上跳过组合状态。文本行**不以保存值为 React `key`**（宿主那份 `key={value}` 会重建输入框、丢草稿与焦点），改为 `ref` + effect，只在输入框未聚焦时同步 store 值。
+- **只重装变化角色的字体样式**：`applyFonts` 按角色分别记 `applied` 与 `links`，`moved` 里没有的角色保留原有 `<link>` 节点，浏览器不必重新校验另一角色的样式表；token 层仍是一次 `ctx.theme.overrideTokens`（theme 服务每个来源只保留一层，分两次调用会替换而不是叠加）。
+- **只贡献 `settings.section` 的页面不套 960px 内容列**（BASELINE §3.3）：`BeautifySection.module.css` 的 `.page` 用 `container-type: inline-size` + `max-width: 760px`，与宿主 `ui-settings-plugin-inventory` 的 `.section` 一致；`SettingRow.module.css` 的 `@container (max-width: 440px)` 在同一档把行改为纵向堆叠、`.rowText` 右留白从 48px 收到 16px。**容器必须匿名**：CSS Modules（lightningcss）按所在文件给 `container-name` 加哈希前缀，声明在 `BeautifySection.module.css`、查询在 `SettingRow.module.css` 时会变成两个名字（实测产物曾是 `container:VrIHLG_beautify-page/inline-size` vs `@container xrCt8G_beautify-page (width<=440px)`），查询永不匹配、整块规则是死代码——2026-10-16 由另一路浏览器验收发现（task-19），改为匿名后修复。`tests/settings-layout.test.mjs` 现在断言两侧都匿名，`tests/client.mjs` 的产物检查确保构建后仍如此。
+  真实浏览器实测（隔离实例 0.2.0-rc.2，端口 61673，Chromium 155）：窗口 **601px** 时 `.page` 内容宽 312–317px、`(max-width: 600px)` 不匹配，`.row` 计算值 `flex-direction: column`、`.rowText` `padding-right: 0px` → 由容器查询接管；窗口 **600px** 时 `.page` 544px、`(max-width: 600px)` 匹配，`.row` 仍 `column` → 由既有手机媒体查询提供（≤600px 行为未变）。`.page` 计算值 `container-name: none` / `container-type: inline-size`。
+  `mobile-layout.css` 的手机抽屉仍按窗口宽度与 `data-beautify-mobile-layout` 判，因为宿主抽屉断点本身是视口级的。
+- **粗指针下的开关行走整行 44px**：宿主 `Switch` 固定 36×20，插件不改控件本体；`rowToggle()`（`row-toggle.ts`）给开关行的行容器一个按下处理器，命中 `button/input/select/textarea/a` 的按下留给控件自己（否则会翻两次或抢走「重试」的按下）。`@media (pointer: coarse)` 只负责行高/光标与文本输入 16px/44px。
+- 回归：`tests/client.mjs` 覆盖三态（含重试、失败、退场）、重复点击去重、缓存读取合并与触发收窄、按角色重装（另一角色的 `<link>` 节点身份不变）、行内按下、IME 四条路径（`isComposing`、仅 229、关闭键、普通 Enter）与失焦仍保存、字段不以值为 key；`tests/settings-layout.test.mjs` 与 `tests/recent-sessions.test.mjs` 跟随容器与变量改名。`_team/audit-ui-standard.mjs dsh-ui-beautify` 从 HEAD 的 23 条降到 12 条：11 条是 `mobile-layout.css` / `recent-sessions.css` 覆盖宿主样式所需的 `!important`（标准未禁止），1 条 `token-redefine` 是 `--dsh-composer-side-clearance` —— 它是宿主自己在 `ui-conversation/.../ConversationRoot.module.css:389` 声明、供多处消费的布局变量，就地 rebind 才能生效，改名会直接失效。
+
 ## 设置弹窗手机布局（2026-10-08）
 
 - 设置弹窗与美化设置行的手机布局统一由 `mobileLayoutEnabled` 控制。`BeautifySection` 订阅同一设置快照，仅开启时添加 `data-beautify-mobile-layout`；`SettingRow.module.css` 的全部 ≤600px 布局／触摸尺寸规则必须以该属性为作用域。唯一例外是 `.desktopOnly` 的快捷回复设置手机隐藏规则，保持始终隐藏。关闭时恢复原控件排列、输入尺寸，重开实时恢复，不增加配置字段或绑定最近对话开关。回归须包括实际开关关→开、美化页与通用页、桌面和原始配置恢复。

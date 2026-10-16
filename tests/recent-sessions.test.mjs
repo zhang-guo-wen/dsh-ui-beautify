@@ -21,7 +21,7 @@ test('phone hides only header open-file/more and view tabs, restores requested g
   assert.ok(css.includes("[data-slot='conversation.session.header.utilities'] > :has([class*='_moreButton'])"))
   // Phone gutters were halved once more for a tighter layout: 16px chat / 8px composer → 8px / 4px.
   assert.ok(css.includes('--dsh-composer-side-clearance: 4px'))
-  assert.ok(css.includes('--dsh-chat-side-inset: 8px'))
+  assert.ok(css.includes('--beautify-chat-side-inset: 8px'))
   assert.ok(css.includes('padding-left: 8px !important'))
   assert.ok(css.includes('padding-right: 8px !important'))
   assert.ok(!css.includes("[data-slot='conversation.session.header.corner'] { padding-left: 44px; }"))

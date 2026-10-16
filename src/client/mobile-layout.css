@@ -5,8 +5,11 @@
   [data-slot='conversation.session.header.utilities'] > :has([class*='_moreButton']) { display: none !important; }
   [class*='_headerUtilities']:has([data-slot='conversation.session.header.utilities']) { margin-left: 0 !important; }
   [data-mobile-layout-frame] [class*='_body']:has([class*='_composerStack']) {
+    /* A host token, rebound in place: the composer and the panels around it read
+       it from their own sheets. */
     --dsh-composer-side-clearance: 4px;
-    --dsh-chat-side-inset: 8px;
+    /* Read by this plugin's own floating controls. */
+    --beautify-chat-side-inset: 8px;
   }
   [data-mobile-layout-frame] [class*='_scroll']:has([class*='_flowItem']) { padding-left: 8px !important; padding-right: 8px !important; }
   [data-mobile-layout-frame] {
@@ -72,7 +75,8 @@
     height: 100%;
     border: 0;
     padding: 0;
-    background: var(--dsw-alias-mask, rgb(0 0 0 / 28%));
+    /* The host's own dimming mask (ui-primitives Modal/ImageLightbox). */
+    background: var(--dsw-alias-bg-mask-1);
     cursor: pointer;
     pointer-events: auto;
   }
@@ -227,5 +231,13 @@
     min-width: 0;
     padding: 16px 8px;
     white-space: nowrap;
+  }
+}
+
+/* The only transition in this file is the one it cancels on the frame; under
+   reduced motion nothing here animates either way. */
+@media (prefers-reduced-motion: reduce) {
+  [data-mobile-layout-frame] {
+    transition: none;
   }
 }
