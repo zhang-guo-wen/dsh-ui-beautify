@@ -49,11 +49,14 @@ npm run test:replies   # 快捷回复「一行放不下就少显示几条」（�
 
 ## 详细规则
 
-按需读取下列文件，每个文件第一行都写明覆盖范围与何时该读。
+明细在 `.claude/rules/` 下，由 `dsh-claude-compat` 按**路径作用域**加载（与 Claude Code 同一套约定）：每个文件都带**非空 `paths:`** frontmatter，glob 相对本包根、正斜杠、gitignore 风格。agent 用 `read` 读到匹配 glob 的文件后，命中的**所有**规则会一起于**下一次请求**注入，每会话至多一次——不读就不注入，所以明细不会白白挤占 `agent-instructions` 的 65,536 字节预算。需要时也可以直接主动 `read` 下面索引里的文件（每个文件开头都有一句「覆盖什么、何时读」，触发它的路径写在各自的 `paths:` 里）。
 
-- [rules/fonts.md](rules/fonts.md)：字体表（正文 14 款 / 代码 5 款）、按需分片下载链路与磁盘缓存、`system` 的真实语义、覆盖范围、加一款字体的完整步骤，以及「装了但字体没变」的七步排查——改字体表、下载链路、缓存，或排查字体没生效时读。
-- [rules/composer-ui.md](rules/composer-ui.md)：composer 上方的光柱（含已被光柱替代的骑车道历史实现）、回到最近提问、会话开始胶囊、下方快捷回复（开关、槽位模型、「一行放不下就少显示几条」）——动 composer 上下任何一件时读。
-- [rules/settings.md](rules/settings.md)：设置页字段与可配项、配置写在哪个文件、设置文案约定、单项保存反馈与请求去重、「界面增强」五个功能开关——改设置页、加字段或改文案时读。
-- [rules/mobile-layout.md](rules/mobile-layout.md)：手机布局控制器与最近对话、设置弹窗的手机重排、Pocket 文件复制按钮、右侧栏归属与手机白板触摸层级——动 ≤600px 行为时读。
-- [rules/host-integration.md](rules/host-integration.md)：描述翻译（Typert Remote + 批量翻译）、远程设置只读桥接、PDF/Office 手机兼容补丁、`cordis.patch.yml` 组合接线——碰宿主元数据装饰、远程表单、PDF 补丁或插件接线时读。
-- [rules/build-release.md](rules/build-release.md)：目录逐文件说明、构建产出、测试清单、部署与生效语义、发版流程、易崩清单、后续可加项、README 截图约定——构建、发布、排障或规划下一步时读。
+**同一批大文件绝不共用宽 glob**（否则一次 `read` 会把它们全带出来、把预算吃光）：新增明细前先确认它真正对应的路径，必要时拆成更小的主题文件；条款只能搬家，不能静默删除。
+
+- [.claude/rules/fonts.md](.claude/rules/fonts.md)：字体表（正文 14 款 / 代码 5 款）、按需分片下载链路与磁盘缓存、`system` 的真实语义、覆盖范围、加一款字体的完整步骤，以及「装了但字体没变」的七步排查——改字体表、下载链路、缓存，或排查字体没生效时读。
+- [.claude/rules/composer-ui.md](.claude/rules/composer-ui.md)：composer 上方的光柱（含已被光柱替代的骑车道历史实现）、回到最近提问、会话开始胶囊——动 composer 上方这三件时读。
+- [.claude/rules/quick-replies.md](.claude/rules/quick-replies.md)：composer 下方的快捷回复（注册位置与 order、点击=写草稿+提交、PC 端显示开关与手机隐藏、短语可自定义的槽位模型、「一行放不下就少显示几条」的测量与闪烁修复）——动 composer 下方那条带子或快捷回复设置行时读。
+- [.claude/rules/settings.md](.claude/rules/settings.md)：设置页字段与可配项、配置写在哪个文件、设置文案约定、单项保存反馈与请求去重、「界面增强」五个功能开关——改设置页、加字段或改文案时读。
+- [.claude/rules/mobile-layout.md](.claude/rules/mobile-layout.md)：手机布局控制器与最近对话、设置弹窗的手机重排、Pocket 文件复制按钮、右侧栏归属与手机白板触摸层级——动 ≤600px 行为时读。
+- [.claude/rules/host-integration.md](.claude/rules/host-integration.md)：描述翻译（Typert Remote + 批量翻译）、远程设置只读桥接、PDF/Office 手机兼容补丁、`cordis.patch.yml` 组合接线——碰宿主元数据装饰、远程表单、PDF 补丁或插件接线时读。
+- [.claude/rules/build-release.md](.claude/rules/build-release.md)：目录逐文件说明、构建产出、测试清单、部署与生效语义、发版流程、易崩清单、后续可加项、README 截图约定——构建、发布、排障或规划下一步时读。

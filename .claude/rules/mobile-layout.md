@@ -1,4 +1,15 @@
-本文件覆盖手机布局控制器与最近对话、设置弹窗的手机重排、Pocket 文件复制按钮的手机布局、右侧栏归属与白板触摸层级；当你需要改动 ≤600px 的手机行为时读它。
+---
+paths:
+  - "src/client/mobile-layout*"
+  - "src/client/MobileRecentSessions.tsx"
+  - "src/client/recent-session*"
+  - "tests/mobile-layout.test.mjs"
+  - "tests/mobile-browser.test.mjs"
+  - "tests/recent-*.mjs"
+  - "tests/file-copy-browser.test.mjs"
+---
+
+> 覆盖什么、何时读：本文件覆盖手机布局控制器与最近对话、设置弹窗的手机重排、Pocket 文件复制按钮的手机布局、右侧栏归属与白板触摸层级；当你需要改动 ≤600px 的手机行为时读它。
 
 # 手机布局与最近对话
 

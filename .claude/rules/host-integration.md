@@ -1,4 +1,18 @@
-本文件覆盖描述翻译（Typert Remote + 批量翻译）、远程设置只读桥接、PDF/Office 手机兼容补丁与 `cordis.patch.yml` 组合接线；当你需要碰宿主元数据装饰、远程表单、PDF 补丁或插件接线时读它。
+---
+paths:
+  - "src/description-*.ts"
+  - "src/client/description-*"
+  - "src/client/DescriptionTranslationRow.tsx"
+  - "src/client/pdf-worker-compat.ts"
+  - "src/client/remote-settings.ts"
+  - "src/client/remote-settings-reader.ts"
+  - "cordis.patch.yml"
+  - "tests/description-*.test.mjs"
+  - "tests/pdf-worker-compat.test.mjs"
+  - "tests/remote-settings*.mjs"
+---
+
+> 覆盖什么、何时读：本文件覆盖描述翻译（Typert Remote + 批量翻译）、远程设置只读桥接、PDF/Office 手机兼容补丁与 `cordis.patch.yml` 组合接线；当你需要碰宿主元数据装饰、远程表单、PDF 补丁或插件接线时读它。
 
 # 宿主集成与兼容补丁
 

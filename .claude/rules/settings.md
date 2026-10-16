@@ -1,4 +1,29 @@
-本文件覆盖设置页的字段与可配项、配置写在哪个文件、设置文案约定、单项保存反馈与请求去重、以及「界面增强」的五个功能开关；当你需要改设置页、加设置字段或改设置文案时读它。
+---
+paths:
+  - "src/settings.ts"
+  - "src/brand-assets.ts"
+  - "src/client/BeautifySection.tsx"
+  - "src/client/BeautifySection.module.css"
+  - "src/client/SettingRow.module.css"
+  - "src/client/settings-controller.ts"
+  - "src/client/SaveNote.tsx"
+  - "src/client/FeatureToggleRows.tsx"
+  - "src/client/feature-switch.ts"
+  - "src/client/BrandRows.tsx"
+  - "src/client/branding.tsx"
+  - "src/client/tagline.ts"
+  - "src/client/row-toggle.ts"
+  - "src/client/MotionRow.tsx"
+  - "src/client/locales.ts"
+  - "locale/**"
+  - "tests/ui-copy.test.mjs"
+  - "tests/settings-layout.test.mjs"
+  - "tests/settings-layout-browser.test.mjs"
+  - "tests/feature-switch.test.mjs"
+  - "tests/brand.mjs"
+---
+
+> 覆盖什么、何时读：本文件覆盖设置页的字段与可配项、配置写在哪个文件、设置文案约定、单项保存反馈与请求去重、以及「界面增强」的五个功能开关；当你需要改设置页、加设置字段或改设置文案时读它。
 
 # 设置页与功能开关
 

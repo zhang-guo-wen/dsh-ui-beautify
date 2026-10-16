@@ -1,4 +1,19 @@
-本文件覆盖仓库目录逐文件说明、构建产出、测试清单、部署与生效语义、发版流程、易崩清单、后续可加项与 README 截图约定；当你需要构建、发布、排障或规划下一步时读它。
+---
+paths:
+  - "package.json"
+  - "tsconfig.json"
+  - "build-client.mjs"
+  - "tsdown.config.ts"
+  - "lib/**"
+  - "docs/**"
+  - "README.md"
+  - "README.zh.md"
+  - "tests/client.mjs"
+  - "tests/smoke.mjs"
+  - "tests/plugin-metadata.test.mjs"
+---
+
+> 覆盖什么、何时读：本文件覆盖仓库目录逐文件说明、构建产出、测试清单、部署与生效语义、发版流程、易崩清单、后续可加项与 README 截图约定；当你需要构建、发布、排障或规划下一步时读它。
 
 # 构建、测试与发版
 
