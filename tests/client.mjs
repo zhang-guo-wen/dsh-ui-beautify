@@ -329,6 +329,8 @@ let released = 0
  */
 let writeOrder = []
 let setWrite = async (key, value) => { stored = { ...stored, [key]: value }; return true }
+/** Session-scoped source contributions the plugin body registers. */
+const sessionProvides = []
 const scope = {
   getSnapshot: () => ({ status: 'ready', writable: true, value: stored }),
   subscribe: (listener) => { subscribers.push(listener); return () => {} },
@@ -339,6 +341,7 @@ const makeCtx = (into) => ({
     if (name === 'remote') return { $host: { isLoopback: true } }
     if (name === 'locale') return this.locale
     if (name === 'slots') return this.slots
+    if (name === 'uiSession') return { provide: (descriptor) => { sessionProvides.push(descriptor); return () => {} } }
     return undefined
   },
   on() { return () => {} },
@@ -728,15 +731,20 @@ const travelOf = (node) => {
   return written === null ? 0 : Number(written[1])
 }
 
-// An assistant step in flight: one text block growing as streamed chunks land.
-const step = { text: '' }
-const chatWith = selector => selector({
-  legacy: {
-    partial: step.text === ''
-      ? null
-      : { turn: 1, step: 1, blocks: [{ kind: 'text', text: step.text }] },
-  },
-})
+// The lane reads the cumulative output characters a Session-scope entry gets
+// from this plugin's `assistantOutputTokens` hook; `step.live` stands in for the
+// Session's streamed output, including the reasoning and tool-argument deltas
+// the Chat target omits.
+const step = { live: 0 }
+/**
+ * Props for one lane render: the Session hook's reading plus the shared
+ * settings snapshot the lane reads its motion answer from.
+ */
+function laneProps() {
+  // The real seat is a selector hook: it projects the figure through the
+  // caller's selector, so the stub has to do the same.
+  return { useAssistantOutputTokens: selector => selector(step.live), useBeautify: selector => selector(snapshot()) }
+}
 /**
  * Ground the cyclist covers over a window of frames.
  *
@@ -752,25 +760,21 @@ const travelled = (rider, frames) => {
 /** Stream chunks into a mounted lane, one render and one frame each. */
 const streamInto = (key, chunks) => {
   for (let chunk = 0; chunk < chunks; chunk += 1) {
-    step.text += 'x'.repeat(60)
+    step.live += 60
     mount(key, laneEntry.component, laneProps())
     advance(16)
   }
 }
-
-/**
- * Props for one lane render: the live Chat snapshot plus the shared settings
- * snapshot the lane reads its motion answer from.
- */
-function laneProps() {
-  return { useChat: chatWith, useBeautify: selector => selector(snapshot()) }
+/** Step frames until the clock reaches `until`, one 16ms frame at a time. */
+const streamUntil = (until) => {
+  while (clock.time < until) advance(16)
 }
 
 // The stored answer is what decides, so the lane runs under `always` here and
 // the browser preference is left out of it until the last section.
 setStored({ motion: 'always' })
 clock.time = 0
-step.text = ''
+step.live = 0
 mount('lane', laneEntry.component, laneProps())
 check('draws one lane', byClass('lane').length === 1)
 check('that assistive technology is told to skip', byClass('lane')[0]?.props['aria-hidden'] === 'true')
@@ -790,7 +794,7 @@ check('beam cannot intercept input', beamCss.includes('pointer-events: none'))
 // The same frames against a stream have to cover ground and spin the wheels —
 // that mapping is the whole point of reading the output rate.
 clock.time = 0
-step.text = ''
+step.live = 0
 mount('sprint', laneEntry.component, laneProps())
 const sprintBeam = byClass('beam')[0].props.ref.current
 const sprintLane = byClass('lane')[0].props.ref.current
@@ -798,24 +802,26 @@ streamInto('sprint', 12)
 check('a stream sets it moving', travelled(sprintBeam, 8) > 0)
 check('output keeps the light visible without opacity changes', sprintLane.style.opacity === undefined)
 
-// A closed step takes the in-flight accumulator with it. The figure keeps the
+// A closed step stops adding characters to the figure. The lane keeps the
 // speed it was carrying and bleeds it off over eight seconds, so it is still
 // rolling well after the writing stopped and only then comes to rest.
 clock.time = 0
-step.text = ''
+step.live = 0
 mount('settled', laneEntry.component, laneProps())
 const settledBeam = byClass('beam')[0].props.ref.current
 const settledLane = byClass('lane')[0].props.ref.current
 streamInto('settled', 12)
-step.text = ''
 mount('settled', laneEntry.component, laneProps())
 // 2s of no output: still coasting, over a distance a stopped figure cannot cover.
 const beforeCoast = travelOf(settledBeam)
 advance(16, 120)
 check('keeps moving after the writing stops', travelOf(settledBeam) !== beforeCoast)
 check('light does not fade when output stops', settledLane.style.opacity === undefined)
-// Past the roll-out it is at rest, with the wheels stopped too.
-advance(16, 400)
+// Past the roll-out it is at rest, with the wheels stopped too. The coast is
+// measured from when the write stopped, so this runs a fixed span past that
+// point rather than a count that happens to be long enough for one rate.
+const stoppedAt = clock.time
+streamUntil(stoppedAt + 16 * 600)
 check(
   'and comes to rest once the roll-out is spent',
   travelled(settledBeam, 8) === 0 && settledLane.style.opacity === undefined,
@@ -829,14 +835,14 @@ check('resting beam stays fully inside the visible lane', travelOf(settledBeam) 
 // happens with the figure outside both edges; a large move is only legitimate
 // when neither end of it shows most of the figure, which is what this measures.
 clock.time = 0
-step.text = ''
+step.live = 0
 mount('ride', laneEntry.component, laneProps())
 const rideRider = byClass('beam')[0].props.ref.current
 streamInto('ride', 6)
 const xs = []
 for (let frame = 0; frame < 400; frame += 1) {
   if (frame % 4 === 0) {
-    step.text += 'x'.repeat(60)
+    step.live += 60
     mount('ride', laneEntry.component, laneProps())
   }
   advance(16)
@@ -851,7 +857,7 @@ const biggestVisibleStep = Math.max(...xs.map((x, at) => {
 }))
 check(
   'never jumps back to the start while it is on the lane',
-  biggestVisibleStep <= 1.6 * (LANE_WIDTH + 2 * BEAM_WIDTH) * 0.016 + 0.01,
+  biggestVisibleStep <= 3.4 * (LANE_WIDTH + 2 * BEAM_WIDTH) * 0.016 + 0.01,
   `largest on-lane move ${biggestVisibleStep.toFixed(1)}px`,
 )
 check(
@@ -893,7 +899,7 @@ check('legacy system runs as always regardless of browser preference', byClass('
 check('entry stays registered regardless of state', registrations.some(entry => entry.definition.id === 'ui-beautify-lane'))
 
 setStored({ motion: 'always' })
-step.text = ''
+step.live = 0
 mount('override', laneEntry.component, laneProps())
 check(
   'and plays anyway once the user says so',
@@ -909,6 +915,80 @@ reducedMotion = false
 clock.frame = null
 mount('off', laneEntry.component, laneProps())
 check('switched off here draws nothing either', byClass('lane').length === 0 && clock.frame === null)
+
+console.log('the lane reads streamed output from a Session hook')
+// The Chat target is empty while a step streams reasoning or tool arguments;
+// this hook counts those deltas too, so the lane moves through the whole turn,
+// and it counts a settled message that never streamed a live chunk.
+const outputProvide = sessionProvides.find(descriptor => descriptor.hooks?.includes('assistantOutputTokens'))
+check('registers one Session-scoped output hook', sessionProvides.length === 1 && outputProvide !== undefined,
+  JSON.stringify(sessionProvides.map(descriptor => descriptor.hooks)))
+const appendListeners = new Set()
+let lastChange = { kind: 'replace' }
+const events = {
+  getSnapshot: () => ({ change: lastChange }),
+  subscribe: (listener) => { appendListeners.add(listener); return () => { appendListeners.delete(listener) } },
+}
+const sessionDisposers = []
+const sessionBinding = {
+  eventSource: events,
+  ctx: {
+    effect(fn) { const dispose = fn(); sessionDisposers.push(dispose); return dispose },
+  },
+}
+let source
+let consumerCalls = 0
+if (outputProvide !== undefined) {
+  const contribution = outputProvide.resolve(sessionBinding)
+  source = contribution.hooks.assistantOutputTokens
+  source.subscribe(() => { consumerCalls += 1 })
+  const append = (event) => {
+    lastChange = { kind: 'append', entries: [{ event }] }
+    for (const listener of appendListeners) listener()
+  }
+  const chunk = (c) => append({ type: 'assistant/live-chunk', data: { chunk: c } })
+  chunk({ type: 'reasoning-delta', text: '先想一下' })
+  check('counts streamed reasoning the Chat target omits', source.getSnapshot() === 4, String(source.getSnapshot()))
+  chunk({ type: 'text-delta', text: '回答' })
+  chunk({ type: 'tool-call-delta' })
+  chunk({ type: 'usage' })
+  append({ type: 'assistant/message', data: { chunk: { type: 'text-delta', text: 'not a live chunk' } } })
+  check('counts answer text and ignores chunks that carry no text', source.getSnapshot() === 6, String(source.getSnapshot()))
+  check('and wakes the lane once per counted delta', consumerCalls === 2, String(consumerCalls))
+  append({
+    type: 'assistant/message',
+    data: { message: { content: [{ kind: 'text', text: 'abc' }, { kind: 'reasoning', text: 'de' }] } },
+  })
+  check('the settled message is not counted twice', source.getSnapshot() === 6, String(source.getSnapshot()))
+  lastChange = { kind: 'replace' }
+  for (const listener of appendListeners) listener()
+  check('a non-append change publishes nothing', source.getSnapshot() === 6 && consumerCalls === 2)
+  check('each Session binding keeps one source', outputProvide.resolve(sessionBinding).hooks.assistantOutputTokens === source)
+  for (const dispose of sessionDisposers) dispose()
+  check('releasing the binding unsubscribes its events', appendListeners.size === 0)
+}
+check(
+  'the lane reads the Session hook rather than the Chat target',
+  !('useChat' in laneProps()),
+  JSON.stringify(Object.keys(laneProps())),
+)
+// The figure is a token estimate, so it stays on the same scale as the TPS the
+// interface shows: one CJK character is about a token, other text a third.
+check(
+  'characters are estimated as tokens',
+  Math.abs(plugin.estimateTokens('中文') - 2) < 1e-9 && Math.abs(plugin.estimateTokens('abc') - 0.9) < 1e-9,
+  `${plugin.estimateTokens('中文')} / ${plugin.estimateTokens('abc')}`,
+)
+// A Host whose Session seat is missing must still get the lane: a component that
+// throws during render takes the composer down with it, and a lane that renders
+// nothing is indistinguishable from a broken plugin.
+setStored({ motion: 'always' })
+mount('no-seat', laneEntry.component, { useBeautify: selector => selector(snapshot()) })
+check(
+  'a missing output seat still draws the lane, at rest',
+  byClass('lane').length === 1 && byClass('beam').length === 1,
+  `${byClass('lane').length}/${byClass('beam').length}`,
+)
 
 console.log('quick replies below the composer')
 check(

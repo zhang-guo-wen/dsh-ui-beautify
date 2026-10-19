@@ -3,6 +3,7 @@ paths:
   - "src/motion.ts"
   - "src/client/LightBeam.tsx"
   - "src/client/LightBeam.module.css"
+  - "src/client/follow-output.ts"
   - "src/client/output-rate.ts"
   - "src/client/scroll-to-prompt.ts"
   - "src/client/ScrollToPrompt.tsx"
@@ -20,13 +21,26 @@ paths:
 
 ## composer 上方的光柱（2026-10-08）
 
-当前实现为 `LightBeam.tsx` + `LightBeam.module.css`，已删除旧 BikeLane 源码。光柱固定 1px，改用宿主 `conversation.input.overlay` 的零高度绝对定位锚点，直接覆盖输入框上边框，不占行、不加 margin/gap，不修改宿主布局；仅保留光柱，无底轨和外扩光晕。保留 `ui-beautify-lane` / order 100；设置页只有默认开启的宿主 Switch，沿用 `motion` 字符串字段写入 `always`／`off`，不新增字段。旧 `system` 或未设置归一化为开启，已存 `off` 保持关闭；删除三选一和浏览器 reduced-motion 分支。不要新增粗细或速度配置。使用宿主主题主色；按真实 assistant partial 字符增长测速，速度为 `1.6 * rate / (rate + 220)` 行程／秒，0.65 秒指数平滑，停止后 8 秒线性减速至静止，空闲保持可见悬浮，不淡出；仅关闭开关时隐藏。若停在行程裁剪区，将光柱停靠最近可见边缘，避免无输出时看不见。位置保存为比例，头尾在容器外换行，背景标签恢复时单帧 dt 最大 0.1 秒。React 只采样，rAF 写 transform，关闭／卸载取消 rAF。`tests/output-rate.test.mjs` 覆盖原型曲线和采样；客户端产物测试覆盖固定 1px／零布局占位、无单车 SVG、空闲可见静止、流动、减速停靠、可见区域无跳跃和默认开启的 always/off 开关。
+当前实现为 `LightBeam.tsx` + `LightBeam.module.css`，已删除旧 BikeLane 源码。光柱固定 1px，改用宿主 `conversation.input.overlay` 的零高度绝对定位锚点，直接覆盖输入框上边框，不占行、不加 margin/gap，不修改宿主布局；仅保留光柱，无底轨和外扩光晕。保留 `ui-beautify-lane` / order 100；设置页只有默认开启的宿主 Switch，沿用 `motion` 字符串字段写入 `always`／`off`，不新增字段。旧 `system` 或未设置归一化为开启，已存 `off` 保持关闭；删除三选一和浏览器 reduced-motion 分支。不要新增粗细或速度配置。使用宿主主题主色；速度是**对数曲线** `0.65 * log2(1 + rate / 60)` 行程／秒，rate 为**估算 token/秒**（CJK 字符 ≈ 1 token，其他字符 ≈ 0.3 token；见 `follow-output.ts` 的 `estimateTokens`），`0.35` 秒指数平滑，停止后 `2.5` 秒线性减速至静止，空闲保持可见悬浮，不淡出；仅关闭开关时隐藏。若停在行程裁剪区，将光柱停靠最近可见边缘，避免无输出时看不见。位置保存为比例，头尾在容器外换行，背景标签恢复时单帧 dt 最大 0.1 秒。React 只采样，rAF 写 transform，关闭／卸载取消 rAF。`tests/output-rate.test.mjs` 覆盖速度曲线（含 200 与 500 token/s 两档明显分开、每次翻倍都可见）和采样；客户端产物测试覆盖固定 1px／零布局占位、无单车 SVG、空闲可见静止、流动、减速停靠、可见区域无跳跃、默认开启的 always/off 开关、token 估算，以及 `assistantOutputTokens` hook。
+
+**2026-10-19 观感校准，最终落在「估算 token + 对数曲线」。** 用户先报「200 多和 500 多感觉差不多」，随后给出真实带宽：模型输出常见 50/80/120/200/250/300/400/500 token/s，很少超过 1000。曾试过双曲 `3.4·r/(r+900)`（r 为字符/秒），但字符与 token 不同量纲，且双曲曲线在高位压平；**8 秒滑行是「两档看着一样」的最大头**——实际写作是「一串分片 → 停顿」，大部分时间看到的是上一次速度在滑行。现在：读数改为**估算 token/秒**（`estimateTokens`：CJK ≈ 1、其他 ≈ 0.3），速度用对数 `0.65·log2(1 + r/60)`，平滑 0.35 秒、滑行 2.5 秒。50/120/200/300/500/1000 分别约 0.57/1.03/1.37/1.68/2.09/2.69 行程/秒——整个常用带宽摊开约 3.7 倍，每次翻倍都看得出来。再调时只动 `SPEED_REFERENCE`、`SPANS_PER_DOUBLING`、平滑与滑行四个常量，并同步 `tests/output-rate.test.mjs` 与 `tests/client.mjs` 里的 `3.4 *` 上界与 token 估算断言。
+
+**速度读数来自 `follow-output.ts`，不再读 Chat 的 `legacy.partial`（2026-10-19）。** Chat 目标在运行中的 step 还没有可见块时会把 `legacy.partial` 置空——也就是思考（reasoning）和工具参数还没结束、第一个回答文字还没出现的大部分时间——所以「AI 一直在工作但光柱不动」是读数的空档，不是动画坏了；而 `conversation.input.overlay` 也拿不到 Chat 钩子（该插槽不声明 `useChat`）。现在的读数由本插件 register 的 Session 钩子 `assistantOutputTokens` 提供：`uiSession.provide({ hooks: ['assistantOutputTokens'], resolve })`，每个 Session binding 一个源，用**钝化式（fresh-snapshot）订阅** `binding.eventSource`，每次通知读**最新快照**的 `change.entries`（`change.kind === 'append'`）——不能用 `{ event: change.event }` 这类写法，快照里没有单数 `event` 字段，那会让计数恒为 0。只数 `assistant/live-chunk` 里 `text-delta` 与 `reasoning-delta` 的 `text`（按 `estimateTokens` 换算，累计、只增不减）；`assistant/message` 不计入，因为它的文字已经流式计过。已核对安装版 0.2.1 宿主：`dsh-api-session-controller/lib/client.js` 把实时分片以 `assistant/live-chunk` 经 `eventSource.append()` 发布，抽出的 `entry.event` 落在 `change.entries` 的 `{ event }` 上——宿主自己的 Chat 行也读这份数据，所以只要会话里能看到文字，这个钩子就该同一时刻看到分片。
+
+**席位是标准 props，不要塞进条目 inject。** `ui-renderer` 的 `runInject()` 返回值会被 `bindInjectSources()` 解构 `{ hooks, keyedHooks, ...rest }`，`hooks` 被**整体吃掉**：某条目自己提供的 `inject().hooks` 不会变成组件 prop。Session 钩子由 `uiSession.provide` 注册、经 `standardKit` 绑定，所有 session 作用域条目（含 overlay）自动拿到 `useAssistantOutputChars`，且它是**选择器钩子**，必须传选择器（`useAssistantOutputChars(v => v)`）；无参调用会在渲染期抛 `selector is not a function`，插槽条目崩掉。`LightBeamProps` 仍把它声明为可选、缺失时按 0 处理并照常渲染，`tests/client.mjs` 有「a missing output seat still draws the lane, at rest」钉住这条。
+
+**2026-10-19 两次事故的根因（务必保留）：**
+1. **`uiSession` 必须写进本插件的 `inject` 数组。** 之前用 `ctx.get('uiSession')` 却没声明依赖，插件 `apply` 在 ui-session 尚未激活时执行，`undefined.provide` 抛 TypeError，`ui-beautify: failed` 直接让整个 web 启动失败（桌面端表现为“启动失败 / UI 整块消失”）。声明后纤维会等到服务就绪。诊断方法：隔离实例（`tool/testing/isolate.mjs` + `npx dsh web`）会打印带 token 的 URL，用无头 Edge 打开就能读到渲染进程真实堆栈；桌面端自己的 boot 日志在 `%APPDATA%\arcuchi-harness\logs\crash-*-web-boot.log`，只报「哪个 entry 没激活」，不报堆栈。
+2. **`uiSession.provide` 的 resolver 绝不能抛错。** 它会在*所有* descriptor 的 materialize 里被调用；抛错会连带让触发重建的插件（当时是 `@deepseek-ai/dsh-client-ui-chat`）激活失败，于是整个聊天区（含输入框与光柱）消失。现在 binding 缺 `eventSource` 时退回 `ZERO_SOURCE`（读数恒 0），不抛错。
+3. 因此“光柱不动”和“光柱/聊天区消失”是两件事：前者是读数源选错（见上），后者是激活期抛错。排查先看 `document.querySelectorAll('[data-beautify-light-lane]').length`：0 表示条目没渲染（激活或渲染崩），1 才是动效问题。
+
+排障入口：控制台 `document.querySelectorAll('[data-beautify-light-lane]').length` 区分「插件没加载（0）/ 在跑（1）」，`window.__ModuleLoader__` 是否存在的检查只适用于 web 端，桌面端不是同一种引导方式。绑定类型由 `ctx.get('uiSession')` 与本地 `BindingEvents` 窄接口描述（本包不依赖 `dsh-api-session-controller`）。改这一段时同步 `tests/client.mjs` 的「the lane reads streamed output from a Session hook」一节，它用假的 `uiSession.provide` 与事件源验证 reasoning 计数、非输出事件忽略、每次计数唤醒一次、`assistant/message` 不重复计、每个 binding 复用同一源、释放后取消订阅；`eventChars` / `createOutputCharsSource` 也从 `lib/client.js` 导出供产物级测试直接调用。
 
 ### 历史骑车道实现（已由光柱替代，仅供历史参考）
 
 composer 卡片正上方那条整宽插槽是 `conversation.input.dock`（ui-conversation 声明，`kind: 'list'`、`scope: 'session'`），本插件在其中注册 `ui-beautify-lane`（order **100**）。同一插槽的既有占用者是 queue（20）、todo（0）与 goal，100 让小人排在它们之后、紧贴卡片。
 
-**速度读的是 `useChat(s => s.legacy.partial)` 的字符增长率，不是 `sessionStats`。** `sessionStats` 的 `decodeTokens` / `decodeMs` 在 `assistant/message` 才结算，一个 step 只有一个读数——那正是「刚才那一段有多快」，而动画要的是「此刻写多快」。Chat 目标的在途累加器随流式分片推进，是浏览器半边唯一能读到「还没结束的 step」的出口。`useChat` 是 ui-chat 通过 `ctx.uiSession.provide({ hooks: ['chat'] })` 提供的标准席位，session 作用域的插槽都能拿到。
+**速度读的是 `assistantOutputTokens`（`follow-output.ts`），不是 `sessionStats`，也不再是 `legacy.partial`。** `sessionStats` 的 `decodeTokens` / `decodeMs` 在 `assistant/message` 才结算，一个 step 只有一个读数——那正是「刚才那一段有多快」，而动画要的是「此刻写多快」。`legacy.partial` 曾是唯一出口，但它在运行中的 step 还没有可见块时为空（思考与工具参数期间多半如此），于是 AI 在工作而光柱不动；Session 事件流则从第一个分片起就在推进。当前读数与带宽校准见上文光柱一节。
 
 这条依赖**不需要运行时兜底**：`conversation.input.dock` 由 ui-conversation 声明，而 ui-conversation、ui-chat、ui-session 都是 `@deepseek-ai/dsh-web-app` bundle 里的行，本插件的 `cordis.patch.yml` 正是打进那一层——插槽存在就一定有 `useChat`。这是**组合事实**，不是同进程类型边界上的假设；若将来本插件要被别的组合复用，得重新核对，而不是加一个 `typeof useChat !== 'function'` 的分支把配置错误藏起来。
 
@@ -51,7 +65,7 @@ composer 卡片正上方那条整宽插槽是 `conversation.input.dock`（ui-con
 
 曾经把判断放在 `apply()` 里、命中偏好就整条不注册——结果偏好打开时插件和坏掉长得一模一样，排查的人连一个节点都找不到，白烧了两轮定位。**环境开关不要挡在注册前面**：注册照常，行为只在组件里收窄；再给用户一个能覆盖它的开关，并在 `MotionRow` 的状态行里写出「为什么带子是空的」。
 
-`src/client/output-rate.ts` 里的观感常量是设计值，不是配置项。**没有输出就没有位移**：`laneSpeed(0) === 0`，不会低速空转。曲线在半速点（220 字符/秒）以下近似线性、之上饱和，所以更快的输出永远还能再快一点，快速流不会和「稍快一点」看起来一模一样。
+`src/client/output-rate.ts` 里的观感常量是设计值，不是配置项。**没有输出就没有位移**：`laneSpeed(0) === 0`，不会低速空转。曲线在半速点（1500 字符/秒）以下近似线性、之上饱和，所以更快的输出永远还能再快一点，快速流不会和「稍快一点」看起来一模一样。
 
 **四个细节都是为了动作连续，改之前先读它们的注释：**
 

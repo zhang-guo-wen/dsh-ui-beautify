@@ -1,19 +1,35 @@
 /** Fixed 1px composer light beam driven by real in-flight assistant output. */
 import type { ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
-import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { InjectFace, PropsRuntime, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
+// Type-only: publishes the Session standard seats an overlay entry receives.
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { SettingsRowFace } from './settings-controller.ts'
-import { charsPerSecond, laneSpeed, observeOutput, outputChars, type OutputSample } from './output-rate.ts'
+import { laneSpeed, observeOutput, tokensPerSecond, type OutputSample } from './output-rate.ts'
 import css from './LightBeam.module.css'
 
-export type LightBeamProps = PropsRuntime<'conversation.input.overlay'> & InjectFace<SettingsRowFace>
+/**
+ * The settings row face, plus the Session hook that publishes the output
+ * figure. The figure comes from that hook rather than the Chat target: the
+ * target is empty while a step streams reasoning or tool arguments, which is
+ * most of the time a turn is working.
+ *
+ * The hook is a Session standard seat rather than this entry's inject face, and
+ * the component takes it as optional below, so a missing seat leaves the lane
+ * at rest instead of failing the render.
+ */
+export type LightBeamFace = SettingsRowFace & {
+  /** Session selector hook; present whenever `ui-session` is installed. */
+  useAssistantOutputTokens?: SnapshotSelectorHook<number>
+}
 
-// Match the approved prototype: 1.6-span ceiling (in output-rate), .65s ease,
-// and eight seconds of linear coasting before hovering still after output stops.
-const SPEED_EASE_SECONDS = 0.65
-const COAST_SECONDS = 8
+export type LightBeamProps = PropsRuntime<'conversation.input.overlay'> & InjectFace<LightBeamFace>
+
+// Ceiling in output-rate. The ease tracks a live rate in well under a second,
+// and the coast is short enough that the beam reads as "this is how fast it is
+// writing now" rather than as a long glide that makes every rate look the same.
+const SPEED_EASE_SECONDS = 0.35
+const COAST_SECONDS = 2.5
 const MAX_FRAME_SECONDS = 0.1
 
 interface MotionState {
@@ -23,13 +39,13 @@ interface MotionState {
   previous: number
 }
 
-function selectOutputChars(snapshot: ChatSnapshot): number {
-  return outputChars(snapshot.legacy.partial)
-}
-
-export function LightBeam({ useChat, useBeautify }: LightBeamProps): ReactNode {
-  const output = useChat(selectOutputChars)
-  const choice = useBeautify(snapshot => snapshot.motion)
+export function LightBeam(props: LightBeamProps): ReactNode {
+  // A selector hook needs its selector, and the caller is the one that reads it.
+  // The seat is present inside any Session area (this plugin registers the
+  // source); a Host without it renders the lane at rest instead of crashing.
+  const readOutput = props.useAssistantOutputTokens
+  const output = readOutput === undefined ? 0 : readOutput(value => value)
+  const choice = props.useBeautify(snapshot => snapshot.motion)
   const samples = useRef<readonly OutputSample[]>([])
   const lane = useRef<HTMLDivElement>(null)
   const beam = useRef<HTMLDivElement>(null)
@@ -52,7 +68,7 @@ export function LightBeam({ useChat, useBeautify }: LightBeamProps): ReactNode {
     const step = (now: number): void => {
       const elapsed = Math.max(0, Math.min((now - state.previous) / 1000, MAX_FRAME_SECONDS))
       state.previous = now
-      const target = laneSpeed(charsPerSecond(samples.current, now))
+      const target = laneSpeed(tokensPerSecond(samples.current, now))
       if (target > 0) {
         state.speed += (target - state.speed) * (1 - Math.exp(-elapsed / SPEED_EASE_SECONDS))
         state.coastFrom = state.speed

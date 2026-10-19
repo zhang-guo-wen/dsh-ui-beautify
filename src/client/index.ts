@@ -45,6 +45,7 @@ import {
 } from '../fonts.ts'
 import { FONTS_ROUTE, FONT_SETTINGS_NS } from '../params.ts'
 import { LightBeam } from './LightBeam.tsx'
+import { installOutputTokens } from './follow-output.ts'
 import { BeautifySection } from './BeautifySection.tsx'
 import { applyBranding } from './branding.tsx'
 import { en, NS, zh, type SettingsKey } from './locales.ts'
@@ -65,6 +66,7 @@ export type { QuickRepliesProps } from './QuickReplies.tsx'
 export type { SettingsRowFace, SettingsRowState } from './settings-controller.ts'
 export { NS } from './locales.ts'
 // Pure/UI adapter exports let regression tests exercise the installed handoff.
+export { installOutputTokens, eventTokens, estimateTokens, createOutputTokensSource } from './follow-output.ts'
 export { descriptionProjection, translateSkillMenu, installDescriptionAdapters } from './description-adapters.tsx'
 // The PDF Worker patch is exported for the same reason: its shim text has to be
 // checked against a realm that lacks the APIs, not only against the pages here.
@@ -114,10 +116,11 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 /**
  * Required services: the theme service owns the token overrides, slots and
- * locale carry the rows, and the configuration forms service is where the
- * choices live.
+ * locale carry the rows, the configuration forms service is where the choices
+ * live, and `uiSession` owns the per-Session standard sources — the lane's
+ * output figure is one of them, and it must be active before this body asks.
  */
-export const inject = ['theme', 'slots', 'locale', 'configForms', 'layout', 'remote', 'remote.settings']
+export const inject = ['theme', 'slots', 'locale', 'configForms', 'layout', 'remote', 'remote.settings', 'uiSession']
 
 /**
  * Client plugin body: register the settings page, keep the document in sync
@@ -166,6 +169,10 @@ export async function apply(ctx: Context): Promise<void> {
   // Registered unconditionally, and given the stored answer rather than the
   // browser's: a lane the user switched off is a lane they can switch back on,
   // while a lane that never registered is indistinguishable from a broken one.
+  // The figure arrives through the `assistantOutputTokens` Session hook, which is
+  // a standard seat every Session-scope entry receives — registered here before
+  // anything renders, so the lane's first render already has it.
+  installOutputTokens(ctx)
   ctx.slots.inject('conversation.input.overlay', () => ctx.slots.register({
     name: 'conversation.input.overlay',
     id: LANE_ID,
