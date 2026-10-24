@@ -16,6 +16,7 @@ type Feature =
   | 'scrollToPromptEnabled'
   | 'sessionStartChipEnabled'
   | 'streamlinedUiEnabled'
+  | 'hideComposerStats'
 
 function FeatureToggleRow({ useBeautify, t, choose, retry, field, title, description }: Props & {
   field: Feature
@@ -26,6 +27,7 @@ function FeatureToggleRow({ useBeautify, t, choose, retry, field, title, descrip
     | 'scrollToPromptTitle'
     | 'sessionStartChipTitle'
     | 'streamlinedUiTitle'
+    | 'hideComposerStatsTitle'
   description:
     | 'mobileLayoutDesc'
     | 'recentSessionsDesc'
@@ -33,6 +35,7 @@ function FeatureToggleRow({ useBeautify, t, choose, retry, field, title, descrip
     | 'scrollToPromptDesc'
     | 'sessionStartChipDesc'
     | 'streamlinedUiDesc'
+    | 'hideComposerStatsDesc'
 }): ReactNode {
   const state = useBeautify(snapshot => snapshot)
   const detail = !state.available ? t('unavailable')
@@ -69,4 +72,7 @@ export function SessionStartChipToggleRow(props: Props): ReactNode {
 }
 export function StreamlinedUiToggleRow(props: Props): ReactNode {
   return <FeatureToggleRow {...props} field="streamlinedUiEnabled" title="streamlinedUiTitle" description="streamlinedUiDesc" />
+}
+export function HideComposerStatsToggleRow(props: Props): ReactNode {
+  return <FeatureToggleRow {...props} field="hideComposerStats" title="hideComposerStatsTitle" description="hideComposerStatsDesc" />
 }

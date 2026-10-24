@@ -1343,6 +1343,33 @@ setStored({ streamlinedUiEnabled: true })
 check('read-only settings disable the streamlined switch', renderStreamlined({ writable: false }).props.disabled)
 check('unavailable settings disable the streamlined switch', renderStreamlined({ available: false }).props.disabled)
 setStored({ streamlinedUiEnabled: undefined })
+console.log('the composer-statistics switch defaults off')
+// Same independent, default-off field shape as the switch above: the row and the
+// runtime watcher read one field, so both must agree the missing value means off.
+const renderComposerStats = (overrides = {}) => {
+  mount('feature-hideComposerStats', pageComponents.get('HideComposerStatsToggleRow'), {
+    t,
+    useBeautify: selector => selector({ ...snapshot(), ...overrides }),
+    choose: (key, value) => { toggleWrites.push([key, value]) },
+  })
+  return elements.find(element => element.type === 'switch')
+}
+check('an older profile reads the composer-statistics switch as off', snapshot().hideComposerStats === false)
+const composerStats = renderComposerStats()
+check('the composer-statistics row keeps its label and description',
+  composerStats.props.label === 'hideComposerStatsTitle'
+  && byClass('desc')[0].props.children === 'hideComposerStatsDesc')
+composerStats.props.onChange(true)
+check('turning it on writes only its own field',
+  JSON.stringify(toggleWrites.at(-1)) === JSON.stringify(['hideComposerStats', true]))
+setStored({ hideComposerStats: true })
+check('the host switch shows the stored composer-statistics value', renderComposerStats().props.checked === true)
+setStored({ hideComposerStats: undefined })
+check('a host without the composer-statistics field explains the restart',
+  renderComposerStats().props.disabled && byClass('meta')[0].props.children === 'stale')
+setStored({ hideComposerStats: true })
+check('read-only settings disable the composer-statistics switch', renderComposerStats({ writable: false }).props.disabled)
+setStored({ hideComposerStats: undefined })
 console.log('the up button follows its settings switch')
 // Only the DOM the control locates is modelled here: its conversation body, the
 // chat flow inside it, and the frame the portal lands in. The lane's own checks

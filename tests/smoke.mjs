@@ -209,6 +209,9 @@ for (const field of ['mobileLayoutEnabled', 'recentSessionsEnabled', 'remoteSett
 check('declares the streamlined switch live', Config.dict.streamlinedUiEnabled.meta.volatile === true)
 check('the streamlined switch defaults off', Config({}).streamlinedUiEnabled.get() === false)
 check('the streamlined switch accepts true', Config({ streamlinedUiEnabled: true }).streamlinedUiEnabled.get() === true)
+check('declares the composer-statistics switch live', Config.dict.hideComposerStats.meta.volatile === true)
+check('the composer-statistics switch defaults off', Config({}).hideComposerStats.get() === false)
+check('the composer-statistics switch accepts true', Config({ hideComposerStats: true }).hideComposerStats.get() === true)
 check(
   'defaults the quick replies to the built-in phrases',
   Config({}).quickReplies.get().length === 0,

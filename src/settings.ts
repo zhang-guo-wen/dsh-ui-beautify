@@ -59,6 +59,11 @@ export interface Config {
    * Agent preset entries of a host with Coding Tools off.
    */
   streamlinedUiEnabled: Volatile<BeautifySettings['streamlinedUiEnabled']>
+  /**
+   * Whether the three readings under the composer are hidden: the round/step
+   * and speed pill, the token-spend and cache-hit pill, and the context ring.
+   */
+  hideComposerStats: Volatile<BeautifySettings['hideComposerStats']>
   /** Registries a font file is downloaded from, tried in order. */
   mirrors: string[]
   /** Directory caching downloaded files; empty follows `$DSH_HOME`, then `~/.dsh`. */
@@ -87,6 +92,8 @@ export const Config = z.object({
   // Off by default: the switch removes host surfaces, so only a deployment that
   // asked for the smaller interface — or a user who turns it on — loses them.
   streamlinedUiEnabled: z.boolean().default(false).volatile(),
+  // Off by default for the same reason: the readings are the host's own.
+  hideComposerStats: z.boolean().default(false).volatile(),
   mirrors: z.array(z.string()).default([...DEFAULT_MIRRORS]),
   cacheDir: z.string().default(''),
 })

@@ -56,6 +56,7 @@ import { SettingsController } from './settings-controller.ts'
 import { applyTagline } from './tagline.ts'
 import { applyMobileLayout } from './mobile-layout.tsx'
 import { applyStreamlinedUi } from './streamlined-ui.ts'
+import { applyComposerStats } from './composer-stats.ts'
 import { installRemoteSettings } from './remote-settings.ts'
 import { applyDescriptionTranslation } from './description-translation.ts'
 import { installPdfWorkerCompat } from './pdf-worker-compat.ts'
@@ -148,6 +149,7 @@ export async function apply(ctx: Context): Promise<void> {
   applyBranding(ctx, scope)
   applyMobileLayout(ctx, scope)
   applyStreamlinedUi(ctx, scope)
+  applyComposerStats(ctx, scope)
   const descriptions = applyDescriptionTranslation(ctx)
   const t = ctx.locale.bind(NS)
   ctx.slots.inject('settings.section', () => ctx.slots.register({

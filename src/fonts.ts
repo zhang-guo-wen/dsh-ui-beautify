@@ -334,6 +334,12 @@ export interface BeautifySettings {
    * smaller surface, not for the plugin's ordinary install.
    */
   streamlinedUiEnabled: boolean
+  /**
+   * Hides the three readings under the composer: the round/step and speed pill,
+   * the token-spend and cache-hit pill, and the context-occupancy ring. Defaults
+   * off.
+   */
+  hideComposerStats: boolean
 }
 
 /**

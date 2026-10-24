@@ -110,6 +110,8 @@ export interface SettingsRowState {
   sessionStartChipEnabled: boolean
   /** Whether the deployment-facing surfaces are stripped; defaults off. */
   streamlinedUiEnabled: boolean
+  /** Whether the readings under the composer are hidden; defaults off. */
+  hideComposerStats: boolean
   /** What each face holds in the local cache; a face absent from it has downloaded nothing. */
   cache: FontCacheReport
   /**
@@ -340,6 +342,7 @@ export class SettingsController {
         scrollToPromptEnabled: value?.scrollToPromptEnabled !== undefined,
         sessionStartChipEnabled: value?.sessionStartChipEnabled !== undefined,
         streamlinedUiEnabled: value?.streamlinedUiEnabled !== undefined,
+        hideComposerStats: value?.hideComposerStats !== undefined,
       },
       // The document is hand-editable, so an unknown stored value must show as
       // the choice actually in effect rather than as nothing selected.
@@ -362,6 +365,8 @@ export class SettingsController {
       // Off unless the document says otherwise: this switch takes host surfaces
       // away, so an unread or absent field must leave them in place.
       streamlinedUiEnabled: value?.streamlinedUiEnabled === true,
+      // Same default: an unread or absent field keeps the readings visible.
+      hideComposerStats: value?.hideComposerStats === true,
       cache: this.cache,
       save: this.saveStates(),
     }
