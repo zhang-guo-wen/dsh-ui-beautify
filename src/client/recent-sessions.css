@@ -1,42 +1,270 @@
-/* Recent tabs own their styles independently of code view and phone adaptation. */
+/* Recent conversation strip.
+ *
+ * Desktop: a hemp line pinned to the header's left and right edges. The five
+ * recent conversations hang from it in the middle, clipped on with clothespins.
+ * The line band shares the row of the host conversation/trace view tabs, so the
+ * header only grows by the band minus that row; the host view tabs keep working.
+ *
+ * Phones keep the original text tabs: the phone layout below 601px is unchanged.
+ *
+ * Colours come from --dsw-alias-* and --dsw-elevation-* tokens only; geometry
+ * comes from [data-beautify-recent-fit] on the header (set by the component).
+ */
+
 [data-ui-beautify-recent-anchor] { display: none; }
-[data-ui-beautify-recent-tabs] { align-items: stretch; gap: 24px !important; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-[data-ui-beautify-recent-tabs]::-webkit-scrollbar,
-[data-ui-beautify-recent]::-webkit-scrollbar { display: none; }
-[data-ui-beautify-recent] { min-width: 0; flex: none; }
-header > [data-ui-beautify-recent] { grid-column: 1 / -1; margin-top: 10px; padding-left: 8px; overflow-x: auto; scrollbar-width: none; }
 [data-ui-beautify-recent]:empty { display: none; }
-[data-mobile-recent-sessions] { display: flex; align-items: stretch; gap: 20px; min-width: 0; width: max-content; }
-[data-mobile-recent-sessions] button {
-  position: relative;
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 0 9px;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  font-family: var(--dsw-font-family, inherit);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 16px;
-  color: var(--dsw-alias-label-tertiary);
-  white-space: nowrap;
-  cursor: pointer;
-  -webkit-app-region: no-drag;
-}
-[data-mobile-recent-sessions] button::after { content: ''; position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: transparent; }
-[data-mobile-recent-sessions] button[aria-current='page'] { color: var(--dsw-alias-state-business-primary); }
-[data-mobile-recent-sessions] button[aria-current='page']::after { background: var(--dsw-alias-state-business-primary); }
-[data-mobile-recent-sessions] button:hover { background: var(--dsw-alias-interactive-bg-hover); }
+[data-ui-beautify-recent] { min-width: 0; scrollbar-width: none; }
+[data-ui-beautify-recent]::-webkit-scrollbar { display: none; }
 [data-recent-session-title] { max-width: 5em; overflow: hidden; text-overflow: ellipsis; }
 [data-recent-session-status] { display: inline-flex; align-items: center; flex: none; }
-[data-mobile-recent-sessions] button:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: -2px; }
+[data-recent-session-card] { display: inline-flex; align-items: center; gap: 4px; }
+[data-recent-session-pin] { display: none; }
+
+/* ---------- phones: the original text tabs, unchanged ---------- */
 @media (max-width: 600px) {
-  [data-ui-beautify-recent-tabs] > button[role='tab'] { display: none; }
-  [data-ui-beautify-recent-tabs] { padding-left: 0 !important; gap: 0 !important; }
-  [data-ui-beautify-recent] { min-width: 100%; }
-  header > [data-ui-beautify-recent] { padding-left: 0; }
-  [data-mobile-recent-sessions] { gap: 16px; }
+  header[data-ui-beautify-recent-fit] [data-conversation-tabs] > button[role='tab'] { display: none; }
+  header[data-ui-beautify-recent-fit] > [data-ui-beautify-recent] {
+    grid-column: 1 / -1;
+    margin-top: 10px;
+    padding-left: 8px;
+    overflow-x: auto;
+  }
+  [data-ui-beautify-recent-rope] { display: none; }
+  [data-mobile-recent-sessions] {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    gap: 20px;
+    min-width: 0;
+    width: max-content;
+  }
+  [data-mobile-recent-sessions] button {
+    position: relative;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 0 9px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    font-family: var(--dsw-font-family, inherit);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 16px;
+    color: var(--dsw-alias-label-tertiary);
+    white-space: nowrap;
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+  }
+  [data-mobile-recent-sessions] button::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    background: transparent;
+  }
+  [data-mobile-recent-sessions] button[aria-current='page'] { color: var(--dsw-alias-state-business-primary); }
+  [data-mobile-recent-sessions] button[aria-current='page']::after { background: var(--dsw-alias-state-business-primary); }
+  [data-mobile-recent-sessions] button:hover { background: var(--dsw-alias-interactive-bg-hover); }
+  [data-mobile-recent-sessions] button:focus-visible {
+    outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+    outline-offset: 2px;
+  }
+}
+
+/* ---------- desktop: hemp line with hanging tags ---------- */
+@media (min-width: 601px) {
+  header[data-ui-beautify-recent-fit] { --beautify-recent-band: 58px; }
+
+  /* The band shares the host view-tab row: that row keeps its tabs at the
+     bottom and grows to the band height. */
+  header[data-ui-beautify-recent-fit='band'] [data-conversation-tabs],
+  header[data-ui-beautify-recent-fit='compact'] [data-conversation-tabs] {
+    align-items: flex-end;
+    min-height: var(--beautify-recent-band);
+  }
+
+  header[data-ui-beautify-recent-fit] > [data-ui-beautify-recent] {
+    grid-column: 1 / -1;
+    position: relative;
+    z-index: 2;
+    box-sizing: border-box;
+    height: var(--beautify-recent-band);
+    margin-left: calc(-1 * var(--beautify-recent-header-pad-left, 20px));
+    margin-right: calc(-1 * var(--beautify-recent-header-pad-right, 28px));
+    overflow: visible;
+    background: transparent;
+    pointer-events: none;
+  }
+  header[data-ui-beautify-recent-fit='band'] > [data-ui-beautify-recent],
+  header[data-ui-beautify-recent-fit='compact'] > [data-ui-beautify-recent] {
+    margin-top: calc(-1 * var(--beautify-recent-band));
+  }
+  header[data-ui-beautify-recent-fit='stack'] > [data-ui-beautify-recent],
+  header[data-ui-beautify-recent-fit='solo'] > [data-ui-beautify-recent] {
+    margin-top: 8px;
+  }
+  /* Only the narrow fallback scrolls: the tags stay centered when they fit. */
+  header[data-ui-beautify-recent-fit='stack'] > [data-ui-beautify-recent],
+  header[data-ui-beautify-recent-fit='solo'] > [data-ui-beautify-recent] {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  [data-ui-beautify-recent-rope] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 100%;
+    height: 30px;
+    overflow: visible;
+    pointer-events: none;
+  }
+  .beautify-recent-rope-path {
+    fill: none;
+    stroke: color-mix(in srgb, var(--dsw-alias-label-caption) 82%, transparent);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+  }
+  .beautify-recent-rope-anchor { stroke: var(--dsw-alias-border-l4); stroke-width: 1.4; stroke-linecap: round; }
+  .beautify-recent-rope-mount { fill: var(--dsw-alias-label-caption); }
+  .beautify-recent-rope-ring { fill: var(--dsw-alias-bg-base); stroke: var(--dsw-alias-border-l4); stroke-width: 1; }
+
+  header[data-ui-beautify-recent-fit] [data-mobile-recent-sessions] {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 22px;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    pointer-events: none;
+  }
+  header[data-ui-beautify-recent-fit='compact'] [data-mobile-recent-sessions] { gap: 12px; }
+  header[data-ui-beautify-recent-fit='stack'] [data-mobile-recent-sessions],
+  header[data-ui-beautify-recent-fit='solo'] [data-mobile-recent-sessions] {
+    width: max-content;
+    margin: 0 auto;
+    pointer-events: auto;
+  }
+
+  header[data-ui-beautify-recent-fit] [data-mobile-recent-sessions] button {
+    position: relative;
+    top: 4px;
+    flex: none;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--dsw-radius-sm);
+    background: transparent;
+    font-family: var(--dsw-font-family, inherit);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 16px;
+    color: var(--dsw-alias-label-tertiary);
+    white-space: nowrap;
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+    pointer-events: auto;
+    transform: translateY(var(--beautify-recent-drop, 0px));
+  }
+  header[data-ui-beautify-recent-fit] [data-mobile-recent-sessions] button::after { display: none; }
+  header[data-ui-beautify-recent-fit='compact'] [data-mobile-recent-sessions] button { font-size: 12px; }
+  header[data-ui-beautify-recent-fit] [data-mobile-recent-sessions] button:focus-visible {
+    outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+    outline-offset: 2px;
+  }
+
+  /* The clothespin bites the line; the card hangs from it. */
+  [data-recent-session-pin] {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 12px;
+  }
+  [data-recent-session-pin]::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: -2px;
+    width: 8px;
+    height: 13px;
+    transform: translateX(-50%);
+    border: 1px solid var(--dsw-alias-border-l4);
+    border-radius: 2.5px;
+    background: color-mix(in srgb, var(--dsw-alias-label-caption) 22%, var(--dsw-alias-bg-base));
+  }
+  [data-recent-session-pin]::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 1px;
+    height: 8px;
+    transform: translateX(-50%);
+    background: var(--dsw-alias-border-l4);
+  }
+  [data-recent-session-card] {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    box-sizing: border-box;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: var(--dsw-radius-sm);
+    background: var(--dsw-alias-bg-layer-1);
+    --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
+    box-shadow: var(--dsw-elevation-soft);
+    transform: rotate(var(--beautify-recent-tilt, 0deg));
+    transition:
+      background-color var(--ds-transition-duration-fast) var(--ds-ease-in-out),
+      box-shadow var(--ds-transition-duration-fast) var(--ds-ease-in-out),
+      transform var(--ds-transition-duration) var(--ds-ease-in-out);
+  }
+  header[data-ui-beautify-recent-fit='compact'] [data-recent-session-card] {
+    height: 24px;
+    padding: 0 8px;
+  }
+  [data-mobile-recent-sessions] button:nth-child(odd) [data-recent-session-card] { --beautify-recent-tilt: -1.6deg; }
+  [data-mobile-recent-sessions] button:nth-child(even) [data-recent-session-card] { --beautify-recent-tilt: 1.4deg; }
+  [data-mobile-recent-sessions] button:hover [data-recent-session-card] {
+    --beautify-recent-tilt: 0deg;
+    animation: beautify-recent-swing 900ms var(--ds-ease-in-out);
+  }
+  header[data-ui-beautify-recent-fit] [data-mobile-recent-sessions] button[aria-current='page'] {
+    color: var(--dsw-alias-state-business-primary);
+  }
+  header[data-ui-beautify-recent-fit] [data-mobile-recent-sessions] button[aria-current='page'] [data-recent-session-card] {
+    --beautify-recent-tilt: 0deg;
+    --dsw-elevation-stroke-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 55%, var(--dsw-alias-border-l2));
+    background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 8%, var(--dsw-alias-bg-layer-1));
+  }
+  header[data-ui-beautify-recent-fit] [data-mobile-recent-sessions] button[aria-current='page'] [data-recent-session-pin]::before {
+    border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 55%, var(--dsw-alias-border-l4));
+    background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 78%, var(--dsw-alias-bg-layer-1));
+  }
+  header[data-ui-beautify-recent-fit] [data-mobile-recent-sessions] button[aria-current='page'] [data-recent-session-pin]::after {
+    background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 60%, transparent);
+  }
+}
+
+@keyframes beautify-recent-swing {
+  0% { transform: rotate(var(--beautify-recent-tilt, 0deg)); }
+  30% { transform: rotate(2.4deg); }
+  62% { transform: rotate(-1.5deg); }
+  84% { transform: rotate(0.6deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-mobile-recent-sessions] button:hover [data-recent-session-card] { animation: none; }
+  [data-recent-session-card] { transition: none; }
 }

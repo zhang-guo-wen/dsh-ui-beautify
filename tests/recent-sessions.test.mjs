@@ -15,7 +15,13 @@ test('five recent conversations keep activity order independent of selection and
 test('phone hides only header open-file/more and view tabs, restores requested gutters', () => {
   const css = readFileSync(new URL('../src/client/mobile-layout.css', import.meta.url), 'utf8')
   const recentCss = readFileSync(new URL('../src/client/recent-sessions.css', import.meta.url), 'utf8')
-  assert.ok(recentCss.includes("[data-ui-beautify-recent-tabs] > button[role='tab'] { display: none; }"))
+  // Phones keep the original text tabs; the view tabs hide only while our strip owns the row.
+  assert.match(recentCss,
+    /@media \(max-width: 600px\) \{[\s\S]*header\[data-ui-beautify-recent-fit\] \[data-conversation-tabs\] > button\[role='tab'\] \{ display: none; \}/)
+  // Desktop hangs the tags on a line that reaches both header edges.
+  assert.match(recentCss, /\[data-ui-beautify-recent-fit='band'\] > \[data-ui-beautify-recent\]/)
+  assert.match(recentCss, /margin-left: calc\(-1 \* var\(--beautify-recent-header-pad-left/)
+  assert.match(recentCss, /\.beautify-recent-rope-path/)
   assert.ok(!css.includes('data-ui-beautify-recent-tabs'), 'drawer CSS must not hide view tabs independently')
   assert.ok(css.includes("[data-slot='conversation.session.header.utilities'] > :has([data-open-target='directory'])"))
   assert.ok(css.includes("[data-slot='conversation.session.header.utilities'] > :has([class*='_moreButton'])"))
