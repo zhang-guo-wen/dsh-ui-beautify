@@ -327,6 +327,13 @@ export interface BeautifySettings {
   scrollToPromptEnabled: boolean
   /** Floating "conversation start" chip above the transcript; defaults on. */
   sessionStartChipEnabled: boolean
+  /**
+   * Strips the settings header's document action, the Plugins and Agent presets
+   * navigation rows, and — while Coding Tools are off — the Agent preset entries.
+   * Defaults off: the switch exists for a branded deployment that wants the
+   * smaller surface, not for the plugin's ordinary install.
+   */
+  streamlinedUiEnabled: boolean
 }
 
 /**

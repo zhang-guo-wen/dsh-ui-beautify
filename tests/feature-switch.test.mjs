@@ -52,3 +52,29 @@ test('phone layout and recent switches have independent lifetimes', () => {
   for (const dispose of off) dispose()
   assert.equal(active.size, 0)
 })
+
+test('a default-off switch installs only on an explicit true and releases on anything else', () => {
+  const f = fixture('loading')
+  let installed = 0
+  let released = 0
+  const off = watchFeature(f.scope, 'streamlinedUiEnabled', () => { installed++; return () => { released++ } }, { defaultOn: false })
+  // A cold load has no answer yet, and a Host whose schema lacks the field never
+  // gives one: neither may install a behavior that removes host surfaces.
+  assert.equal(installed, 0)
+  f.set('ready', {})
+  f.set('ready', { other: true })
+  assert.equal(installed, 0)
+  f.set('ready', { streamlinedUiEnabled: true })
+  assert.equal(installed, 1)
+  f.set('ready', { streamlinedUiEnabled: true })
+  assert.equal(installed, 1)
+  f.set('ready', { streamlinedUiEnabled: false })
+  assert.equal(released, 1)
+  f.set('loading', undefined)
+  assert.equal(released, 1)
+  f.set('ready', { streamlinedUiEnabled: true })
+  assert.equal(installed, 2)
+  off()
+  assert.equal(released, 2)
+  assert.equal(f.listeners.size, 0)
+})

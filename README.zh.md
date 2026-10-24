@@ -32,6 +32,10 @@ npx @deepseek-ai/dsh plugin --profile web add @guowenzhang/dsh-ui-beautify
 
 开发时可运行 `npm run test:recent`，覆盖列表／状态单测与 1200、601、600、393px 的真实 Chrome／React fixture，包括标签栏延迟出现、并排／换行两种挂法、会话切换和清理。测试使用现有 desktop profile 的 Playwright 与本机 Chrome，也可通过 `DSH_MOBILE_PLAYWRIGHT`、`DSH_MOBILE_CHROME` 指定安装位置；不会启动或修改正在运行的 DSH 宿主。
 
+## 界面精简
+
+**设置 → 界面美化 → 界面精简** 收起部署方不希望用户进入的入口：隐藏设置页头部的**打开配置文件**操作，并在设置导航中隐藏**内置插件**与 **Agent 预设**两个页面。当通用设置里的**代码工作工具**关闭时，还会一并隐藏新会话页的 Agent 预设选择器和对话标题旁的预设标签。被隐藏的设置页面仍然照常组合，只是没有导航入口；关掉这个开关后，宿主原本的每一项入口都会恢复。
+
 ## 截图
 
 ### 1. 设置页面

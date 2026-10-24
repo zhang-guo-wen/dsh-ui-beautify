@@ -53,6 +53,12 @@ export interface Config {
   scrollToPromptEnabled: Volatile<BeautifySettings['scrollToPromptEnabled']>
   /** Whether the transcript's floating "conversation start" chip is shown. */
   sessionStartChipEnabled: Volatile<BeautifySettings['sessionStartChipEnabled']>
+  /**
+   * Whether the deployment-facing surfaces this plugin hides at runtime are
+   * removed: the settings document action, two settings navigation rows, and the
+   * Agent preset entries of a host with Coding Tools off.
+   */
+  streamlinedUiEnabled: Volatile<BeautifySettings['streamlinedUiEnabled']>
   /** Registries a font file is downloaded from, tried in order. */
   mirrors: string[]
   /** Directory caching downloaded files; empty follows `$DSH_HOME`, then `~/.dsh`. */
@@ -78,6 +84,9 @@ export const Config = z.object({
   remoteSettingsEnabled: z.boolean().default(true).volatile(),
   scrollToPromptEnabled: z.boolean().default(true).volatile(),
   sessionStartChipEnabled: z.boolean().default(true).volatile(),
+  // Off by default: the switch removes host surfaces, so only a deployment that
+  // asked for the smaller interface — or a user who turns it on — loses them.
+  streamlinedUiEnabled: z.boolean().default(false).volatile(),
   mirrors: z.array(z.string()).default([...DEFAULT_MIRRORS]),
   cacheDir: z.string().default(''),
 })

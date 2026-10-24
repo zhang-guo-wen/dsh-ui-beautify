@@ -32,6 +32,10 @@ On desktop the strip is a hemp line pinned to the header's left and right edges.
 
 For development, `npm run test:recent` runs catalog/status tests and a real Chrome/React fixture at 1200, 601, 600 and 393px, including delayed tab bars, the band/stack fallbacks, session navigation and cleanup. It uses the existing desktop-profile Playwright installation and local Chrome; set `DSH_MOBILE_PLAYWRIGHT` and `DSH_MOBILE_CHROME` to use other installations. It does not launch or change a running DSH host.
 
+## Streamlined interface
+
+**Settings → UI Beautify → Streamlined interface** removes the entries a deployment does not want its users to reach: it hides the settings header's **Open configuration file** action and the **Plugins** and **Agent presets** pages from the settings navigation. While **Coding Tools** are off in General settings, it also hides the Agent preset picker on the new-session page and the preset label beside the conversation title. The hidden settings pages stay composed — only their navigation rows go — and turning the switch off restores every host entry.
+
 ## Screenshots
 
 ### 1. Settings

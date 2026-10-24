@@ -10,8 +10,8 @@
  *    rides the theme service — which writes it as an inline style on `body`, the
  *    only layer that outranks the `:root` declaration in ui-theme's own sheet
  *    regardless of activation order.
- * 2. **The settings page** writes the font, motion, quick-reply, and branding
- *    choices.
+ * 2. **The settings page** writes the font, motion, quick-reply, branding, and
+ *    streamlined-interface choices.
  * 3. **The quick replies** are the composer's submit plane offered as one click
  *    per common answer; they send the phrase the tag carries, which is the
  *    user's own text once they have customized the row.
@@ -55,6 +55,7 @@ import { SessionStartChip } from './SessionStartChip.tsx'
 import { SettingsController } from './settings-controller.ts'
 import { applyTagline } from './tagline.ts'
 import { applyMobileLayout } from './mobile-layout.tsx'
+import { applyStreamlinedUi } from './streamlined-ui.ts'
 import { installRemoteSettings } from './remote-settings.ts'
 import { applyDescriptionTranslation } from './description-translation.ts'
 import { installPdfWorkerCompat } from './pdf-worker-compat.ts'
@@ -146,6 +147,7 @@ export async function apply(ctx: Context): Promise<void> {
   ctx.effect(() => applyTagline(scope), 'ui-beautify: tagline')
   applyBranding(ctx, scope)
   applyMobileLayout(ctx, scope)
+  applyStreamlinedUi(ctx, scope)
   const descriptions = applyDescriptionTranslation(ctx)
   const t = ctx.locale.bind(NS)
   ctx.slots.inject('settings.section', () => ctx.slots.register({

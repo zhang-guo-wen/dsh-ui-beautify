@@ -1,4 +1,4 @@
-/** Independent, default-on enhancements; every row reuses the host Switch. */
+/** Independent enhancement switches; every row reuses the host Switch. */
 import type { ReactNode } from 'react'
 import { Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
@@ -15,6 +15,7 @@ type Feature =
   | 'remoteSettingsEnabled'
   | 'scrollToPromptEnabled'
   | 'sessionStartChipEnabled'
+  | 'streamlinedUiEnabled'
 
 function FeatureToggleRow({ useBeautify, t, choose, retry, field, title, description }: Props & {
   field: Feature
@@ -24,12 +25,14 @@ function FeatureToggleRow({ useBeautify, t, choose, retry, field, title, descrip
     | 'remoteSettingsTitle'
     | 'scrollToPromptTitle'
     | 'sessionStartChipTitle'
+    | 'streamlinedUiTitle'
   description:
     | 'mobileLayoutDesc'
     | 'recentSessionsDesc'
     | 'remoteSettingsDesc'
     | 'scrollToPromptDesc'
     | 'sessionStartChipDesc'
+    | 'streamlinedUiDesc'
 }): ReactNode {
   const state = useBeautify(snapshot => snapshot)
   const detail = !state.available ? t('unavailable')
@@ -63,4 +66,7 @@ export function ScrollToPromptToggleRow(props: Props): ReactNode {
 }
 export function SessionStartChipToggleRow(props: Props): ReactNode {
   return <FeatureToggleRow {...props} field="sessionStartChipEnabled" title="sessionStartChipTitle" description="sessionStartChipDesc" />
+}
+export function StreamlinedUiToggleRow(props: Props): ReactNode {
+  return <FeatureToggleRow {...props} field="streamlinedUiEnabled" title="streamlinedUiTitle" description="streamlinedUiDesc" />
 }

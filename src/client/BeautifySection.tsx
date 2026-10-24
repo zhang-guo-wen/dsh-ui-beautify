@@ -4,7 +4,7 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import { BrandIconRow, BrandNameRow, LogoRow, TaglineRow } from './BrandRows.tsx'
 import { CodeFontRow, FontRow } from './FontRows.tsx'
 import { NS } from './locales.ts'
-import { MobileLayoutToggleRow, RecentSessionsToggleRow, RemoteSettingsToggleRow, ScrollToPromptToggleRow, SessionStartChipToggleRow } from './FeatureToggleRows.tsx'
+import { MobileLayoutToggleRow, RecentSessionsToggleRow, RemoteSettingsToggleRow, ScrollToPromptToggleRow, SessionStartChipToggleRow, StreamlinedUiToggleRow } from './FeatureToggleRows.tsx'
 import { MotionRow } from './MotionRow.tsx'
 import { QuickReplyToggleRow } from './QuickReplyToggleRow.tsx'
 import { DescriptionTranslationRow } from './DescriptionTranslationRow.tsx'
@@ -37,6 +37,8 @@ export function BeautifySection(props: BeautifySectionProps): ReactNode {
       <RecentSessionsToggleRow {...props} />
       <RemoteSettingsToggleRow {...props} />
       <DescriptionTranslationRow {...props} />
+      <h3 className={css.groupTitle}>{props.t('streamlinedGroup')}</h3>
+      <StreamlinedUiToggleRow {...props} />
       <h3 className={css.groupTitle}>{props.t('brandingGroup')}</h3>
       <LogoRow {...props} />
       <BrandIconRow {...props} />

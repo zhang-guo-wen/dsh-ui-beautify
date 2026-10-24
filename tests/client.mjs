@@ -1315,6 +1315,34 @@ for (const [componentName, field, title, desc] of [
   check(`${field} old schema shows restart explanation`, render().props.disabled && byClass('meta')[0].props.children === 'stale')
   setStored({ [field]: true })
 }
+console.log('the streamlined switch defaults off')
+// This switch takes host surfaces away, so the opposite default has to hold in
+// both places: the row reads off until the document says on, and the runtime
+// watcher installs from the same field.
+const renderStreamlined = (overrides = {}) => {
+  mount('feature-streamlinedUiEnabled', pageComponents.get('StreamlinedUiToggleRow'), {
+    t,
+    useBeautify: selector => selector({ ...snapshot(), ...overrides }),
+    choose: (key, value) => { toggleWrites.push([key, value]) },
+  })
+  return elements.find(element => element.type === 'switch')
+}
+check('an older profile reads the streamlined switch as off', snapshot().streamlinedUiEnabled === false)
+const streamlined = renderStreamlined()
+check('the streamlined row keeps its label and description',
+  streamlined.props.label === 'streamlinedUiTitle'
+  && byClass('desc')[0].props.children === 'streamlinedUiDesc')
+streamlined.props.onChange(true)
+check('turning it on writes only its own field',
+  JSON.stringify(toggleWrites.at(-1)) === JSON.stringify(['streamlinedUiEnabled', true]))
+setStored({ streamlinedUiEnabled: true })
+check('the host switch shows the stored value', renderStreamlined().props.checked === true)
+setStored({ streamlinedUiEnabled: undefined })
+check('a host without the field explains the restart', renderStreamlined().props.disabled && byClass('meta')[0].props.children === 'stale')
+setStored({ streamlinedUiEnabled: true })
+check('read-only settings disable the streamlined switch', renderStreamlined({ writable: false }).props.disabled)
+check('unavailable settings disable the streamlined switch', renderStreamlined({ available: false }).props.disabled)
+setStored({ streamlinedUiEnabled: undefined })
 console.log('the up button follows its settings switch')
 // Only the DOM the control locates is modelled here: its conversation body, the
 // chat flow inside it, and the frame the portal lands in. The lane's own checks

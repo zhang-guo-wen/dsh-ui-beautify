@@ -83,6 +83,13 @@ paths:
 ## 功能开关（2026-10-08）
 
 - 设置页「界面增强」使用宿主 Switch 显示 `scrollToPromptEnabled`、`sessionStartChipEnabled`、`mobileLayoutEnabled`、`recentSessionsEnabled`、`remoteSettingsEnabled`，均为默认 true 的 volatile 字段，中英文描述齐全，手机不隐藏。前三项在组件里收窄行为（回到最近提问与会话开始胶囊的开关见各自一节），远程一项见下。
-- `feature-switch.ts` 等待已存配置，按开关安装／释放；手机适配释放控制器、Pocket shadow 和 CSS，最近对话有独立 `recent-sessions.css` 与插槽生命周期。二者不得相互绑定，关闭最近对话不影响手机抽屉，关闭手机适配不影响最近对话。宿主原生功能不由本插件关闭。
+- `feature-switch.ts` 等待已存配置，按开关安装／释放；手机适配释放控制器、Pocket shadow 和 CSS，最近对话有独立 `recent-sessions.css` 与插槽生命周期。二者不得相互绑定，关闭最近对话不影响手机抽屉，关闭手机适配不影响最近对话。宿主原生功能不由本插件关闭。开关默认值由 `watchFeature(..., { defaultOn })` 决定：默认 true 的字段缺值算开，默认 false 的字段只有快照明确为 `true` 才算开。
 - 远程只读安全边界不变；通过一次脱敏 describe 启动读取获知开关，false 时释放桥接与监听并通知已缓存表单消费者重读宿主快照。远程端在本机开关重新开启后需刷新页面，不保留后台轮询来绕过关闭。本机表单从不装饰。
 - `tests/feature-switch.test.mjs` 覆盖冷加载 false、旧配置默认开启、独立生命周期、恢复和清理；构建产物客户端测试覆盖各行控件／写入／缺字段／只读及插槽停用恢复；远程测试覆盖初始关闭与设置事件关闭后的方法、监听器和快照恢复。
+
+## 界面精简开关（2026-10-24）
+
+- 一批原本写进 harness 的定制版「隐藏功能」搬回本插件：`streamlinedUiEnabled`（默认 false、volatile）打开时由 `src/client/streamlined-ui.ts` 在运行时做三件事，关掉或卸载后宿主完全恢复原样。字段默认 false 所以 `watchFeature` 传 `{ defaultOn: false }`：只有快照明确 `true` 才安装，旧宿主没有该字段时不会误删界面。设置页在「界面增强」之后单独一组「界面精简」。
+- 三处遮蔽手段各不相同：设置页「打开配置文件」是 `settings.action` 的 list 槽，注册同 id `open-document` + `priority: -10` 返回 null 的组件赢下该格；设置导航的「内置插件」「agent-presets」两个分区**没有可定位的属性**，只能按 `[data-shortcut-modal="settings"] nav > div:nth-of-type(2) > button:nth-of-type(N)` 行号隐藏，行号按宿主同一规则复算（`ctx.slots.entries('settings.section')` 取 `id`/`order ?? 0`，升序稳定排序，读的是原始账本而非遮蔽获胜者），并订阅该槽账本在变化时重算；Agent 预设入口只在 `ctx.configForms.developerTools.enabled` 快照**明确 false** 时遮蔽 `conversation.hero.agentPreset`（single，priority -10 返回 null）与 `conversation.session.header.actions` 的 `agent-preset`（id 遮蔽），并订阅该偏好随开随卸。
+- 宿主客户端比本包旧时可能没有 `configForms.developerTools`：此时只跳过 Agent 预设这一处，其余照常，不能让 `apply()` 抛错把整个插件（含设置页）带下去。导航 CSS 选择器同理只是不匹配，不会报错。
+- `tests/streamlined-ui.test.mjs` 覆盖行号算法（order 优先、并列保序、缺 order 当 0）、CSS 只含行号与 `display:none`、开关全生命周期（默认关 / 打开 / Coding Tools 开关 / 账本变化重算 / 关闭与卸载恢复）、旧宿主无偏好时不崩、`Config` 字段默认 false 与中英文案、构建产物含选择器，并断言 `test` 与 `test:mobile` 链已包含该文件。

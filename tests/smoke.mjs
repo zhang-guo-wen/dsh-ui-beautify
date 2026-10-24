@@ -206,6 +206,9 @@ for (const field of ['mobileLayoutEnabled', 'recentSessionsEnabled', 'remoteSett
   check(`${field} defaults on`, Config({})[field].get() === true)
   check(`${field} accepts false`, Config({ [field]: false })[field].get() === false)
 }
+check('declares the streamlined switch live', Config.dict.streamlinedUiEnabled.meta.volatile === true)
+check('the streamlined switch defaults off', Config({}).streamlinedUiEnabled.get() === false)
+check('the streamlined switch accepts true', Config({ streamlinedUiEnabled: true }).streamlinedUiEnabled.get() === true)
 check(
   'defaults the quick replies to the built-in phrases',
   Config({}).quickReplies.get().length === 0,
