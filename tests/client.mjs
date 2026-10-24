@@ -1370,6 +1370,33 @@ check('a host without the composer-statistics field explains the restart',
 setStored({ hideComposerStats: true })
 check('read-only settings disable the composer-statistics switch', renderComposerStats({ writable: false }).props.disabled)
 setStored({ hideComposerStats: undefined })
+console.log('the context-ring switch defaults on')
+// The opposite default to the two switches above: the ring is the plugin's own
+// reading, so a profile that never wrote this field still gets it.
+const renderContextRing = (overrides = {}) => {
+  mount('feature-contextRingEnabled', pageComponents.get('ContextRingToggleRow'), {
+    t,
+    useBeautify: selector => selector({ ...snapshot(), ...overrides }),
+    choose: (key, value) => { toggleWrites.push([key, value]) },
+  })
+  return elements.find(element => element.type === 'switch')
+}
+check('an older profile reads the context-ring switch as on', snapshot().contextRingEnabled === true)
+const contextRing = renderContextRing()
+check('the context-ring row keeps its label and description',
+  contextRing.props.label === 'contextRingTitle'
+  && byClass('desc')[0].props.children === 'contextRingDesc')
+contextRing.props.onChange(false)
+check('turning it off writes only its own field',
+  JSON.stringify(toggleWrites.at(-1)) === JSON.stringify(['contextRingEnabled', false]))
+setStored({ contextRingEnabled: false })
+check('the host switch shows the stored context-ring value', renderContextRing().props.checked === false)
+setStored({ contextRingEnabled: undefined })
+check('a host without the context-ring field explains the restart',
+  renderContextRing().props.disabled && byClass('meta')[0].props.children === 'stale')
+setStored({ contextRingEnabled: true })
+check('read-only settings disable the context-ring switch', renderContextRing({ writable: false }).props.disabled)
+setStored({ contextRingEnabled: undefined })
 console.log('the up button follows its settings switch')
 // Only the DOM the control locates is modelled here: its conversation body, the
 // chat flow inside it, and the frame the portal lands in. The lane's own checks

@@ -100,3 +100,8 @@ paths:
 - 两个药丸来自宿主 `ui-chat` 注册在 `conversation.composer.dock` 的 list 项，id 分别是 `activity`（order 0，轮次/步数 + 速度）与 `usage`（order 1，Token 消耗 + 缓存命中）：本插件用同 id + `priority: -10` 返回 null 的组件赢下这两格，宿主注册仍在账本上，关掉只释放本插件的影子。不能改隐藏整个 `[data-slot="conversation.composer.dock"]` 包装——本插件自己的快捷回复就注册在这个槽里。
 - 上下文占用环没有插槽：`ui-conversation` 的 `InputBar.tsx` 在 `<div data-composer-dock>` 里先 `renderSlot('conversation.composer.dock')`（渲染为 `div[data-slot="conversation.composer.dock"]` 锚点）再直接渲染 `<ContextMeter/>`；`ContextMeter` 根是可空的 `<span>`，内部 `Tooltip` 会 **clone** 而不是包裹子元素，因此该 span 的直接子元素就是 `button[aria-haspopup="dialog"]`，其 svg 里是 track 与 fill 两个 circle。选择器据此写成常量 `CONTEXT_METER_SELECTOR = '[data-composer-dock] > span:has(> button[aria-haspopup="dialog"] svg circle)'`，避开 CSS Module 哈希类名；`composerStatsCss()` 只用常量生成唯一一条 `display: none` 规则，注入 `<style data-plugin-css="@guowenzhang/dsh-ui-beautify/composer-stats.css">`。宿主改 DOM 时最坏只是选择器不匹配（读数继续显示），不会报错。
 - `tests/composer-stats.test.mjs` 覆盖选择器常量与「只有一条 display:none、无颜色/尺寸/字号」、开关全生命周期（默认关 / 开→两个影子 + 一条 style / 关→清空 / 卸载→清空并退订）、`Config` 默认 false、中英文案、构建产物含与 `test`/`test:mobile` 链断言；构建产物客户端测试另覆盖该行的默认关、写字段、缺字段提示与只读禁用。
+
+## 上下文进度圈开关（2026-10-24）
+
+- 第三个独立开关 `contextRingEnabled`（默认 **true**、volatile，走 `watchFeature` 默认语义：缺字段按开），在「界面增强」组第二行。它把上下文占用画成输入框主按钮（发送/中断共用，34×34）外圈的 2px 进度环，是上面统计开关隐藏读数后的替代读数；两个开关互不影响。组件本身的 DOM/CSS 细节见 `composer-ui.md`。
+- `tests/context-ring.test.mjs` 覆盖占用公式（projected 优先、`??` 保留 0、四舍五入、封顶 100、缺窗口/分子为 null）、CSS 只含主题 token 且 mask 双写、标记/换按钮/清除的标记逻辑、插槽注册与 watchFeature 的源码级断言、`Config` 默认 true、中英文案、构建产物含与 test 链断言；构建产物客户端测试覆盖该行默认开、写字段、缺字段提示与只读禁用。

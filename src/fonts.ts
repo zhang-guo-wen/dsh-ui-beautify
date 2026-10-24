@@ -340,6 +340,12 @@ export interface BeautifySettings {
    * off.
    */
   hideComposerStats: boolean
+  /**
+   * Draws the current context occupancy as a ring around the composer's primary
+   * (send / stop) button. Defaults on: it replaces the reading the stats switch
+   * can hide.
+   */
+  contextRingEnabled: boolean
 }
 
 /**

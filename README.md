@@ -36,7 +36,11 @@ For development, `npm run test:recent` runs catalog/status tests and a real Chro
 
 **Settings → UI Beautify → Streamlined interface** removes the entries a deployment does not want its users to reach: it hides the settings header's **Open configuration file** action and the **Plugins** and **Agent presets** pages from the settings navigation. While **Coding Tools** are off in General settings, it also hides the Agent preset picker on the new-session page and the preset label beside the conversation title. The hidden settings pages stay composed — only their navigation rows go — and turning the switch off restores every host entry.
 
-The same page hides the three readings below the message box with its own switch, **Hide the statistics under the message box**: the round/step count with output speed, the token spend with its cache-hit share, and the context-occupancy ring. It is independent of the switch above, and turning it off brings all three readings back.
+The same page hides the three readings below the message box with its own switch, **Hide the statistics under the message box**: the round/step count with output speed, the token spend with its cache-hit share, and the host's context meter. It is independent of the switch above, and turning it off brings all three readings back.
+
+## Context progress ring
+
+The message box's primary button — the same one that sends and interrupts — carries a thin progress ring around its edge that shows how much of the model's context window is in use. The reading comes from the host's own context-pressure projection and uses the same formula as the host's context meter, so the two never disagree; the ring follows the theme's business colour over a border-token track and sits outside the button, where it never takes clicks or changes the layout. It has its own switch in **Settings → UI Beautify → Interface enhancements** and is independent of the statistics switch: hiding the readings under the message box leaves the ring in place.
 
 ## Screenshots
 

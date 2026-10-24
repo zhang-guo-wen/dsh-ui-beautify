@@ -112,6 +112,8 @@ export interface SettingsRowState {
   streamlinedUiEnabled: boolean
   /** Whether the readings under the composer are hidden; defaults off. */
   hideComposerStats: boolean
+  /** Whether the composer's primary button carries the context ring; defaults on. */
+  contextRingEnabled: boolean
   /** What each face holds in the local cache; a face absent from it has downloaded nothing. */
   cache: FontCacheReport
   /**
@@ -343,6 +345,7 @@ export class SettingsController {
         sessionStartChipEnabled: value?.sessionStartChipEnabled !== undefined,
         streamlinedUiEnabled: value?.streamlinedUiEnabled !== undefined,
         hideComposerStats: value?.hideComposerStats !== undefined,
+        contextRingEnabled: value?.contextRingEnabled !== undefined,
       },
       // The document is hand-editable, so an unknown stored value must show as
       // the choice actually in effect rather than as nothing selected.
@@ -367,6 +370,8 @@ export class SettingsController {
       streamlinedUiEnabled: value?.streamlinedUiEnabled === true,
       // Same default: an unread or absent field keeps the readings visible.
       hideComposerStats: value?.hideComposerStats === true,
+      // On unless the document says otherwise, like every other default-on row.
+      contextRingEnabled: value?.contextRingEnabled !== false,
       cache: this.cache,
       save: this.saveStates(),
     }

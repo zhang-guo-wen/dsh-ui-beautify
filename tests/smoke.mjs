@@ -212,6 +212,9 @@ check('the streamlined switch accepts true', Config({ streamlinedUiEnabled: true
 check('declares the composer-statistics switch live', Config.dict.hideComposerStats.meta.volatile === true)
 check('the composer-statistics switch defaults off', Config({}).hideComposerStats.get() === false)
 check('the composer-statistics switch accepts true', Config({ hideComposerStats: true }).hideComposerStats.get() === true)
+check('declares the context-ring switch live', Config.dict.contextRingEnabled.meta.volatile === true)
+check('the context ring defaults on', Config({}).contextRingEnabled.get() === true)
+check('the context ring accepts false', Config({ contextRingEnabled: false }).contextRingEnabled.get() === false)
 check(
   'defaults the quick replies to the built-in phrases',
   Config({}).quickReplies.get().length === 0,

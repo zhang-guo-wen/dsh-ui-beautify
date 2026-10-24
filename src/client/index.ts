@@ -57,6 +57,7 @@ import { applyTagline } from './tagline.ts'
 import { applyMobileLayout } from './mobile-layout.tsx'
 import { applyStreamlinedUi } from './streamlined-ui.ts'
 import { applyComposerStats } from './composer-stats.ts'
+import { applyContextRing } from './ContextRing.tsx'
 import { installRemoteSettings } from './remote-settings.ts'
 import { applyDescriptionTranslation } from './description-translation.ts'
 import { installPdfWorkerCompat } from './pdf-worker-compat.ts'
@@ -150,6 +151,7 @@ export async function apply(ctx: Context): Promise<void> {
   applyMobileLayout(ctx, scope)
   applyStreamlinedUi(ctx, scope)
   applyComposerStats(ctx, scope)
+  applyContextRing(ctx, scope)
   const descriptions = applyDescriptionTranslation(ctx)
   const t = ctx.locale.bind(NS)
   ctx.slots.inject('settings.section', () => ctx.slots.register({

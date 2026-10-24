@@ -64,6 +64,11 @@ export interface Config {
    * and speed pill, the token-spend and cache-hit pill, and the context ring.
    */
   hideComposerStats: Volatile<BeautifySettings['hideComposerStats']>
+  /**
+   * Whether the composer's primary button carries the context-occupancy ring.
+   * Defaults on: the ring is the reading that survives hiding the stats pills.
+   */
+  contextRingEnabled: Volatile<BeautifySettings['contextRingEnabled']>
   /** Registries a font file is downloaded from, tried in order. */
   mirrors: string[]
   /** Directory caching downloaded files; empty follows `$DSH_HOME`, then `~/.dsh`. */
@@ -94,6 +99,9 @@ export const Config = z.object({
   streamlinedUiEnabled: z.boolean().default(false).volatile(),
   // Off by default for the same reason: the readings are the host's own.
   hideComposerStats: z.boolean().default(false).volatile(),
+  // On by default: the ring is the plugin's own reading, not a host surface it
+  // takes away, and it is what remains when the stats switch hides the pills.
+  contextRingEnabled: z.boolean().default(true).volatile(),
   mirrors: z.array(z.string()).default([...DEFAULT_MIRRORS]),
   cacheDir: z.string().default(''),
 })

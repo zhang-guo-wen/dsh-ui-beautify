@@ -17,6 +17,7 @@ type Feature =
   | 'sessionStartChipEnabled'
   | 'streamlinedUiEnabled'
   | 'hideComposerStats'
+  | 'contextRingEnabled'
 
 function FeatureToggleRow({ useBeautify, t, choose, retry, field, title, description }: Props & {
   field: Feature
@@ -28,6 +29,7 @@ function FeatureToggleRow({ useBeautify, t, choose, retry, field, title, descrip
     | 'sessionStartChipTitle'
     | 'streamlinedUiTitle'
     | 'hideComposerStatsTitle'
+    | 'contextRingTitle'
   description:
     | 'mobileLayoutDesc'
     | 'recentSessionsDesc'
@@ -36,6 +38,7 @@ function FeatureToggleRow({ useBeautify, t, choose, retry, field, title, descrip
     | 'sessionStartChipDesc'
     | 'streamlinedUiDesc'
     | 'hideComposerStatsDesc'
+    | 'contextRingDesc'
 }): ReactNode {
   const state = useBeautify(snapshot => snapshot)
   const detail = !state.available ? t('unavailable')
@@ -75,4 +78,7 @@ export function StreamlinedUiToggleRow(props: Props): ReactNode {
 }
 export function HideComposerStatsToggleRow(props: Props): ReactNode {
   return <FeatureToggleRow {...props} field="hideComposerStats" title="hideComposerStatsTitle" description="hideComposerStatsDesc" />
+}
+export function ContextRingToggleRow(props: Props): ReactNode {
+  return <FeatureToggleRow {...props} field="contextRingEnabled" title="contextRingTitle" description="contextRingDesc" />
 }

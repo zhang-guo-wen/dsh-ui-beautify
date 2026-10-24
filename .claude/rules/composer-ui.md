@@ -10,9 +10,14 @@ paths:
   - "src/client/ScrollToPrompt.module.css"
   - "src/client/SessionStartChip.tsx"
   - "src/client/SessionStartChip.module.css"
+  - "src/client/context-ring.ts"
+  - "src/client/ContextRing.tsx"
+  - "src/client/composer-stats.ts"
   - "tests/output-rate.test.mjs"
   - "tests/scroll-to-prompt.test.mjs"
   - "tests/scroll-to-prompt-browser.test.mjs"
+  - "tests/context-ring.test.mjs"
+  - "tests/composer-stats.test.mjs"
 ---
 
 > 覆盖什么、何时读：本文件覆盖 composer 上方的光柱（含已被替代的骑车道历史实现）、回到最近提问、会话开始胶囊与 composer 下方的快捷回复；当你需要改动 composer 上下任何一件界面元素时读它。
@@ -95,3 +100,15 @@ composer 卡片正上方那条整宽插槽是 `conversation.input.dock`（ui-con
 定位portal 的宿主结构依赖有二，均已核对安装版 0.2.0-rc.2：Chat frame 是 `position: relative; display: flex; flex-direction: column`，`.slot` 借 `order: -1` 排到最前（sticky 的自然位置必须在 frame 顶部，portal 只能追加在末尾）；宿主用户行带 `data-clock`（图标动作行）与 `data-message-attachments`（附件胶囊），行内文字据此剥壳。frame 改掉 flex 列或换掉这两个属性时，行会退化成停在 frame 底部或文字混入时间——先核对再改。独立（无 `[data-conversation-scroll]`）聊天里 sticky 同样成立。
 
 开关是新的 volatile 字段 `sessionStartChipEnabled`（默认 `true`）：行为照「环境开关不要挡在注册前面」的旧规——插槽条目照常注册，关闭只让组件返回 `null`，重开立即恢复；旧宿主 schema 缺字段时该行显示 `stale` 并禁用开关，但功能按默认开启生效，重启宿主后开关才可写。`tests/client.mjs` 覆盖注册（dock/order 102/共享快照）、开关、行内文字剥壳与附件名回退、点击落点与 sticky/order/无底色块的样式回归；`npm run test:scroll` 的浏览器回归在 393px/桌面断言行框内、点击落点与轨迹清理。
+
+## 主按钮上下文进度环（2026-10-24）
+
+把上下文占用画在输入框主按钮（发送／中断共用、34×34、`border-radius: 999px`）外圈，作为「隐藏输入框下方统计」开关之后仍可见的替代读数。开关 `contextRingEnabled`（默认 **true**、volatile，`watchFeature` 默认语义），在「界面增强」第二行；与 `hideComposerStats` 完全独立。
+
+**数据来自 Session 标准 seat `useProjection('contextPressure')`。** `conversation.composer.dock` 是 session 作用域插槽，每个条目自动拿到 `useProjection`；占用公式照抄 `ui-conversation/src/client/context-occupancy.ts`：`used = projectedTokens ?? pressureTokens`（`??` 不能写成 `||`——0 是真实读数），`contextWindow` 缺失或分子缺失时不出环，`percent = min(100, round(used / contextWindow * 100))`。本包安装的 `@deepseek-ai/*`（0.1.7-rc.2）没有声明这个 seat（它由 ui-session 的 `SessionStandardProps` 合并进来），所以 `ContextProjectionSeat` / `ContextPressureProjection` 是本地结构声明，注册时按 `MobileRecentSessions` 先例 `as unknown as SlotComponent<PropsRuntime<...>>` cast——**不要为此新增依赖**。宿主投影键没有时只是拿不到数据、不出环，不抛错。
+
+**DOM 定位**（宿主 master 已核对）：`InputBar.tsx` 的根 `div` 里，`[data-composer-card]` 与 `div[data-composer-dock]` 是兄弟；`conversation.composer.dock` 的条目渲染在 `div[data-slot="conversation.composer.dock"]`（`display:contents`）里，所以锚点 `<span hidden>` 的 `closest('[data-composer-dock]')?.parentElement` 就是 composer 根，根里 `[data-composer-card]` 的**最后一个 `<button>`** 是主按钮（card 里依次是工具栏、模型/模式、可选 stop、最后 primary，Tooltip 只 clone 不包裹，不会多包一层 button）。`markContextRing(root, percent)` 每次同步都重新定位并清理仍带属性的旧按钮，因此宿主重渲染换掉 button 节点时会自动迁移标记；数据缺失、`percent` 为 null、关开关或卸载都会移除属性与自定义属性，按钮恢复宿主原样。Composer 根还用 `MutationObserver(childList + subtree)` 兜底重同步——只观察 childList/子结构，插件自己写的是 attribute，不会自激。
+
+**样式**：注入 `<style data-plugin-css="@guowenzhang/dsh-ui-beautify/context-ring.css">`，`button[data-ui-beautify-context-ring]{position:relative}` + `::before{position:absolute;inset:-3px;border:2px solid transparent;border-radius:999px;background:conic-gradient(...) border-box;mask（padding-box + 全框两层，webkit 写 -webkit-mask-composite: xor，标准写 mask-composite: exclude）;pointer-events:none}`。进度色 `--dsw-alias-state-business-primary`、底环 `--dsw-alias-border-l3`，百分比经 `--ui-beautify-context-ring-percent` 传入；`#000` 只作为 mask 的 alpha 模板，不是绘制颜色。环在按钮边框盒外 3px、粗 2px，不占布局、不接点击；mask 写法需两种方言同时保留。
+
+**回归**：`tests/context-ring.test.mjs` 覆盖公式边界、CSS token/mask 双写、`markContextRing` 的标记/换节点/清除、注册（dock + id `ui-beautify-context-ring` + order 2 + 无 priority）与 watchFeature 的源码断言、`Config` 默认 true、中英文案、产物关键字；`tests/client.mjs` 覆盖该开关行默认开/写字段/缺字段 stale/只读禁用。宿主若改掉 `[data-composer-card]`/`[data-composer-dock]` 或主按钮不再是 card 最后一个 button，环会定位不到（静默不显示，不报错）——改 composer DOM 前先核对这两条。
