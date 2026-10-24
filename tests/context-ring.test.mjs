@@ -77,6 +77,9 @@ test('the stylesheet draws a 2px ring in host tokens only', () => {
   assert.match(css, /inset:\s*-3px/)
   assert.match(css, /border:\s*2px solid transparent/)
   assert.match(css, /border-radius:\s*999px/)
+  // The theme's corner-shape sheet applies a superellipse to every pseudo-element;
+  // a circle has to opt back into the round arc next to its full radius.
+  assert.match(css, /corner-shape:\s*round/)
   assert.match(css, /conic-gradient/)
   assert.ok(css.includes('var(--dsw-alias-state-business-primary)'))
   assert.ok(css.includes('var(--dsw-alias-border-l3)'))
