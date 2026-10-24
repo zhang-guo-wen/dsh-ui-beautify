@@ -1,9 +1,7 @@
 /** Project the optional slogan into the host's blank-session headline. */
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { BeautifySettings } from '../fonts.ts'
-
-/** The current host renders this text directly rather than exposing a slot. */
-const HEADLINE_SELECTOR = '[class*="_headline"] [class*="_titleGroup"] > span:first-child'
+import { HERO_HEADLINE_SELECTOR } from './host-defaults.ts'
 
 export function applyTagline(scope: ConfigForm<BeautifySettings>): () => void {
   const originals = new Map<HTMLElement, string>()
@@ -22,7 +20,7 @@ export function applyTagline(scope: ConfigForm<BeautifySettings>): () => void {
     const next = scope.getSnapshot().value?.tagline?.trim() ?? ''
     if (next === '') { if (applied !== '') restore(); return }
     if (typeof document.querySelectorAll !== 'function') return
-    for (const node of document.querySelectorAll<HTMLElement>(HEADLINE_SELECTOR)) {
+    for (const node of document.querySelectorAll<HTMLElement>(HERO_HEADLINE_SELECTOR)) {
       const current = node.textContent ?? ''
       if (!originals.has(node) || (applied !== '' && current !== applied && current !== next)) {
         originals.set(node, current)

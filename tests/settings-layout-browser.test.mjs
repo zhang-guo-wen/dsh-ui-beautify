@@ -90,7 +90,9 @@ test('installed settings shell: phone navigation, controls, scroll, themes and d
       assert.ok(switches.length > 0)
       assert.ok(switches.every(s => s.textRight <= s.switchLeft && s.centerDistance < 2))
       await options.evaluate(o => { o.scrollTop = o.scrollHeight })
-      await options.getByPlaceholder('当前名称：DeepSeek Harness').waitFor({ state: 'visible' })
+      // The name input's placeholder now reports the host's own name, so locate
+      // the field by its accessible label instead.
+      await options.getByLabel('左上角名称').waitFor({ state: 'visible' })
       assert.ok(await options.evaluate(o => o.scrollTop > 0))
     }
     await resize(393)

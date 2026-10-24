@@ -6,6 +6,7 @@ import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { BRAND_ROUTE, MAX_BRAND_IMAGE_BYTES } from '../params.ts'
 import type { SettingsRowFace, SettingsRowState } from './settings-controller.ts'
 import { imageUrl } from './branding.tsx'
+import { hostBrandName, hostTagline } from './host-defaults.ts'
 import { NS } from './locales.ts'
 import { SaveNote } from './SaveNote.tsx'
 import css from './SettingRow.module.css'
@@ -86,6 +87,34 @@ function ImageRow({ field, ...props }: BrandRowProps & { field: ImageField }): R
 export function LogoRow(props: BrandRowProps): ReactNode { return <ImageRow field="logo" {...props} /> }
 export function BrandIconRow(props: BrandRowProps): ReactNode { return <ImageRow field="brandIcon" {...props} /> }
 
+/**
+ * The host text a text row reports while its setting is empty.
+ *
+ * The hint describes what the interface currently shows, so it comes from the
+ * host's rendered content rather than a copied default: a deployment build
+ * embeds its own tagline and product name, and those change without this
+ * plugin. The read repeats once the setting becomes empty — the plugin releases
+ * its occupant and the host repaints its own a moment later — and reports
+ * nothing while that host surface is not mounted.
+ * @param field - which host surface the row describes.
+ * @param empty - whether the stored setting is empty.
+ * @returns the host text, or '' while the setting has a value or the surface is absent.
+ */
+function useHostHint(field: 'brandName' | 'tagline', empty: boolean): string {
+  const read = field === 'brandName' ? hostBrandName : hostTagline
+  const [hint, setHint] = useState(() => empty ? read() : '')
+  useEffect(() => {
+    if (!empty) { setHint(''); return }
+    setHint(read())
+    // The occupant swap commits after the setting does; one more read once the
+    // host has painted keeps the hint from naming the value just released.
+    let frame = 0
+    if (typeof requestAnimationFrame === 'function') frame = requestAnimationFrame(() => { setHint(read()) })
+    return () => { if (frame !== 0) cancelAnimationFrame(frame) }
+  }, [empty, read])
+  return empty ? hint : ''
+}
+
 function TextRow({ field, ...props }: BrandRowProps & { field: 'brandName' | 'tagline' }): ReactNode {
   const { useBeautify, t, choose, retry } = props
   const state = useBeautify(snapshot => snapshot)
@@ -98,6 +127,8 @@ function TextRow({ field, ...props }: BrandRowProps & { field: 'brandName' | 'ta
   const title = t(field === 'brandName' ? 'brandNameTitle' : 'taglineTitle')
   const disabled = !state.available || !state.writable || !state.fields[field]
   const stored = state[field]
+  const hint = useHostHint(field, stored.trim() === '')
+  const placeholder = hint === '' ? '' : field === 'brandName' ? t('namePlaceholder', { name: hint }) : hint
 
   useEffect(() => {
     const guard = observeComposition(document)
@@ -129,7 +160,7 @@ function TextRow({ field, ...props }: BrandRowProps & { field: 'brandName' | 'ta
         className={css.textInput}
         type="text"
         aria-label={title}
-        placeholder={t(field === 'brandName' ? 'namePlaceholder' : 'taglinePlaceholder')}
+        placeholder={placeholder}
         defaultValue={stored}
         maxLength={field === 'brandName' ? 80 : 120}
         disabled={disabled}

@@ -28,6 +28,13 @@ const bundle = new URL('../lib/client.js', import.meta.url)
 console.log('module evaluation')
 const head = []
 const headline = { textContent: '探索未至之境' }
+// The sidebar cell the host fills while no custom name is set. Its text is the
+// deployment's product name in a packaged build, so the hint must read it rather
+// than repeat a copy of one.
+const sidebarName = { textContent: 'DeepSeek Harness' }
+// Whether the host surfaces the brand hints read are mounted. A conversation with
+// messages renders no hero, and a collapsed sidebar renders no name row.
+let hostSurfacesMounted = true
 let headlineObserver
 globalThis.MutationObserver = class {
   constructor(callback) { this.callback = callback; headlineObserver = this }
@@ -69,7 +76,12 @@ globalThis.document = {
   },
   removeEventListener(type, listener) { documentListeners.get(type)?.delete(listener) },
   head: { appendChild(element) { head.push(element) } },
-  querySelector: () => null,
+  querySelector: (selector) => {
+    if (!hostSurfacesMounted) return null
+    if (selector === '[class*="_brandName"]') return sidebarName
+    if (selector === '[class*="_headline"] [class*="_titleGroup"] > span:first-child') return headline
+    return null
+  },
   querySelectorAll: selector => selector === '[class*="_headline"] [class*="_titleGroup"] > span:first-child' ? [headline] : [],
   createElement: tag => makeElement(tag),
 }
@@ -657,7 +669,9 @@ mount('row-brand-name', pageComponents.get('BrandNameRow'), {
 })
 const nameInput = elements.find(element => element.type === 'input')
 check('the sidebar name remains a text field', nameInput?.props.type === 'text')
-check('the sidebar name uses the current-name hint without saving it', nameInput?.props.placeholder === 'namePlaceholder' && nameInput?.props.defaultValue === '')
+check('an empty name hints at the mounted host name',
+  nameInput?.props.placeholder === 'namePlaceholder({"name":"DeepSeek Harness"})' && nameInput?.props.defaultValue === '',
+  String(nameInput?.props.placeholder))
 nameInput?.props.onBlur({ currentTarget: { value: '  New name  ' } })
 check('the sidebar name saves trimmed text', writes.at(-1)?.join(':') === 'brandName:New name')
 mount('row-tagline', pageComponents.get('TaglineRow'), {
@@ -666,8 +680,25 @@ mount('row-tagline', pageComponents.get('TaglineRow'), {
 })
 const taglineInput = elements.find(element => element.type === 'input')
 check('the welcome tagline remains a text field', taglineInput?.props.type === 'text')
+check('an empty tagline hints at the mounted host tagline',
+  taglineInput?.props.placeholder === 'Into the Unknown', String(taglineInput?.props.placeholder))
 taglineInput?.props.onBlur({ currentTarget: { value: '  探索未知之境  ' } })
 check('the welcome tagline saves trimmed text', writes.at(-1)?.join(':') === 'tagline:探索未知之境')
+
+// The hint reports what the interface shows, so a surface that is not mounted
+// must leave the field silent instead of repeating a stale default.
+hostSurfacesMounted = false
+const mountRow = (key, name) => {
+  mount(key, pageComponents.get(name), {
+    t, useBeautify: selector => selector(snapshot()), choose: () => {},
+  })
+  return elements.find(element => element.type === 'input')
+}
+const hiddenNameInput = mountRow('row-brand-name-unmounted', 'BrandNameRow')
+const hiddenTaglineInput = mountRow('row-tagline-unmounted', 'TaglineRow')
+check('an unmounted sidebar shows no name hint', hiddenNameInput?.props.placeholder === '', String(hiddenNameInput?.props.placeholder))
+check('an unmounted hero shows no tagline hint', hiddenTaglineInput?.props.placeholder === '', String(hiddenTaglineInput?.props.placeholder))
+hostSurfacesMounted = true
 setStored({ logo: 'javascript:alert(1)' })
 const badLogoRow = render(row('LogoRow', 'ui-beautify-logo'))
 check('an invalid image address is explained in its row', badLogoRow.metas[0] === 'invalidImageUrl')

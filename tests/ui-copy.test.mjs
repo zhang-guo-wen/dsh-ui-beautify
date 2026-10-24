@@ -14,6 +14,9 @@ test('enhancement descriptions stay concise without default/disable instructions
   assert.match(zh.mobileLayoutDesc, /设置页布局/)
   assert.match(en.mobileLayoutDesc, /settings layout/)
   assert.match(zh.remoteSettingsDesc, /解决某些配置在手机端不生效问题/)
-  assert.equal(zh.namePlaceholder, '当前名称：DeepSeek Harness')
-  assert.equal(en.namePlaceholder, 'Current name: DeepSeek Harness')
+  assert.equal(zh.namePlaceholder, '当前名称：{name}')
+  assert.equal(en.namePlaceholder, 'Current name: {name}')
+  // The tagline hint is host text, not product copy: no static default may remain.
+  assert.equal('taglinePlaceholder' in zh, false)
+  assert.equal('taglinePlaceholder' in en, false)
 })
