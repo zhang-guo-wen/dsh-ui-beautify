@@ -3,10 +3,20 @@ import assert from 'node:assert/strict'
 import {
   nearestPromptAbove, promptPreviewText, promptScrollerOf, scrollToPrompt, PROMPT_SELECTOR,
 } from '../src/client/scroll-to-prompt.ts'
+import { START_CHIP_LINE_SELECTOR } from '../src/client/reading-top.ts'
 
-function fixture({ standalone = false, rows = [] } = {}) {
+function fixture({ standalone = false, rows = [], chipHeight = 0 } = {}) {
   const events = []
   const jumps = []
+  const chipLine = {
+    getBoundingClientRect: () => ({ top: 80, bottom: 80 + chipHeight, height: chipHeight }),
+  }
+  const content = {
+    querySelector: (selector) => {
+      assert.equal(selector, START_CHIP_LINE_SELECTOR)
+      return chipHeight > 0 ? chipLine : null
+    },
+  }
   const scroller = {
     scrollTop: 1000,
     getBoundingClientRect: () => ({ top: 80 }),
@@ -15,8 +25,12 @@ function fixture({ standalone = false, rows = [] } = {}) {
   }
   const flow = {
     parentElement: scroller,
-    closest: selector => { assert.equal(selector, '[data-conversation-scroll]'); return standalone ? null : scroller },
-    querySelectorAll: selector => { assert.equal(selector, PROMPT_SELECTOR); return rows },
+    closest: (selector) => {
+      if (selector === '[data-conversation-scroll]') return standalone ? null : scroller
+      if (selector === '[data-conversation-content]') return content
+      assert.fail(`unexpected selector ${selector}`)
+    },
+    querySelectorAll: (selector) => { assert.equal(selector, PROMPT_SELECTOR); return rows },
   }
   return { flow, scroller, jumps, events }
 }
@@ -66,6 +80,12 @@ test('lands above the round start and settles host reading rather than following
   assert.equal(scrollToPrompt(flow), true)
   assert.deepEqual(jumps, [{ top: 676, behavior: 'instant' }])
   assert.deepEqual(events, ['scroll', 'scrollend'])
+})
+test('the floating start chip pushes the landed prompt below it instead of over it', () => {
+  const { flow, jumps } = fixture({ rows: [row(-500)], chipHeight: 33 })
+  assert.equal(scrollToPrompt(flow), true)
+  // 1000 + (-500 - 113) - 24: measured from the chip's bottom, not the scrollport's.
+  assert.deepEqual(jumps, [{ top: 363, behavior: 'instant' }])
 })
 test('standalone chat scrolls its own list and clamps to the top', () => {
   const { flow, jumps } = fixture({ standalone: true, rows: [row(-2000)] })

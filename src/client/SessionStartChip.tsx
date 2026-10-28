@@ -103,6 +103,7 @@ export function SessionStartChip({ t, useBeautify }: SessionStartChipProps): Rea
         {/* The whole control is one line of the round's opening text with a
             hairline beneath it; clicking it jumps to that opening. */}
         <button type="button" className={css.chip}
+          data-ui-beautify-session-start-line=""
           aria-label={t('sessionStartChipAria', { text: preview === '' ? t('sessionStartChipFallback') : preview })}
           onClick={() => { scrollToPrompt(target.flow) }}>
           <IconChevronUpOutlineRegular className={css.icon} />

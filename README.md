@@ -32,11 +32,37 @@ On desktop the strip is a hemp line pinned to the header's left and right edges.
 
 For development, `npm run test:recent` runs catalog/status tests and a real Chrome/React fixture at 1200, 601, 600 and 393px, including delayed tab bars, the band/stack fallbacks, session navigation and cleanup. It uses the existing desktop-profile Playwright installation and local Chrome; set `DSH_MOBILE_PLAYWRIGHT` and `DSH_MOBILE_CHROME` to use other installations. It does not launch or change a running DSH host.
 
+## Unread conversations
+
+When a run finishes while you are viewing another conversation, the sidebar marks that conversation with a green dot. Opening it lands at the beginning of its latest answer instead of the bottom of the transcript, so the answer can be read from its first line. The landing waits for the host to restore the conversation, uses the same reading inset as the navigation controls, and backs off as soon as you scroll yourself. Its switch, **Unread conversation opens at the answer**, lives in **Settings → UI Beautify → Interface enhancements** and defaults on.
+
+## Floating quick actions
+
+A draggable button floats at the bottom-right of an open conversation. Its position is kept in the browser, so it survives a reload, and the button rests just above the message box rather than over its send button; drag it anywhere inside the window. Clicking it opens a host menu with three shortcuts for the conversation on screen:
+
+- **Archive this conversation** — the host's own archive action; once archived it opens the next conversation by the same priority instead of leaving you on a blank new-conversation page, and a conversation that is still running disables the row and says why.
+- **Pin this conversation** / **Unpin this conversation** — follows the host's pinned state, the same one the sidebar's pin marker shows.
+- **Next conversation** — switches by a three-tier priority: an unread green dot first (finished while you were elsewhere), then the next pinned (favourite) conversation, then the next older conversation by conversation time, wrapping to the newest. The first two walk the sidebar's order and wrap once; the row is disabled only when there is no other conversation to open.
+
+Every action calls the same Workspace service the sidebar uses, so the sidebar, the green dot and this button always agree. Failures are reported inside the menu instead of silently disappearing. Its switch, **Floating quick actions**, lives in **Settings → UI Beautify → Interface enhancements** and defaults on.
+
+## Running indicator
+
+While a reply streams, one line with an icon sits at the bottom of the conversation. **Settings → UI Beautify → Running indicator** replaces either half of it:
+
+- **Running phrase** — replaces the built-in wording while keeping the elapsed time that follows. Empty restores the host's copy.
+- **Replace the running icon** — swaps the host's whale tail for the icon below; with no image uploaded, a built-in rotating ring stands in. It inherits the theme's text colour and slows down under the system's reduced-motion setting.
+- **Running icon** — an animated PNG, WebP or GIF shown before the phrase. Uploading one turns the switch above on; clearing it returns to the built-in animation.
+
+Both halves are live: a row already streaming updates on its next repaint, with no restart or reload. The host rewrites that line every second for its clock, so the plugin reapplies the phrase after each rewrite.
+
 ## Streamlined interface
 
-**Settings → UI Beautify → Streamlined interface** removes the entries a deployment does not want its users to reach: it hides the settings header's **Open configuration file** action and the **Plugins** and **Agent presets** pages from the settings navigation. While **Coding Tools** are off in General settings, it also hides the Agent preset picker on the new-session page and the preset label beside the conversation title. The hidden settings pages stay composed — only their navigation rows go — and turning the switch off restores every host entry.
+**Settings → UI Beautify → Streamlined interface** removes the entries a deployment does not want its users to reach: it hides the settings header's **Open configuration file** action and the **Plugins** and **Agent presets** pages from the settings navigation, and moves the sidebar's **Plugins** and **Automation tasks** rows into the settings navigation, where each row opens the page it names. While **Coding Tools** are off in General settings, it also hides the Agent preset picker on the new-session page and the preset label beside the conversation title. The hidden settings pages and the relocated sidebar entries stay composed — only their rows move — and turning the switch off restores every host entry.
 
 The same page hides the three readings below the message box with its own switch, **Hide the statistics under the message box**: the round/step count with output speed, the token spend with its cache-hit share, and the host's context meter. It is independent of the switch above, and turning it off brings all three readings back.
+
+Two more switches in the same group empty the message box's bottom row: **Hide the model selector** and **Hide the access mode**. They are independent of each other and **default off**, so a fresh install keeps the host's model and access-mode controls; turning a row on hides only that host seat, and turning it off restores it. Both controls stay reachable through the host's own **/model** and **/permission** commands.
 
 ## Context progress ring
 

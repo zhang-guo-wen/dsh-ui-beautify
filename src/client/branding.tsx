@@ -5,16 +5,11 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { BeautifySettings } from '../fonts.ts'
+import { imageUrl } from './image-url.ts'
 
 type BrandField = 'logo' | 'brandIcon' | 'brandName'
 
-/** Accept web images and same-origin absolute paths; reject script and file URLs. */
-export function imageUrl(value: string | undefined): string {
-  const url = value?.trim() ?? ''
-  if (/^https?:\/\/\S+$/i.test(url)) return url
-  if (url.startsWith('/') && !url.startsWith('//') && !url.includes('\\') && !/\s/.test(url)) return url
-  return ''
-}
+export { imageUrl } from './image-url.ts'
 
 function selected(value: Partial<BeautifySettings> | undefined, field: BrandField): string {
   if (field === 'brandName') return value?.brandName?.trim() ?? ''

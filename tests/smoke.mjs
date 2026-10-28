@@ -201,7 +201,7 @@ check('declares the quick-reply list live', Config.dict.quickReplies.meta.volati
 check('declares quick-reply visibility live', Config.dict.quickRepliesEnabled.meta.volatile === true)
 check('desktop quick replies default to enabled', Config({}).quickRepliesEnabled.get() === true)
 check('desktop quick replies can be disabled', Config({ quickRepliesEnabled: false }).quickRepliesEnabled.get() === false)
-for (const field of ['mobileLayoutEnabled', 'recentSessionsEnabled', 'remoteSettingsEnabled', 'scrollToPromptEnabled', 'sessionStartChipEnabled']) {
+for (const field of ['mobileLayoutEnabled', 'recentSessionsEnabled', 'remoteSettingsEnabled', 'scrollToPromptEnabled', 'sessionStartChipEnabled', 'unreadAnswerStartEnabled', 'quickActionsEnabled']) {
   check(`declares ${field} live`, Config.dict[field].meta.volatile === true)
   check(`${field} defaults on`, Config({})[field].get() === true)
   check(`${field} accepts false`, Config({ [field]: false })[field].get() === false)
@@ -212,9 +212,20 @@ check('the streamlined switch accepts true', Config({ streamlinedUiEnabled: true
 check('declares the composer-statistics switch live', Config.dict.hideComposerStats.meta.volatile === true)
 check('the composer-statistics switch defaults off', Config({}).hideComposerStats.get() === false)
 check('the composer-statistics switch accepts true', Config({ hideComposerStats: true }).hideComposerStats.get() === true)
+check('declares the model-seat switch live', Config.dict.hideModelSelector.meta.volatile === true)
+check('the model seat defaults shown', Config({}).hideModelSelector.get() === false)
+check('the model seat can be hidden', Config({ hideModelSelector: true }).hideModelSelector.get() === true)
+check('declares the access-mode switch live', Config.dict.hideAccessMode.meta.volatile === true)
+check('the access-mode seat defaults shown', Config({}).hideAccessMode.get() === false)
+check('the access-mode seat can be hidden', Config({ hideAccessMode: true }).hideAccessMode.get() === true)
 check('declares the context-ring switch live', Config.dict.contextRingEnabled.meta.volatile === true)
 check('the context ring defaults on', Config({}).contextRingEnabled.get() === true)
 check('the context ring accepts false', Config({ contextRingEnabled: false }).contextRingEnabled.get() === false)
+check('declares the unread-answer switch live', Config.dict.unreadAnswerStartEnabled.meta.volatile === true)
+check('the unread-answer landing defaults on', Config({}).unreadAnswerStartEnabled.get() === true)
+check('the quick-actions button defaults on', Config({}).quickActionsEnabled.get() === true)
+check('the quick-actions button accepts false', Config({ quickActionsEnabled: false }).quickActionsEnabled.get() === false)
+check('the unread-answer landing accepts false', Config({ unreadAnswerStartEnabled: false }).unreadAnswerStartEnabled.get() === false)
 check(
   'defaults the quick replies to the built-in phrases',
   Config({}).quickReplies.get().length === 0,

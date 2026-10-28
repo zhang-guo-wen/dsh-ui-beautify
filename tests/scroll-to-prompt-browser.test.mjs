@@ -46,12 +46,27 @@ test('real host up/down navigation, phone sizing, themes, and view-switch cleanu
       assert.ok((await chip.textContent() ?? '').trim().length > 0, 'the line shows the round\'s opening text')
       await chip.click()
       await page.waitForFunction(() => !document.querySelector('[data-chat-following-tail]'))
-      const offset = await page.evaluate(() => {
+      const landing = await page.evaluate(() => {
+        const scroller = document.querySelector('[data-conversation-scroll]')
         const prompt = [...document.querySelectorAll('[data-chat-flow-kind="user"], [data-chat-flow-kind="steering"]')]
           .filter(e => !e.closest('[hidden]') && e.getClientRects().length).at(-1)
-        return prompt.getBoundingClientRect().top - document.querySelector('[data-conversation-scroll]').getBoundingClientRect().top
+        const line = document.querySelector('[data-ui-beautify-session-start-line]')
+        return {
+          promptTop: prompt.getBoundingClientRect().top,
+          scrollerTop: scroller.getBoundingClientRect().top,
+          scrollTop: scroller.scrollTop,
+          chipBottom: line === null ? null : line.getBoundingClientRect().bottom,
+        }
       })
-      assert.ok(Math.abs(offset - 24) < 1, `prompt reading inset: ${offset}`)
+      // With the floating chip still showing the round above, the landed prompt
+      // starts below the chip, not behind it; without it the scrollport edge rules.
+      const visibleTop = landing.chipBottom === null ? landing.scrollerTop : Math.max(landing.scrollerTop, landing.chipBottom)
+      const offset = landing.promptTop - visibleTop
+      assert.ok(offset >= -1, `landed prompt is not hidden under the floating chip: ${offset}`)
+      // The first round cannot be pushed down by the inset; further rounds must sit
+      // exactly at the reading inset below whatever floats above the transcript.
+      if (landing.scrollTop > 0) assert.ok(Math.abs(offset - 24) < 1, `prompt reading inset below the visible top: ${offset}`)
+      else assert.ok(offset <= 25, `clamped landing keeps the prompt visible: ${offset}`)
       // The click leaves the chip targeting the round before the one it landed on:
       // the line follows the reader upward instead of repeating the last target.
       if (await chip.count() > 0) {

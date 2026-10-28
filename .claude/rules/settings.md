@@ -55,7 +55,7 @@ paths:
 
 `cacheDir` 留空时的解析顺序：`$DSH_HOME`（非空时）→ `~/.dsh`，再拼 `cache/ui-beautify/fonts`。插件自己展开 `~` / `~/` / `~\` 前缀，因为 `@deepseek-ai/dsh-home-paths` 是 harness 内部包，loader 从 profile 解析本插件的 import，那里没装它。填了值就 `resolve()` 成绝对路径，所以**相对路径按宿主进程的 cwd 解析**，不是 profile 目录。
 
-所有用户可配字段都是 volatile；显示开关是默认开启的 `z.boolean().volatile()`：字体、动效、品牌五项是 `z.string().volatile()`，快捷回复是 `z.array(z.string()).volatile()`（默认 `[]`，不写 `.max()`——schema 拒绝一个字段会让整份命名空间回落到上一个好值，超长列表在读取处裁掉，见「短语是可自定义的」）。字体和动效的未知值在读取处回落到默认值，图片地址、短语列表在使用时检查。`mirrors` / `cacheDir` 有默认值但不是 volatile，不出现在设置页。
+所有用户可配字段都是 volatile；显示开关是 `z.boolean().default(...).volatile()`，各开关默认值见下文各节（多数默认开；「界面精简」组的 `streamlinedUiEnabled`、`hideComposerStats`、`hideModelSelector`、`hideAccessMode` 默认关）：字体、动效、品牌五项是 `z.string().volatile()`，快捷回复是 `z.array(z.string()).volatile()`（默认 `[]`，不写 `.max()`——schema 拒绝一个字段会让整份命名空间回落到上一个好值，超长列表在读取处裁掉，见「短语是可自定义的」）。字体和动效的未知值在读取处回落到默认值，图片地址、短语列表在使用时检查。`mirrors` / `cacheDir` 有默认值但不是 volatile，不出现在设置页。
 
 ## 设置文案简化（2026-10-08）
 
@@ -82,17 +82,18 @@ paths:
 
 ## 功能开关（2026-10-08）
 
-- 设置页「界面增强」使用宿主 Switch 显示 `scrollToPromptEnabled`、`sessionStartChipEnabled`、`mobileLayoutEnabled`、`recentSessionsEnabled`、`remoteSettingsEnabled`，均为默认 true 的 volatile 字段，中英文描述齐全，手机不隐藏。前三项在组件里收窄行为（回到最近提问与会话开始胶囊的开关见各自一节），远程一项见下。
+- 设置页「界面增强」使用宿主 Switch 显示 `scrollToPromptEnabled`、`sessionStartChipEnabled`、`unreadAnswerStartEnabled`、`mobileLayoutEnabled`、`recentSessionsEnabled`、`remoteSettingsEnabled`，均为默认 true 的 volatile 字段，中英文描述齐全，手机不隐藏。前三项在组件里收窄行为（回到最近提问与会话开始胶囊的开关见各自一节，未读会话落点见 `composer-ui.md`，它的开关释放的是整套状态监听与落点控制器，不是组件），远程一项见下。
 - `feature-switch.ts` 等待已存配置，按开关安装／释放；手机适配释放控制器、Pocket shadow 和 CSS，最近对话有独立 `recent-sessions.css` 与插槽生命周期。二者不得相互绑定，关闭最近对话不影响手机抽屉，关闭手机适配不影响最近对话。宿主原生功能不由本插件关闭。开关默认值由 `watchFeature(..., { defaultOn })` 决定：默认 true 的字段缺值算开，默认 false 的字段只有快照明确为 `true` 才算开。
 - 远程只读安全边界不变；通过一次脱敏 describe 启动读取获知开关，false 时释放桥接与监听并通知已缓存表单消费者重读宿主快照。远程端在本机开关重新开启后需刷新页面，不保留后台轮询来绕过关闭。本机表单从不装饰。
 - `tests/feature-switch.test.mjs` 覆盖冷加载 false、旧配置默认开启、独立生命周期、恢复和清理；构建产物客户端测试覆盖各行控件／写入／缺字段／只读及插槽停用恢复；远程测试覆盖初始关闭与设置事件关闭后的方法、监听器和快照恢复。
 
 ## 界面精简开关（2026-10-24）
 
-- 一批原本写进 harness 的定制版「隐藏功能」搬回本插件：`streamlinedUiEnabled`（默认 false、volatile）打开时由 `src/client/streamlined-ui.ts` 在运行时做三件事，关掉或卸载后宿主完全恢复原样。字段默认 false 所以 `watchFeature` 传 `{ defaultOn: false }`：只有快照明确 `true` 才安装，旧宿主没有该字段时不会误删界面。设置页在「界面增强」之后单独一组「界面精简」。
+- 一批原本写进 harness 的定制版「隐藏功能」搬回本插件：`streamlinedUiEnabled`（默认 false、volatile）打开时由 `src/client/streamlined-ui.ts` 在运行时做四件事，关掉或卸载后宿主完全恢复原样。字段默认 false 所以 `watchFeature` 传 `{ defaultOn: false }`：只有快照明确 `true` 才安装，旧宿主没有该字段时不会误删界面。设置页在「界面增强」之后单独一组「界面精简」。
 - 三处遮蔽手段各不相同：设置页「打开配置文件」是 `settings.action` 的 list 槽，注册同 id `open-document` + `priority: -10` 返回 null 的组件赢下该格；设置导航的「内置插件」「agent-presets」两个分区**没有可定位的属性**，只能按 `[data-shortcut-modal="settings"] nav > div:nth-of-type(2) > button:nth-of-type(N)` 行号隐藏，行号按宿主同一规则复算（`ctx.slots.entries('settings.section')` 取 `id`/`order ?? 0`，升序稳定排序，读的是原始账本而非遮蔽获胜者），并订阅该槽账本在变化时重算；Agent 预设入口只在 `ctx.configForms.developerTools.enabled` 快照**明确 false** 时遮蔽 `conversation.hero.agentPreset`（single，priority -10 返回 null）与 `conversation.session.header.actions` 的 `agent-preset`（id 遮蔽），并订阅该偏好随开随卸。
+- 第四处是**侧栏入口迁入设置导航**（2026-10-26）：侧栏「插件」（`sidebar.panellist` id `plugins`）与「自动化任务」（id `schedules`）两行按与设置导航同一套行号规则复算，选择器是 `[data-slot="sidebar"] > div > nav > button:nth-of-type(N)`——`[data-slot="sidebar"]` 是宿主插槽的稳定锚点（`display:contents`，不进布局），其下第一个 `nav` 就是全局面板列表；每行是 nav 的直接 `button`（`Tooltip` 只额外渲染浮层 `span`，`button:nth-of-type` 不受影响）。同一开关另注册两个 `settings.section`（id `ui-beautify-plugins` order 16、`ui-beautify-schedules` order 21，标签读 `pluginsDestination` / `schedulesDestination`），点这两行时宿主渲染该分区并把 `close` 作为 owner props 传下来；内容组件挂载后先 `ctx.layout.selectPanel(panelId)`，成功才 `close()`——`main` keyed 槽没有对应 key 时不跳也不关，避免把设置页关在旧页面上。侧栏 `panellist` 账本变化时订阅重算行号。
 - 宿主客户端比本包旧时可能没有 `configForms.developerTools`：此时只跳过 Agent 预设这一处，其余照常，不能让 `apply()` 抛错把整个插件（含设置页）带下去。导航 CSS 选择器同理只是不匹配，不会报错。
-- `tests/streamlined-ui.test.mjs` 覆盖行号算法（order 优先、并列保序、缺 order 当 0）、CSS 只含行号与 `display:none`、开关全生命周期（默认关 / 打开 / Coding Tools 开关 / 账本变化重算 / 关闭与卸载恢复）、旧宿主无偏好时不崩、`Config` 字段默认 false 与中英文案、构建产物含选择器，并断言 `test` 与 `test:mobile` 链已包含该文件。
+- `tests/streamlined-ui.test.mjs` 覆盖两组行号算法（order 优先、并列保序、缺 order 当 0）、两份 CSS 只含行号与 `display:none`、开关全生命周期（默认关 / 打开 / Coding Tools 开关 / 两个账本变化各自重算 / 关闭与卸载恢复）、迁入行的 id/order/标签与跳转（有 `main` 时选中、缺席时不跳）、旧宿主无偏好时不崩、`Config` 字段默认 false 与中英文案、构建产物含两组选择器与迁移行，并断言 `test` 与 `test:mobile` 链已包含该文件。
 
 ## 输入框下方统计开关（2026-10-24）
 
@@ -100,6 +101,13 @@ paths:
 - 两个药丸来自宿主 `ui-chat` 注册在 `conversation.composer.dock` 的 list 项，id 分别是 `activity`（order 0，轮次/步数 + 速度）与 `usage`（order 1，Token 消耗 + 缓存命中）：本插件用同 id + `priority: -10` 返回 null 的组件赢下这两格，宿主注册仍在账本上，关掉只释放本插件的影子。不能改隐藏整个 `[data-slot="conversation.composer.dock"]` 包装——本插件自己的快捷回复就注册在这个槽里。
 - 上下文占用环没有插槽：`ui-conversation` 的 `InputBar.tsx` 在 `<div data-composer-dock>` 里先 `renderSlot('conversation.composer.dock')`（渲染为 `div[data-slot="conversation.composer.dock"]` 锚点）再直接渲染 `<ContextMeter/>`；`ContextMeter` 根是可空的 `<span>`，内部 `Tooltip` 会 **clone** 而不是包裹子元素，因此该 span 的直接子元素就是 `button[aria-haspopup="dialog"]`，其 svg 里是 track 与 fill 两个 circle。选择器据此写成常量 `CONTEXT_METER_SELECTOR = '[data-composer-dock] > span:has(> button[aria-haspopup="dialog"] svg circle)'`，避开 CSS Module 哈希类名；`composerStatsCss()` 只用常量生成唯一一条 `display: none` 规则，注入 `<style data-plugin-css="@guowenzhang/dsh-ui-beautify/composer-stats.css">`。宿主改 DOM 时最坏只是选择器不匹配（读数继续显示），不会报错。
 - `tests/composer-stats.test.mjs` 覆盖选择器常量与「只有一条 display:none、无颜色/尺寸/字号」、开关全生命周期（默认关 / 开→两个影子 + 一条 style / 关→清空 / 卸载→清空并退订）、`Config` 默认 false、中英文案、构建产物含与 `test`/`test:mobile` 链断言；构建产物客户端测试另覆盖该行的默认关、写字段、缺字段提示与只读禁用。
+
+## 隐藏模型与访问模式开关（2026-10-25，默认值 2026-10-26 改为关）
+
+- 用户 2026-10-25 要求「UI美化增加隐藏模型和隐藏授权」：新增两个独立开关 `hideModelSelector`、`hideAccessMode`（volatile），由 `src/client/composer-seats.ts` 管理，设置页放在「界面精简」组、统计开关之后。**当时默认开**；2026-10-26 用户改为「默认都是关、不进行隐藏，需要用户手动隐藏」，因此两处默认值、设置页投影（`=== true`）与 `watchFeature` 的 `{ defaultOn: false }` 都是关的语义：新装或旧配置缺字段时保留宿主原本的模型选择器与访问模式，只有用户手动打开某一行才隐藏对应座位，`/model` 与 `/permission` 命令始终可用。
+- 两个座位是宿主的 `single` 槽：`conversation.input.model`（`dsh-client-ui-model-selection` 注册）与 `conversation.input.permission`（`dsh-client-ui-permission-presets` 注册）。single 槽一格只渲染优先级最低的注册，同优先级再注册会抛错；本插件用 `priority: -10` + 返回 null 的组件赢下格子，宿主注册仍在账本上，关开关只释放影子。不要改成用 `[data-slot=...]` 的 CSS 隐藏：`renderSlot` 的锚点在两种状态下都在，只有宿主座位真的被替换才算隐藏（真实验收里 `anchor` 存在但 `button` 数为 0）。
+- 两个 `watchFeature` 各自独立，都传 `{ defaultOn: false }`（默认关；旧宿主 schema 缺字段时不安装影子），互不释放；`ctx.slots.inject` 等宿主的槽声明出现后再注册，旧宿主没有这两个槽时静默等待，不抛错。改宿主槽名或 kind 前先核对 `dsh-client-ui-conversation` 的 `SlotMap` 类型再改常量。
+- `tests/hide-composer-seats.test.mjs` 覆盖常量与优先级、默认关冷启动不安装影子、冷加载等待、各自释放/恢复、卸载退订、单座位影子、`Config` 默认 false 与可开启、中英文案（含 /model /permission）、构建产物含字段与槽名；`tests/client.mjs` 覆盖两行的默认关、文案、写字段、缺字段提示、只读禁用，以及运行时「默认无影子 → 打开模型只遮蔽模型 → 两个都开遮蔽两个 → 关掉恢复」；`tests/smoke.mjs` 与 `tests/ui-copy.test.mjs` 同步字段与文案约束。
 
 ## 上下文进度圈开关（2026-10-24）
 

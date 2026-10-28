@@ -4,8 +4,9 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import { BrandIconRow, BrandNameRow, LogoRow, TaglineRow } from './BrandRows.tsx'
 import { CodeFontRow, FontRow } from './FontRows.tsx'
 import { NS } from './locales.ts'
-import { ContextRingToggleRow, HideComposerStatsToggleRow, MobileLayoutToggleRow, RecentSessionsToggleRow, RemoteSettingsToggleRow, ScrollToPromptToggleRow, SessionStartChipToggleRow, StreamlinedUiToggleRow } from './FeatureToggleRows.tsx'
+import { ContextRingToggleRow, HideAccessModeToggleRow, HideComposerStatsToggleRow, HideModelSelectorToggleRow, MobileLayoutToggleRow, QuickActionsToggleRow, RecentSessionsToggleRow, RemoteSettingsToggleRow, ScrollToPromptToggleRow, SessionStartChipToggleRow, StreamlinedUiToggleRow, UnreadAnswerStartToggleRow } from './FeatureToggleRows.tsx'
 import { MotionRow } from './MotionRow.tsx'
+import { ReplaceRunningIconRow, RunningStatusIconRow, RunningStatusTextRow } from './RunningStatusRows.tsx'
 import { QuickReplyToggleRow } from './QuickReplyToggleRow.tsx'
 import { DescriptionTranslationRow } from './DescriptionTranslationRow.tsx'
 import type { DescriptionController } from './description-controller.ts'
@@ -34,13 +35,21 @@ export function BeautifySection(props: BeautifySectionProps): ReactNode {
       <ScrollToPromptToggleRow {...props} />
       <ContextRingToggleRow {...props} />
       <SessionStartChipToggleRow {...props} />
+      <UnreadAnswerStartToggleRow {...props} />
+      <QuickActionsToggleRow {...props} />
       <MobileLayoutToggleRow {...props} />
       <RecentSessionsToggleRow {...props} />
       <RemoteSettingsToggleRow {...props} />
       <DescriptionTranslationRow {...props} />
+      <h3 className={css.groupTitle}>{props.t('runningGroup')}</h3>
+      <RunningStatusTextRow {...props} />
+      <ReplaceRunningIconRow {...props} />
+      <RunningStatusIconRow {...props} />
       <h3 className={css.groupTitle}>{props.t('streamlinedGroup')}</h3>
       <StreamlinedUiToggleRow {...props} />
       <HideComposerStatsToggleRow {...props} />
+      <HideModelSelectorToggleRow {...props} />
+      <HideAccessModeToggleRow {...props} />
       <h3 className={css.groupTitle}>{props.t('brandingGroup')}</h3>
       <LogoRow {...props} />
       <BrandIconRow {...props} />

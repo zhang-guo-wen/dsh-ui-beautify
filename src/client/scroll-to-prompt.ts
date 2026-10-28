@@ -8,6 +8,8 @@
  * it; from a landed prompt, the next press reaches the round before it, so
  * repeated presses walk back one round at a time.
  */
+import { READING_INSET, readableTopOf } from './reading-top.ts'
+
 export const PROMPT_SELECTOR = '[data-chat-flow-kind="user"], [data-chat-flow-kind="steering"]'
 
 /** The scroller a Chat flow reports to; the conversation body owns it when present. */
@@ -60,7 +62,9 @@ export function scrollToPrompt(flow: HTMLElement): boolean {
   if (scroller === null) return false
   const row = nearestPromptAbove(flow, scroller)
   if (row === null) return false
-  const top = scroller.scrollTop + row.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 24
+  // The session-start chip hangs over the scrollport's top edge; the prompt must
+  // land below it, not behind it.
+  const top = scroller.scrollTop + row.getBoundingClientRect().top - readableTopOf(flow, scroller) - READING_INSET
   scroller.scrollTo({ top: Math.max(0, top), behavior: 'instant' })
   // Settle the host's reader-position sampling immediately. This is navigation,
   // not bottom following: subsequent streamed output must not pull the reader down.

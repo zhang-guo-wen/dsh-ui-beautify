@@ -1,0 +1,81 @@
+/*
+ * The quick-actions button floats over the conversation frame, not inside any
+ * scroll or composer row: the dock entry renders only this fixed root through a
+ * portal to <body>, so the composer's clipping never crops it.
+ *
+ * The resting position is CSS-only so the button can paint before the component
+ * has measured the composer; the component then replaces it with the dragged or
+ * measured position. The surface is elevation alone — no border token — like the
+ * host's own floating buttons.
+ */
+
+.root {
+  position: fixed;
+  right: 24px;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 20;
+}
+
+/* The host Menu wraps its anchor in a span; this one must not take part in the
+   fixed layout, so the wrapper disappears from the box tree entirely. */
+.menuAnchor {
+  display: contents;
+}
+
+.button {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  corner-shape: round;
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l3);
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-button-floating-fill);
+  box-shadow: var(--dsw-elevation-panel);
+  cursor: grab;
+  /* Dragging is the button's own gesture: without this a phone scroll takes the
+     pointer away on the first move. */
+  touch-action: none;
+  user-select: none;
+  transition: background-color 0.12s;
+}
+
+.button:hover {
+  background: var(--dsw-alias-button-floating-hover);
+}
+
+.button:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
+}
+
+.button[data-dragging] {
+  cursor: grabbing;
+}
+
+.icon {
+  width: 18px;
+  height: 18px;
+  /* The icon must never become the pointer target the drag reads its movement from. */
+  pointer-events: none;
+}
+
+/* Phones need a 44px target; the circle is already that size, and this keeps the
+   layout honest if a host font delta makes the glyph row taller. */
+@media (pointer: coarse) {
+  .button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+}

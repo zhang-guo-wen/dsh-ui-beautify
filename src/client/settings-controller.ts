@@ -112,8 +112,22 @@ export interface SettingsRowState {
   streamlinedUiEnabled: boolean
   /** Whether the readings under the composer are hidden; defaults off. */
   hideComposerStats: boolean
+  /** Whether the composer's model selector is hidden; defaults off. */
+  hideModelSelector: boolean
+  /** Whether the composer's access-mode selector is hidden; defaults off. */
+  hideAccessMode: boolean
   /** Whether the composer's primary button carries the context ring; defaults on. */
   contextRingEnabled: boolean
+  /** Whether an opened unread conversation lands at its last answer's start; defaults on. */
+  unreadAnswerStartEnabled: boolean
+  /** Whether the draggable quick-actions button floats over the conversation; defaults on. */
+  quickActionsEnabled: boolean
+  /** Phrase replacing the running indicator's copy; empty keeps the host's. */
+  runningStatusText: string
+  /** Image URL replacing the running indicator's mark; empty uses the built-in animation. */
+  runningStatusIcon: string
+  /** Whether the running indicator's host mark is replaced; defaults off. */
+  replaceRunningIcon: boolean
   /** What each face holds in the local cache; a face absent from it has downloaded nothing. */
   cache: FontCacheReport
   /**
@@ -345,7 +359,14 @@ export class SettingsController {
         sessionStartChipEnabled: value?.sessionStartChipEnabled !== undefined,
         streamlinedUiEnabled: value?.streamlinedUiEnabled !== undefined,
         hideComposerStats: value?.hideComposerStats !== undefined,
+        hideModelSelector: value?.hideModelSelector !== undefined,
+        hideAccessMode: value?.hideAccessMode !== undefined,
         contextRingEnabled: value?.contextRingEnabled !== undefined,
+        unreadAnswerStartEnabled: value?.unreadAnswerStartEnabled !== undefined,
+        quickActionsEnabled: value?.quickActionsEnabled !== undefined,
+        runningStatusText: value?.runningStatusText !== undefined,
+        runningStatusIcon: value?.runningStatusIcon !== undefined,
+        replaceRunningIcon: value?.replaceRunningIcon !== undefined,
       },
       // The document is hand-editable, so an unknown stored value must show as
       // the choice actually in effect rather than as nothing selected.
@@ -370,8 +391,22 @@ export class SettingsController {
       streamlinedUiEnabled: value?.streamlinedUiEnabled === true,
       // Same default: an unread or absent field keeps the readings visible.
       hideComposerStats: value?.hideComposerStats === true,
+      // Off unless the document says otherwise: these rows take host seats
+      // away, so an unread or absent field keeps the composer as the host
+      // renders it; hiding is the user's explicit choice.
+      hideModelSelector: value?.hideModelSelector === true,
+      hideAccessMode: value?.hideAccessMode === true,
       // On unless the document says otherwise, like every other default-on row.
       contextRingEnabled: value?.contextRingEnabled !== false,
+      // Same default: the green dot already means an unread answer is waiting.
+      unreadAnswerStartEnabled: value?.unreadAnswerStartEnabled !== false,
+      // On unless the document says otherwise: the button adds a control.
+      quickActionsEnabled: value?.quickActionsEnabled !== false,
+      // Empty keeps the host's wording and its mark, so both read as blank.
+      runningStatusText: value?.runningStatusText ?? '',
+      runningStatusIcon: value?.runningStatusIcon ?? '',
+      // Off unless the document says otherwise: the whale is the host's artwork.
+      replaceRunningIcon: value?.replaceRunningIcon === true,
       cache: this.cache,
       save: this.saveStates(),
     }

@@ -20,6 +20,12 @@
  * 5. **The conversation-start chip** floats at the transcript's top edge and
  *    previews the round the reader is inside; its own switch controls it, and
  *    the up button walks back through earlier rounds one press at a time.
+ * 6. **The unread-answer landing** waits for the host to mark a Session as read
+ *    — the green dot disappearing — and moves that conversation to the start of
+ *    its last answer instead of the bottom it restores by default.
+ * 7. **The running-indicator rename** replaces the phrase and the mark the
+ *    transcript shows while a Turn streams; both fields are live, so a stored
+ *    phrase reaches a row already on screen.
  *
  * Only the chosen faces' stylesheets are linked, so the browser never fetches
  * the shard layout of a face the user is not using. The files behind them are
@@ -32,7 +38,10 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: the configuration-form service merge (ctx.configForms) and slot types.
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+// Type-only: the slot registry the entries register into.
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
+// Type-only: the Workspace service merge (`uiWorkspace`) the quick actions call.
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 // Type-only: the composer-dock SlotMap entry the quick replies register into.
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 // Type-only: the slot registry Context merge (ctx.slots).
@@ -50,6 +59,7 @@ import { BeautifySection } from './BeautifySection.tsx'
 import { applyBranding } from './branding.tsx'
 import { en, NS, zh, type SettingsKey } from './locales.ts'
 import { QuickReplies } from './QuickReplies.tsx'
+import { QuickActions } from './QuickActions.tsx'
 import { ScrollToPrompt } from './ScrollToPrompt.tsx'
 import { SessionStartChip } from './SessionStartChip.tsx'
 import { SettingsController } from './settings-controller.ts'
@@ -57,10 +67,14 @@ import { applyTagline } from './tagline.ts'
 import { applyMobileLayout } from './mobile-layout.tsx'
 import { applyStreamlinedUi } from './streamlined-ui.ts'
 import { applyComposerStats } from './composer-stats.ts'
+import { applyHiddenSeats } from './composer-seats.ts'
 import { applyContextRing } from './ContextRing.tsx'
 import { installRemoteSettings } from './remote-settings.ts'
 import { applyDescriptionTranslation } from './description-translation.ts'
 import { installPdfWorkerCompat } from './pdf-worker-compat.ts'
+import { installUnreadAnswerStart } from './unread-answer-start.ts'
+import { applyRunningStatus } from './running-status.ts'
+import { watchFeature } from './feature-switch.ts'
 
 export type { LightBeamProps } from './LightBeam.tsx'
 export type { CodeFontRowProps, FontRowProps } from './FontRows.tsx'
@@ -110,6 +124,15 @@ const REPLIES_ORDER = 1
 const CHIP_ID = 'ui-beautify-session-start'
 const CHIP_ORDER = 102
 
+/**
+ * The floating quick-actions button's cell in the composer dock.
+ *
+ * The entry renders a portal to `<body>` rather than a dock row, so its order
+ * only fixes a stable identity among the dock's entries.
+ */
+const QUICK_ACTIONS_ID = 'ui-beautify-quick-actions'
+const QUICK_ACTIONS_ORDER = 103
+
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
     /** This plugin's settings-row and quick-reply copy. */
@@ -151,7 +174,17 @@ export async function apply(ctx: Context): Promise<void> {
   applyMobileLayout(ctx, scope)
   applyStreamlinedUi(ctx, scope)
   applyComposerStats(ctx, scope)
+  // Independent switches: hiding the model seat must not release the
+  // access-mode shadow, so the two effects are wired side by side.
+  applyHiddenSeats(ctx, scope)
   applyContextRing(ctx, scope)
+  applyRunningStatus(ctx, scope)
+  // The switch owns the whole watcher: releasing it drops the status
+  // subscription, the pending frame, and the reading-gesture listeners.
+  ctx.effect(
+    () => watchFeature(scope, 'unreadAnswerStartEnabled', () => installUnreadAnswerStart(ctx)),
+    'ui-beautify: unread answer start',
+  )
   const descriptions = applyDescriptionTranslation(ctx)
   const t = ctx.locale.bind(NS)
   ctx.slots.inject('settings.section', () => ctx.slots.register({
@@ -171,6 +204,28 @@ export async function apply(ctx: Context): Promise<void> {
     name: 'conversation.input.dock', id: CHIP_ID, order: CHIP_ORDER, locale: NS,
     inject: () => controller.inject(),
   }, SessionStartChip))
+
+  // The button is a viewport-fixed control, but its entry lives in the Session
+  // dock: that scope supplies the current Session identity and the standard
+  // Session/Workspace hooks it reads. The three actions come from the injected
+  // Workspace service — the same calls the sidebar's own menu makes.
+  ctx.inject(['uiWorkspace'], workspace => {
+    const uiWorkspace = () => workspace.get('uiWorkspace')!
+    const sessionIdOf = (id: string): Parameters<NonNullable<Context['uiWorkspace']>['openSession']>[0] =>
+      id as Parameters<NonNullable<Context['uiWorkspace']>['openSession']>[0]
+    ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+      name: 'conversation.input.dock', id: QUICK_ACTIONS_ID, order: QUICK_ACTIONS_ORDER, locale: NS,
+      inject: () => ({
+        ...controller.inject(),
+        archiveSession: (id: string) => uiWorkspace().archiveSession(sessionIdOf(id)),
+        pinSession: (id: string) => uiWorkspace().pinSession(sessionIdOf(id)),
+        unpinSession: (id: string) => uiWorkspace().unpinSession(sessionIdOf(id)),
+        openSession: (id: string) => { uiWorkspace().openSession(sessionIdOf(id)) },
+      }),
+      // Standard Session seats (`sessionId`, `useSessions`, `useSessionStatus`)
+      // are supplied by the renderer but absent from the published types.
+    }, QuickActions as never))
+  })
 
   // Registered unconditionally, and given the stored answer rather than the
   // browser's: a lane the user switched off is a lane they can switch back on,

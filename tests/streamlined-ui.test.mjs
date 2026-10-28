@@ -4,11 +4,12 @@ import { readFileSync } from 'node:fs'
 import { Config } from '../lib/index.mjs'
 import { en, zh } from '../src/client/locales.ts'
 import {
-  AGENT_PRESET_HEADER_ACTION_ID, HIDDEN_SETTINGS_SECTIONS, OPEN_DOCUMENT_ACTION_ID,
-  SETTINGS_NAV_ROW_SELECTOR, applyStreamlinedUi, hiddenSectionRows, navHidingCss,
+  AGENT_PRESET_HEADER_ACTION_ID, HIDDEN_SETTINGS_SECTIONS, MOVED_SIDEBAR_PANELS, OPEN_DOCUMENT_ACTION_ID,
+  SIDEBAR_PANEL_ROW_SELECTOR, SETTINGS_NAV_ROW_SELECTOR, applyStreamlinedUi, hiddenSectionRows,
+  movedSidebarRows, navHidingCss, orderedRowNumbers, sidebarHidingCss,
 } from '../src/client/streamlined-ui.ts'
 
-/** One `settings.section` registration, as the shell projects it. */
+/** One row registration, as its owner projects it. */
 const section = (id, order) => ({ options: { id, order } })
 
 /** The shipped settings navigation with the branded deployment's rows in it. */
@@ -24,6 +25,18 @@ const PRODUCT_LEDGER = [
 const SIGNED_IN_LEDGER = [
   section('account', -10),
   ...PRODUCT_LEDGER,
+]
+
+/** The sidebar's global panel rows as their registrants project them. */
+const PANEL_LEDGER = [
+  section('plugins', 0),
+  section('schedules', 10),
+]
+
+/** The `main` keyed-slot entries that make a panel selectable. */
+const MAIN_LEDGER = [
+  { options: { key: 'plugins' } },
+  { options: { key: 'schedules' } },
 ]
 
 /** A `<style>` stand-in that knows how to remove itself from the head. */
@@ -83,23 +96,49 @@ function codingTools(initial) {
 }
 
 /**
- * A client context carrying just what the switch touches: the section ledger,
- * the slot ledger writes, the effect collection, and the shared preference.
- * `tools` absent models a host client that predates that preference.
+ * A client context carrying just what the switch touches: the per-slot ledgers,
+ * the slot ledger writes, the effect collection, the label dictionaries, the
+ * layout service, and the shared preference. `tools` absent models a host client
+ * that predates that preference.
  */
-function context({ ledger = [], tools } = {}) {
-  const state = { ledger }
+function context({ ledger = [], panels = PANEL_LEDGER, main = MAIN_LEDGER, tools } = {}) {
+  const ledgers = new Map([
+    ['settings.section', ledger],
+    ['sidebar.panellist', panels],
+    ['main', main],
+  ])
+  const listeners = new Map()
   const registrations = []
-  const ledgerListeners = new Set()
   const effects = []
+  const panelSelections = []
+  const listenersOf = (key) => {
+    let set = listeners.get(key)
+    if (set === undefined) {
+      set = new Set()
+      listeners.set(key, set)
+    }
+    return set
+  }
+  const notify = (key) => {
+    for (const listener of [...listenersOf(key)]) listener()
+  }
   return {
     registrations,
     effects,
-    ledgerListeners,
+    panelSelections,
+    listenersOf,
     names: () => registrations.map(entry => entry.options.id ?? entry.options.name),
     setLedger: (next) => {
-      state.ledger = next
-      for (const listener of [...ledgerListeners]) listener()
+      ledgers.set('settings.section', next)
+      notify('settings.section')
+    },
+    setPanels: (next) => {
+      ledgers.set('sidebar.panellist', next)
+      notify('sidebar.panellist')
+    },
+    setMain: (next) => {
+      ledgers.set('main', next)
+      notify('main')
     },
     ctx: {
       effect(callback) {
@@ -107,15 +146,19 @@ function context({ ledger = [], tools } = {}) {
         effects.push(dispose)
         return dispose
       },
+      locale: { bind: () => key => en[key] },
+      layout: { selectPanel(id) { panelSelections.push(id) } },
       slots: {
-        entries: () => state.ledger,
+        entries: (key) => ledgers.get(key) ?? [],
         subscribe(key, listener) {
-          assert.equal(key, 'settings.section')
-          ledgerListeners.add(listener)
-          return () => { ledgerListeners.delete(listener) }
+          const set = listenersOf(key)
+          set.add(listener)
+          return () => { set.delete(listener) }
         },
         inject(name, register) {
-          assert.ok(['settings.action', 'conversation.hero.agentPreset', 'conversation.session.header.actions'].includes(name), name)
+          assert.ok([
+            'settings.action', 'conversation.hero.agentPreset', 'conversation.session.header.actions', 'settings.section',
+          ].includes(name), name)
           return register()
         },
         register(options, component) {
@@ -152,7 +195,29 @@ test('locates the hidden navigation rows by the shell projection', () => {
   assert.deepEqual(hiddenSectionRows(PRODUCT_LEDGER, ['plugins']), [3])
 })
 
-test('the stylesheet names one row selector per position and nothing else', () => {
+test('locates the relocated sidebar rows by the sidebar projection', () => {
+  assert.deepEqual(MOVED_SIDEBAR_PANELS.map(panel => panel.panelId), ['plugins', 'schedules'])
+  assert.deepEqual(movedSidebarRows(PANEL_LEDGER), [1, 2])
+  // Other rows keep their place; the order decides the row number.
+  assert.deepEqual(movedSidebarRows([
+    section('schedules', -10),
+    section('custom-panel', 5),
+    section('plugins', 20),
+  ]), [1, 3])
+  // The shared projection sorts by order and keeps ties in registration order.
+  assert.deepEqual(movedSidebarRows([section('plugins', 5), section('schedules', 5)]), [1, 2])
+  // An absent order is zero, as the sidebar reads it.
+  assert.deepEqual(movedSidebarRows([section('plugins'), section('custom-panel', 0)]), [1])
+  // A deployment without those panels hides nothing.
+  assert.deepEqual(movedSidebarRows([section('custom-panel', 0)]), [])
+  assert.deepEqual(movedSidebarRows([]), [])
+  // A caller may address one panel on its own.
+  assert.deepEqual(movedSidebarRows(PANEL_LEDGER, ['schedules']), [2])
+  // The shared projection is the one the settings navigation uses.
+  assert.deepEqual(orderedRowNumbers(PANEL_LEDGER, ['plugins', 'schedules']), [1, 2])
+})
+
+test('the settings stylesheet names one row selector per position and nothing else', () => {
   assert.equal(navHidingCss([]), '')
   assert.equal(
     navHidingCss([2, 4]),
@@ -163,7 +228,18 @@ test('the stylesheet names one row selector per position and nothing else', () =
   assert.doesNotMatch(navHidingCss([1]), /#|rgb\(|hsl\(|font|width|height|opacity/)
 })
 
-test('the switch shadows, follows Coding Tools, and restores every host surface', (t) => {
+test('the sidebar stylesheet hides one row selector per position and nothing else', () => {
+  assert.equal(sidebarHidingCss([]), '')
+  assert.equal(
+    sidebarHidingCss([1, 2]),
+    `${SIDEBAR_PANEL_ROW_SELECTOR}:nth-of-type(1),\n${SIDEBAR_PANEL_ROW_SELECTOR}:nth-of-type(2) {\n  display: none;\n}\n`,
+  )
+  assert.equal(SIDEBAR_PANEL_ROW_SELECTOR, '[data-slot="sidebar"] > div > nav > button')
+  // Properties, not colours: the row is removed from layout, nothing is repainted.
+  assert.doesNotMatch(sidebarHidingCss([1]), /#|rgb\(|hsl\(|font|width|height|opacity/)
+})
+
+test('the switch shadows, relocates, follows Coding Tools, and restores every host surface', (t) => {
   const fake = fakeDocument()
   const previousDocument = globalThis.document
   globalThis.document = fake.document
@@ -182,42 +258,88 @@ test('the switch shadows, follows Coding Tools, and restores every host surface'
   assert.equal(fake.head.length, 0)
 
   scope.set({ streamlinedUiEnabled: true })
-  assert.deepEqual(harness.names(), [OPEN_DOCUMENT_ACTION_ID])
+  assert.deepEqual(harness.names(), [
+    OPEN_DOCUMENT_ACTION_ID,
+    ...MOVED_SIDEBAR_PANELS.map(panel => panel.sectionId),
+  ])
   const shadow = harness.registrations[0]
   assert.equal(shadow.options.priority, -10)
   assert.equal(shadow.component(), null)
-  assert.equal(fake.head.length, 1)
-  const style = fake.head[0]
-  assert.equal(style.dataset.pluginCss, '@guowenzhang/dsh-ui-beautify/streamlined-ui.css')
-  assert.match(style.textContent, /button:nth-of-type\(3\)/)
-  assert.match(style.textContent, /button:nth-of-type\(4\)/)
+  assert.equal(fake.head.length, 2)
+
+  // The navigation stylesheet targets the hidden settings pages.
+  const navStyle = fake.head[0]
+  assert.equal(navStyle.dataset.pluginCss, '@guowenzhang/dsh-ui-beautify/streamlined-ui.css')
+  assert.match(navStyle.textContent, /button:nth-of-type\(3\)/)
+  assert.match(navStyle.textContent, /button:nth-of-type\(4\)/)
+
+  // The sidebar stylesheet targets the moved panel rows.
+  const sidebarStyle = fake.head[1]
+  assert.equal(sidebarStyle.dataset.pluginCss, '@guowenzhang/dsh-ui-beautify/sidebar-panels.css')
+  assert.match(sidebarStyle.textContent, /button:nth-of-type\(1\)/)
+  assert.match(sidebarStyle.textContent, /button:nth-of-type\(2\)/)
+
+  // The relocated navigation rows carry the plugin's labels and open their page.
+  const [pluginsRow, schedulesRow] = harness.registrations.slice(1)
+  assert.equal(pluginsRow.options.id, 'ui-beautify-plugins')
+  assert.equal(pluginsRow.options.order, 16)
+  assert.equal(pluginsRow.options.label(), en.pluginsDestination)
+  assert.equal(schedulesRow.options.id, 'ui-beautify-schedules')
+  assert.equal(schedulesRow.options.order, 21)
+  assert.equal(schedulesRow.options.label(), en.schedulesDestination)
+  assert.equal(pluginsRow.options.inject().openDestination(), true)
+  assert.deepEqual(harness.panelSelections, ['plugins'])
+  assert.equal(schedulesRow.options.inject().openDestination(), true)
+  assert.deepEqual(harness.panelSelections, ['plugins', 'schedules'])
+  // A page the deployment never registered keeps the dialog open instead of throwing.
+  harness.setMain([])
+  assert.equal(pluginsRow.options.inject().openDestination(), false)
+  assert.deepEqual(harness.panelSelections, ['plugins', 'schedules'])
 
   // Coding Tools are on, so the Agent entries keep their host occupants.
   tools.set(true)
-  assert.deepEqual(harness.names(), [OPEN_DOCUMENT_ACTION_ID])
+  assert.deepEqual(harness.names(), [
+    OPEN_DOCUMENT_ACTION_ID,
+    ...MOVED_SIDEBAR_PANELS.map(panel => panel.sectionId),
+  ])
 
   // Coding Tools off: the chip and the header label are shadowed too.
   tools.set(false)
   assert.deepEqual(harness.names(), [
-    OPEN_DOCUMENT_ACTION_ID, 'conversation.hero.agentPreset', AGENT_PRESET_HEADER_ACTION_ID,
+    OPEN_DOCUMENT_ACTION_ID,
+    ...MOVED_SIDEBAR_PANELS.map(panel => panel.sectionId),
+    'conversation.hero.agentPreset',
+    AGENT_PRESET_HEADER_ACTION_ID,
   ])
-  assert.ok(harness.registrations.slice(1).every(entry => entry.options.priority === -10))
+  assert.deepEqual(harness.registrations.filter(entry => entry.options.priority === -10).map(entry => entry.options.name ?? entry.options.id), [
+    'settings.action', 'conversation.hero.agentPreset', 'conversation.session.header.actions',
+  ])
   tools.set(true)
-  assert.deepEqual(harness.names(), [OPEN_DOCUMENT_ACTION_ID])
+  assert.deepEqual(harness.names(), [
+    OPEN_DOCUMENT_ACTION_ID,
+    ...MOVED_SIDEBAR_PANELS.map(panel => panel.sectionId),
+  ])
 
   // A ledger change renumbers the rows instead of installing a second stylesheet.
   harness.setLedger(SIGNED_IN_LEDGER)
-  assert.equal(fake.head.length, 1)
-  assert.match(style.textContent, /button:nth-of-type\(4\)/)
-  assert.match(style.textContent, /button:nth-of-type\(5\)/)
-  assert.doesNotMatch(style.textContent, /nth-of-type\(3\)/)
+  assert.equal(fake.head.length, 2)
+  assert.match(navStyle.textContent, /button:nth-of-type\(4\)/)
+  assert.match(navStyle.textContent, /button:nth-of-type\(5\)/)
+  assert.doesNotMatch(navStyle.textContent, /nth-of-type\(3\)/)
 
-  // Switching off releases every registration, the stylesheet, and the preference watch.
+  // A panel ledger change renumbers the sidebar rows the same way.
+  harness.setPanels([section('custom-panel', 0), section('schedules', 10)])
+  assert.equal(fake.head.length, 2)
+  assert.match(sidebarStyle.textContent, /button:nth-of-type\(2\)/)
+  assert.doesNotMatch(sidebarStyle.textContent, /nth-of-type\(1\)/)
+
+  // Switching off releases every registration, both stylesheets, and every preference watch.
   scope.set({ streamlinedUiEnabled: false })
   assert.equal(harness.registrations.length, 0)
   assert.equal(fake.head.length, 0)
   assert.equal(tools.listeners.size, 0)
-  assert.equal(harness.ledgerListeners.size, 0)
+  assert.equal(harness.listenersOf('settings.section').size, 0)
+  assert.equal(harness.listenersOf('sidebar.panellist').size, 0)
 
   // Unloading the plugin releases the settings subscription too.
   for (const dispose of harness.effects) dispose()
@@ -234,10 +356,14 @@ test('a host client without the Coding Tools preference keeps the Agent surface'
   const scope = settings({ streamlinedUiEnabled: true })
   applyStreamlinedUi(harness.ctx, scope)
 
-  // Only the manifest surfaces go; nothing throws on the absent preference, and
-  // the Agent entries stay because no snapshot ever said they should not.
-  assert.deepEqual(harness.names(), [OPEN_DOCUMENT_ACTION_ID])
-  assert.equal(fake.head.length, 1)
+  // Only the surfaces this plugin owns go; nothing throws on the absent
+  // preference, and the Agent entries stay because no snapshot ever said they
+  // should not.
+  assert.deepEqual(harness.names(), [
+    OPEN_DOCUMENT_ACTION_ID,
+    ...MOVED_SIDEBAR_PANELS.map(panel => panel.sectionId),
+  ])
+  assert.equal(fake.head.length, 2)
   for (const dispose of harness.effects) dispose()
   assert.equal(fake.head.length, 0)
 })
@@ -248,9 +374,11 @@ test('the switch is a live field that defaults off', () => {
   assert.equal(Config({ streamlinedUiEnabled: true }).streamlinedUiEnabled.get(), true)
 })
 
-test('both languages carry the group and the row copy', () => {
+test('both languages carry the group, the row copy, and the relocated labels', () => {
   for (const copy of [en, zh]) {
-    for (const key of ['streamlinedGroup', 'streamlinedUiTitle', 'streamlinedUiDesc']) {
+    for (const key of [
+      'streamlinedGroup', 'streamlinedUiTitle', 'streamlinedUiDesc', 'pluginsDestination', 'schedulesDestination',
+    ]) {
       assert.equal(typeof copy[key], 'string', key)
       assert.ok(copy[key].trim() !== '', key)
     }
@@ -258,15 +386,29 @@ test('both languages carry the group and the row copy', () => {
   assert.match(en.streamlinedGroup, /Streamlined/)
   assert.match(zh.streamlinedGroup, /界面精简/)
   assert.match(zh.streamlinedUiDesc, /内置插件/)
+  // The relocated labels keep the sidebar entries' names in both languages.
+  assert.equal(zh.pluginsDestination, '插件')
+  assert.equal(zh.schedulesDestination, '自动化任务')
+  assert.equal(en.pluginsDestination, 'Plugins')
+  assert.equal(en.schedulesDestination, 'Automation tasks')
 })
 
-test('the built handoff carries the switch and its selectors', () => {
+test('the built handoff carries the switch, the selectors, and the relocated rows', () => {
   const bundle = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
   for (const marker of [
     'streamlinedUiEnabled',
-    // The bundle escapes the attribute's quotes, so the selector is matched in parts.
+    // The bundle escapes the attribute's quotes, so the selectors are matched in parts.
     'data-shortcut-modal',
     'nav > div:nth-of-type(2) > button',
+    'data-slot',
+    'sidebar',
+    'nav > button',
+    'sidebar-panels.css',
+    'ui-beautify-plugins',
+    'ui-beautify-schedules',
+    'pluginsDestination',
+    'schedulesDestination',
+    'sidebar.panellist',
     OPEN_DOCUMENT_ACTION_ID,
     'conversation.hero.agentPreset',
     'conversation.session.header.actions',

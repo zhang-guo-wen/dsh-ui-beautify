@@ -15,8 +15,12 @@ type Feature =
   | 'remoteSettingsEnabled'
   | 'scrollToPromptEnabled'
   | 'sessionStartChipEnabled'
+  | 'unreadAnswerStartEnabled'
+  | 'quickActionsEnabled'
   | 'streamlinedUiEnabled'
   | 'hideComposerStats'
+  | 'hideModelSelector'
+  | 'hideAccessMode'
   | 'contextRingEnabled'
 
 function FeatureToggleRow({ useBeautify, t, choose, retry, field, title, description }: Props & {
@@ -27,8 +31,12 @@ function FeatureToggleRow({ useBeautify, t, choose, retry, field, title, descrip
     | 'remoteSettingsTitle'
     | 'scrollToPromptTitle'
     | 'sessionStartChipTitle'
+    | 'unreadAnswerStartTitle'
+    | 'quickActionsTitle'
     | 'streamlinedUiTitle'
     | 'hideComposerStatsTitle'
+    | 'hideModelSelectorTitle'
+    | 'hideAccessModeTitle'
     | 'contextRingTitle'
   description:
     | 'mobileLayoutDesc'
@@ -36,8 +44,12 @@ function FeatureToggleRow({ useBeautify, t, choose, retry, field, title, descrip
     | 'remoteSettingsDesc'
     | 'scrollToPromptDesc'
     | 'sessionStartChipDesc'
+    | 'unreadAnswerStartDesc'
+    | 'quickActionsDesc'
     | 'streamlinedUiDesc'
     | 'hideComposerStatsDesc'
+    | 'hideModelSelectorDesc'
+    | 'hideAccessModeDesc'
     | 'contextRingDesc'
 }): ReactNode {
   const state = useBeautify(snapshot => snapshot)
@@ -73,11 +85,23 @@ export function ScrollToPromptToggleRow(props: Props): ReactNode {
 export function SessionStartChipToggleRow(props: Props): ReactNode {
   return <FeatureToggleRow {...props} field="sessionStartChipEnabled" title="sessionStartChipTitle" description="sessionStartChipDesc" />
 }
+export function UnreadAnswerStartToggleRow(props: Props): ReactNode {
+  return <FeatureToggleRow {...props} field="unreadAnswerStartEnabled" title="unreadAnswerStartTitle" description="unreadAnswerStartDesc" />
+}
+export function QuickActionsToggleRow(props: Props): ReactNode {
+  return <FeatureToggleRow {...props} field="quickActionsEnabled" title="quickActionsTitle" description="quickActionsDesc" />
+}
 export function StreamlinedUiToggleRow(props: Props): ReactNode {
   return <FeatureToggleRow {...props} field="streamlinedUiEnabled" title="streamlinedUiTitle" description="streamlinedUiDesc" />
 }
 export function HideComposerStatsToggleRow(props: Props): ReactNode {
   return <FeatureToggleRow {...props} field="hideComposerStats" title="hideComposerStatsTitle" description="hideComposerStatsDesc" />
+}
+export function HideModelSelectorToggleRow(props: Props): ReactNode {
+  return <FeatureToggleRow {...props} field="hideModelSelector" title="hideModelSelectorTitle" description="hideModelSelectorDesc" />
+}
+export function HideAccessModeToggleRow(props: Props): ReactNode {
+  return <FeatureToggleRow {...props} field="hideAccessMode" title="hideAccessModeTitle" description="hideAccessModeDesc" />
 }
 export function ContextRingToggleRow(props: Props): ReactNode {
   return <FeatureToggleRow {...props} field="contextRingEnabled" title="contextRingTitle" description="contextRingDesc" />

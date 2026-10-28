@@ -56,10 +56,21 @@ export async function saveBrandImage(bytes: Buffer, directory: string): Promise<
   return `${BRAND_ROUTE}/assets/${filename}`
 }
 
-/** POST /upload/{logo|brandIcon}; GET /assets/{sha256}.{ext}. */
+/**
+ * Settings fields that accept an uploaded image, each owning one upload path.
+ *
+ * The list is closed because the path decides what the upload is for: an
+ * arbitrary segment would let a caller fill the asset directory under a name no
+ * settings field reads.
+ */
+export const IMAGE_FIELDS = ['logo', 'brandIcon', 'runningStatusIcon'] as const
+export type ImageField = typeof IMAGE_FIELDS[number]
+
+/** POST /upload/{logo|brandIcon|runningStatusIcon}; GET /assets/{sha256}.{ext}. */
 export async function serveBrandAsset(req: IncomingMessage, res: ServerResponse, directory: string): Promise<void> {
   const pathname = new URL(req.url ?? '/', 'http://localhost').pathname
-  if (pathname === `${BRAND_ROUTE}/upload/logo` || pathname === `${BRAND_ROUTE}/upload/brandIcon`) {
+  const prefix = `${BRAND_ROUTE}/upload/`
+  if (pathname.startsWith(prefix) && (IMAGE_FIELDS as readonly string[]).includes(pathname.slice(prefix.length))) {
     if (req.method !== 'POST') { res.writeHead(405, { allow: 'POST' }).end(); return }
     const origin = req.headers.origin
     if (origin !== undefined && origin !== `http://${req.headers.host}` && origin !== `https://${req.headers.host}`) {

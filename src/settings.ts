@@ -65,10 +65,44 @@ export interface Config {
    */
   hideComposerStats: Volatile<BeautifySettings['hideComposerStats']>
   /**
+   * Whether the composer's model selector is hidden. Defaults off: the switch
+   * only hides a host surface the user explicitly asked to hide. The host's
+   * `/model` command still switches models when it is on.
+   */
+  hideModelSelector: Volatile<BeautifySettings['hideModelSelector']>
+  /**
+   * Whether the composer's access-mode (permission) selector is hidden.
+   * Defaults off, like the model seat: the host's `/permission` command still
+   * changes the mode when it is on.
+   */
+  hideAccessMode: Volatile<BeautifySettings['hideAccessMode']>
+  /**
    * Whether the composer's primary button carries the context-occupancy ring.
    * Defaults on: the ring is the reading that survives hiding the stats pills.
    */
   contextRingEnabled: Volatile<BeautifySettings['contextRingEnabled']>
+  /**
+   * Whether a conversation opened from the green dot lands at the beginning of
+   * its last answer. Defaults on: the dot means an unread answer is waiting.
+   */
+  unreadAnswerStartEnabled: Volatile<BeautifySettings['unreadAnswerStartEnabled']>
+  /**
+   * Whether the draggable quick-actions button floats over the conversation.
+   * Defaults on: it adds a control instead of hiding a host one.
+   */
+  quickActionsEnabled: Volatile<BeautifySettings['quickActionsEnabled']>
+  /**
+   * Phrase the running indicator shows instead of the host's "deep diving" copy;
+   * empty keeps the host's wording.
+   */
+  runningStatusText: Volatile<BeautifySettings['runningStatusText']>
+  /**
+   * Image URL replacing the host's whale tail in the running indicator; empty
+   * keeps the host's mark.
+   */
+  runningStatusIcon: Volatile<BeautifySettings['runningStatusIcon']>
+  /** Whether the running indicator swaps the host's whale mark for the plugin's. */
+  replaceRunningIcon: Volatile<BeautifySettings['replaceRunningIcon']>
   /** Registries a font file is downloaded from, tried in order. */
   mirrors: string[]
   /** Directory caching downloaded files; empty follows `$DSH_HOME`, then `~/.dsh`. */
@@ -99,9 +133,28 @@ export const Config = z.object({
   streamlinedUiEnabled: z.boolean().default(false).volatile(),
   // Off by default for the same reason: the readings are the host's own.
   hideComposerStats: z.boolean().default(false).volatile(),
+  // Off by default: both rows remove a host seat the composer shows by default,
+  // so an untouched install keeps the model and access-mode controls exactly as
+  // the host renders them; hiding them is an explicit choice the user makes.
+  hideModelSelector: z.boolean().default(false).volatile(),
+  hideAccessMode: z.boolean().default(false).volatile(),
   // On by default: the ring is the plugin's own reading, not a host surface it
   // takes away, and it is what remains when the stats switch hides the pills.
   contextRingEnabled: z.boolean().default(true).volatile(),
+  // On by default: the green dot is the host telling the reader an answer is
+  // waiting, so starting that answer at its top is the useful reading position.
+  unreadAnswerStartEnabled: z.boolean().default(true).volatile(),
+  // On by default: the quick-actions button adds a control; it hides nothing of
+  // the host's, so an untouched install is supposed to see it.
+  quickActionsEnabled: z.boolean().default(true).volatile(),
+  // Empty keeps the host's wording: this plugin renames a host reading, so an
+  // untouched install must keep saying what the host says.
+  runningStatusText: z.string().default('').volatile(),
+  // Empty keeps the host's whale mark for the same reason.
+  runningStatusIcon: z.string().default('').volatile(),
+  // Off by default: the mark is the host's signature, not something a beautifier
+  // replaces unless a deployment asked for it.
+  replaceRunningIcon: z.boolean().default(false).volatile(),
   mirrors: z.array(z.string()).default([...DEFAULT_MIRRORS]),
   cacheDir: z.string().default(''),
 })

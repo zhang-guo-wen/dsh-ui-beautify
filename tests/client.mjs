@@ -82,7 +82,11 @@ globalThis.document = {
     if (selector === '[class*="_headline"] [class*="_titleGroup"] > span:first-child') return headline
     return null
   },
-  querySelectorAll: selector => selector === '[class*="_headline"] [class*="_titleGroup"] > span:first-child' ? [headline] : [],
+  querySelectorAll: selector => {
+    if (selector === '[class*="_headline"] [class*="_titleGroup"] > span:first-child') return [headline]
+    if (selector === '[data-conversation-content]') return conversationDom.content === null ? [] : [conversationDom.content]
+    return []
+  },
   createElement: tag => makeElement(tag),
 }
 /** Deliver one document-level event, the way the browser would. */
@@ -136,6 +140,16 @@ const LANE_WIDTH = 800
 const BEAM_WIDTH = 180
 /** Conversation DOM the up-button component locates; null keeps its effect inert. */
 const conversationDom = { content: null }
+/**
+ * The host's per-Session status publications, which the unread-answer landing
+ * watches. The plugin reads them through the `uiSession` service, so this
+ * stand-in can publish the sequence the real host publishes on a read.
+ */
+const statusState = { snapshot: new Map(), listeners: new Set() }
+const publishStatuses = (snapshot) => {
+  statusState.snapshot = snapshot
+  for (const listener of [...statusState.listeners]) listener()
+}
 /** Host-node stand-in: enough for the frame loop to write to and be read back. */
 const makeNode = tag => ({
   tag,
@@ -270,7 +284,21 @@ const externals = {
   react: { ...reactStub, createElement: record, useMemo: factory => factory(), useSyncExternalStore: (_subscribe, snapshot) => snapshot() },
   'react/jsx-runtime': { jsx: (type, props, key) => record(type, props, key), jsxs: (type, props, key) => record(type, props, key), Fragment: 'Fragment' },
   'react-dom': { createPortal: node => node },
-  '@deepseek-ai/dsh-client-ui-primitives': { Menu, IconChevronDownOutlineRegular, IconChevronUpOutlineRegular: () => null, IconPanelLeftOutlineRegular: () => null, Button: props => record('button', props), StateDot: props => record('state-dot', props), Pill, Switch, Tag: () => null, observeComposition },
+  '@deepseek-ai/dsh-client-ui-primitives': {
+    Menu, Pill, Switch,
+    IconChevronDownOutlineRegular: () => null,
+    IconChevronUpOutlineRegular: () => null,
+    IconChevronRightOutlineRegular: () => null,
+    IconPanelLeftOutlineRegular: () => null,
+    IconArchiveOutlineRegular: () => null,
+    IconEnhanceOutlineRegular: () => null,
+    IconPinOutlineRegular: () => null,
+    IconPinFillRegular: () => null,
+    Button: props => record('button', props),
+    StateDot: props => record('state-dot', props),
+    Tag: () => null,
+    observeComposition,
+  },
   '@deepseek-ai/dsh-client-store': {
     createSnapshotStore: (initial) => {
       let current = initial
@@ -353,7 +381,16 @@ const makeCtx = (into) => ({
     if (name === 'remote') return { $host: { isLoopback: true } }
     if (name === 'locale') return this.locale
     if (name === 'slots') return this.slots
-    if (name === 'uiSession') return { provide: (descriptor) => { sessionProvides.push(descriptor); return () => {} } }
+    if (name === 'uiSession') return {
+      provide: (descriptor) => { sessionProvides.push(descriptor); return () => {} },
+      sessionStatus: {
+        getSnapshot: () => statusState.snapshot,
+        subscribe: (listener) => {
+          statusState.listeners.add(listener)
+          return () => { statusState.listeners.delete(listener) }
+        },
+      },
+    }
     return undefined
   },
   on() { return () => {} },
@@ -1277,6 +1314,8 @@ for (const [componentName, field, title, desc] of [
   ['RemoteSettingsToggleRow', 'remoteSettingsEnabled', 'remoteSettingsTitle', 'remoteSettingsDesc'],
   ['ScrollToPromptToggleRow', 'scrollToPromptEnabled', 'scrollToPromptTitle', 'scrollToPromptDesc'],
   ['SessionStartChipToggleRow', 'sessionStartChipEnabled', 'sessionStartChipTitle', 'sessionStartChipDesc'],
+  ['UnreadAnswerStartToggleRow', 'unreadAnswerStartEnabled', 'unreadAnswerStartTitle', 'unreadAnswerStartDesc'],
+  ['QuickActionsToggleRow', 'quickActionsEnabled', 'quickActionsTitle', 'quickActionsDesc'],
 ]) {
   const render = (overrides = {}) => {
     mount(`feature-${field}`, pageComponents.get(componentName), {
@@ -1397,6 +1436,62 @@ check('a host without the context-ring field explains the restart',
 setStored({ contextRingEnabled: true })
 check('read-only settings disable the context-ring switch', renderContextRing({ writable: false }).props.disabled)
 setStored({ contextRingEnabled: undefined })
+console.log('the hidden composer seats default off')
+// Both hide rows remove host surfaces, so they default off: a cold profile keeps
+// the model and access-mode seats the host renders, and only an explicit switch
+// on installs the shadow. Both controls stay reachable through the host's
+// /model and /permission commands; only the composer seats are removed.
+const renderHideSeat = (componentName, field, title, desc, overrides = {}) => {
+  mount(`feature-${field}`, pageComponents.get(componentName), {
+    t,
+    useBeautify: selector => selector({ ...snapshot(), ...overrides }),
+    choose: (key, value) => { toggleWrites.push([key, value]) },
+  })
+  return elements.find(element => element.type === 'switch')
+}
+for (const [componentName, field, title, desc] of [
+  ['HideModelSelectorToggleRow', 'hideModelSelector', 'hideModelSelectorTitle', 'hideModelSelectorDesc'],
+  ['HideAccessModeToggleRow', 'hideAccessMode', 'hideAccessModeTitle', 'hideAccessModeDesc'],
+]) {
+  setStored({ [field]: undefined })
+  check(`${field} defaults off for older profiles`, snapshot()[field] === false)
+  let control = renderHideSeat(componentName, field, title, desc)
+  check(`${field} keeps its label and description`,
+    control.props.label === title && byClass('desc')[0].props.children === desc)
+  control.props.onChange(true)
+  check(`${field} writes only its own field`,
+    JSON.stringify(toggleWrites.at(-1)) === JSON.stringify([field, true]))
+  setStored({ [field]: true })
+  check(`${field} reads the stored value`, renderHideSeat(componentName, field, title, desc).props.checked === true)
+  setStored({ [field]: undefined })
+  check(`${field} old schema shows the restart explanation`,
+    renderHideSeat(componentName, field, title, desc).props.disabled && byClass('meta')[0].props.children === 'stale')
+  setStored({ [field]: true })
+  check(`read-only settings disable ${field}`, renderHideSeat(componentName, field, title, desc, { writable: false }).props.disabled)
+  setStored({ [field]: undefined })
+}
+// Runtime side: the built handoff shadows a single seat at a lower priority only
+// while its own field is on, releases only its own seat when the field goes off,
+// and restores it without re-registering anything. No field means no shadow.
+const seatShadows = () => registrations.filter(entry => entry.definition.name === 'conversation.input.model'
+  || entry.definition.name === 'conversation.input.permission')
+check('no composer seat is shadowed by default', seatShadows().length === 0,
+  JSON.stringify(seatShadows().map(entry => entry.definition.name)))
+setStored({ hideModelSelector: true, hideAccessMode: true })
+check('both seats are shadowed once both switches are on',
+  seatShadows().length === 2
+  && seatShadows().every(entry => entry.definition.priority === -10 && entry.component() === null),
+  JSON.stringify(seatShadows().map(entry => entry.definition.name)))
+setStored({ hideModelSelector: false, hideAccessMode: true })
+check('turning the model switch off restores only the model seat',
+  seatShadows().length === 1 && seatShadows()[0].definition.name === 'conversation.input.permission')
+setStored({ hideModelSelector: false, hideAccessMode: false })
+check('turning both switches off restores both seats', seatShadows().length === 0)
+setStored({ hideModelSelector: true, hideAccessMode: true })
+check('turning both back on shadows both seats again',
+  seatShadows().length === 2
+  && seatShadows().every(entry => entry.component() === null))
+setStored({ hideModelSelector: undefined, hideAccessMode: undefined })
 console.log('the up button follows its settings switch')
 // Only the DOM the control locates is modelled here: its conversation body, the
 // chat flow inside it, and the frame the portal lands in. The lane's own checks
@@ -1544,7 +1639,69 @@ check('the line centres in the row\'s own height instead of above a bottom pad',
   && /padding:\s*0(;|\s*$)/.test(chipBlock)
   && !/padding-bottom/.test(chipBlock))
 check('the hover preview is gone from the stylesheet entirely', !chipCss.includes('preview'))
-conversationDom.content = null
+
+console.log('the unread-answer landing follows the host status and the switch')
+// The host clears a Session's unread completion when that Session becomes the
+// main view; the plugin keeps that transition and lands the opened transcript on
+// its last answer. This stand-in publishes the same sequence, then drives the
+// frame loop the landing schedules.
+const landingJumps = []
+const landingEvents = []
+const landingScroller = {
+  scrollTop: 1000,
+  getBoundingClientRect: () => ({ top: 100 }),
+  scrollTo(options) { landingJumps.push(options); this.scrollTop = options.top },
+  dispatchEvent(event) { landingEvents.push(event.type) },
+}
+const landingRow = {
+  closest: () => null,
+  getClientRects: () => [{}],
+  // Fixed in the transcript, so the offset follows whatever the scroller does.
+  getBoundingClientRect: () => ({ top: 1400 - landingScroller.scrollTop, height: 220 }),
+}
+const landingFlow = {
+  querySelectorAll: selector => selector === '[data-chat-flow-kind="assistant-step"]' ? [landingRow] : [],
+  closest: selector => selector === '[data-conversation-scroll]' ? landingScroller : null,
+}
+conversationDom.content = {
+  getAttribute: name => name === 'data-conversation-session' ? 's-unread' : null,
+  getClientRects: () => [{}],
+  querySelector: selector => selector === '[data-chat-flow]' ? landingFlow : null,
+}
+const driveFrame = () => {
+  clock.time += 16
+  const callback = clock.frame
+  clock.frame = null
+  if (callback !== null) callback()
+}
+const finishLanding = () => {
+  for (let index = 0; index <= 4; index += 1) driveFrame()
+}
+publishStatuses(new Map([['s-unread', { running: false, completionUnread: false }]]))
+publishStatuses(new Map([['s-unread', { running: false, completionUnread: true }]]))
+for (let index = 0; index < 5; index += 1) driveFrame()
+check('an unread completion alone does not move the viewport', landingJumps.length === 0, JSON.stringify(landingJumps))
+publishStatuses(new Map([['s-unread', { running: false, completionUnread: false }]]))
+finishLanding()
+check('the opened conversation lands at its answer with the shared reading inset',
+  landingJumps.length === 1 && landingJumps[0].top === 1276 && landingJumps[0].behavior === 'instant',
+  JSON.stringify(landingJumps))
+check('the landing settles host reading instead of following the tail',
+  landingEvents.join(',') === 'scroll,scrollend', landingEvents.join(','))
+for (let index = 0; index < 5; index += 1) driveFrame()
+check('the landing does not repeat once its position holds', landingJumps.length === 1, String(landingJumps.length))
+setStored({ unreadAnswerStartEnabled: false })
+landingScroller.scrollTop = 1000
+publishStatuses(new Map([['s-unread', { running: false, completionUnread: true }]]))
+publishStatuses(new Map([['s-unread', { running: false, completionUnread: false }]]))
+for (let index = 0; index < 6; index += 1) driveFrame()
+check('the switch off releases the landing', landingJumps.length === 1, String(landingJumps.length))
+setStored({ unreadAnswerStartEnabled: true })
+publishStatuses(new Map([['s-unread', { running: false, completionUnread: true }]]))
+publishStatuses(new Map([['s-unread', { running: false, completionUnread: false }]]))
+for (let index = 0; index < 6; index += 1) driveFrame()
+check('switching it back on restores the landing', landingJumps.length === 2, String(landingJumps.length))
+
 conversationDom.content = null
 // Lifetime release/reinstall is verified with real registration disposers.
 const renderSettingsPage = () => {
@@ -1965,6 +2122,204 @@ new Worker(imageBlobUrl, { type: 'module' })
 check('and only ever substitutes JavaScript Blobs', workerCreations.at(-1).url === imageBlobUrl, workerCreations.at(-1).url)
 URL.revokeObjectURL(pdfBlobUrl)
 check('releases the shim Blob with the Blob URL the Harness revokes', !blobUrls.has(pdfWorker.url))
+
+console.log('the floating quick actions')
+// The entry is registered from the Workspace injection factory, so it is present
+// only after the fake service resolves — the same shape the real host has.
+const quickEntry = registrations.find(entry => entry.definition.id === 'ui-beautify-quick-actions')
+check('registers the button in the session composer dock',
+  quickEntry?.definition.name === 'conversation.input.dock'
+  && quickEntry.definition.order === 103
+  && quickEntry.definition.locale === 'settings.uiBeautify',
+  JSON.stringify(quickEntry?.definition))
+const quickFace = quickEntry.definition.inject()
+check('the entry reaches the Workspace service for every action',
+  ['archiveSession', 'pinSession', 'unpinSession', 'openSession'].every(name => typeof quickFace[name] === 'function'))
+check('and reads the same settings snapshot the switch writes',
+  quickFace.hooks.beautify === pageEntry.definition.inject().hooks.beautify)
+
+// Layout the component measures: a wide window with no composer card visible in
+// the shim, so the resting position is the plain corner distance.
+window.innerWidth = 1024
+window.innerHeight = 768
+const quickStorage = new Map()
+window.localStorage = {
+  getItem: key => quickStorage.get(key) ?? null,
+  setItem: (key, value) => { quickStorage.set(key, String(value)) },
+}
+let quickList = {
+  ids: ['session-a', 'session-b', 'session-c'],
+  byId: {
+    'session-a': { id: 'session-a', displayTitle: 'A', updatedAt: 3 },
+    'session-b': { id: 'session-b', displayTitle: 'B', updatedAt: 2 },
+    'session-c': { id: 'session-c', displayTitle: 'C', updatedAt: 1 },
+  },
+}
+let quickStatuses = new Map([['session-b', { completionUnread: true }]])
+let quickPinned = []
+let quickCalls = []
+const quickProps = (overrides = {}) => ({
+  t,
+  sessionId: 'session-a',
+  useBeautify: selector => selector({ ...snapshot(), ...overrides }),
+  useSessions: selector => selector(quickList),
+  useSessionStatus: selector => selector(quickStatuses),
+  useWorkspaces: selector => selector({ archivedSessionIds: [], pinnedSessionIds: quickPinned }),
+  archiveSession: async (id) => { quickCalls.push(['archive', id]) },
+  pinSession: async (id) => { quickCalls.push(['pin', id]) },
+  unpinSession: async (id) => { quickCalls.push(['unpin', id]) },
+  openSession: (id) => { quickCalls.push(['open', id]) },
+  ...overrides,
+})
+const renderQuick = (overrides = {}) => {
+  // Twice: the first commit measures the viewport, the second renders the
+  // position that measurement stored, like the up-button mounts above.
+  mount('quick-actions', quickEntry.component, quickProps(overrides))
+  mount('quick-actions', quickEntry.component, quickProps(overrides))
+  return {
+    button: elements.find(element => element.type === 'button'
+      && element.props['aria-label'] === 'quickActionsLabel'),
+    menu: elements.find(element => element.type === Menu),
+    root: elements.find(element => element.type === 'div'
+      && element.props['data-ui-beautify-quick-actions'] !== undefined),
+  }
+}
+const item = (menu, id) => menu?.props.items.find(entry => entry.id === id)
+const hasLabel = (menu, text) => menu?.props.items.some(entry => entry.type === 'label' && entry.text === text)
+
+const initial = renderQuick()
+check('the button rests at the bottom-right corner and names itself',
+  initial.button?.props['aria-haspopup'] === 'menu' && initial.button.props['aria-expanded'] === false
+  && initial.button.props['aria-label'] === 'quickActionsLabel',
+  JSON.stringify(initial.button?.props))
+check('the resting position is a corner distance, not an absolute offset',
+  initial.root?.props.style.right === 24
+  && initial.root.props.style.bottom === 'calc(24px + env(safe-area-inset-bottom, 0px))',
+  JSON.stringify(initial.root?.props.style))
+check('the menu offers archive, pin, and the next conversation',
+  JSON.stringify(initial.menu.props.items.map(entry => entry.id).filter(Boolean)) === JSON.stringify(['archive', 'pin', 'next']))
+check('the next action is enabled while a green conversation waits',
+  item(initial.menu, 'next')?.disabled === false && item(initial.menu, 'archive')?.disabled === false)
+check('no waiting explanation is shown while one is waiting',
+  !hasLabel(initial.menu, 'quickActionsNoNext'))
+const switchedOff = renderQuick({ quickActionsEnabled: false })
+check('the switch takes the button away without unregistering the entry',
+  switchedOff.button === undefined
+  && registrations.some(entry => entry.definition.id === 'ui-beautify-quick-actions'))
+
+quickStatuses = new Map([['session-a', { running: true }], ['session-b', { completionUnread: true }]])
+const runningMenu = renderQuick().menu
+check('a running conversation cannot be archived and says why',
+  item(runningMenu, 'archive')?.disabled === true && hasLabel(runningMenu, 'quickActionsArchiveRunning'))
+quickStatuses = new Map()
+// With no dot waiting the button still has somewhere to go: pinned conversations
+// come next, then plain conversation time. The row only disables when the list
+// holds no other conversation at all.
+const noGreenMenu = renderQuick().menu
+check('without a waiting dot the next action still falls back to conversation time',
+  item(noGreenMenu, 'next')?.disabled === false && !hasLabel(noGreenMenu, 'quickActionsNoNext'))
+renderQuick().button.props.onClick()
+renderQuick().menu.props.onSelect('next')
+await settle()
+check('the time fallback opens the next older conversation',
+  JSON.stringify(quickCalls.at(-1)) === JSON.stringify(['open', 'session-b']), JSON.stringify(quickCalls))
+quickCalls = []
+quickPinned = ['session-c']
+renderQuick().button.props.onClick()
+renderQuick().menu.props.onSelect('next')
+await settle()
+check('a pinned conversation outranks the time fallback',
+  JSON.stringify(quickCalls.at(-1)) === JSON.stringify(['open', 'session-c']), JSON.stringify(quickCalls))
+quickPinned = []
+quickList = { ids: ['session-a'], byId: { 'session-a': quickList.byId['session-a'] } }
+const aloneMenu = renderQuick().menu
+check('with no other conversation the next action is disabled and explained',
+  item(aloneMenu, 'next')?.disabled === true && hasLabel(aloneMenu, 'quickActionsNoNext'))
+quickList = {
+  ids: ['session-a', 'session-b', 'session-c'],
+  byId: {
+    'session-a': { id: 'session-a', displayTitle: 'A', updatedAt: 3 },
+    'session-b': { id: 'session-b', displayTitle: 'B', updatedAt: 2 },
+    'session-c': { id: 'session-c', displayTitle: 'C', updatedAt: 1 },
+  },
+}
+quickStatuses = new Map([['session-b', { completionUnread: true }]])
+quickPinned = ['session-a']
+check('a pinned conversation offers to unpin it',
+  item(renderQuick().menu, 'pin')?.label === 'quickActionsMenuUnpin')
+quickPinned = []
+
+renderQuick().button.props.onClick()
+const opened = renderQuick()
+check('a click opens the host menu', opened.menu.props.open === true
+  && opened.button.props['aria-expanded'] === true)
+opened.menu.props.onSelect('next')
+await settle()
+check('choosing the next conversation opens the unread one first',
+  JSON.stringify(quickCalls.at(-1)) === JSON.stringify(['open', 'session-b']),
+  JSON.stringify(quickCalls))
+check('a chosen action closes the menu', renderQuick().menu.props.open === false)
+
+quickCalls = []
+renderQuick().button.props.onClick()
+renderQuick().menu.props.onSelect('archive')
+await settle()
+check('archive calls the Workspace service and hops to the next conversation',
+  JSON.stringify(quickCalls) === JSON.stringify([['archive', 'session-a'], ['open', 'session-b']]),
+  JSON.stringify(quickCalls))
+
+// With no other conversation there is nowhere to hop; archiving must not invent
+// an open call for the blank fallback the host produces.
+quickList = { ids: ['session-a'], byId: { 'session-a': quickList.byId['session-a'] } }
+quickCalls = []
+renderQuick().button.props.onClick()
+renderQuick().menu.props.onSelect('archive')
+await settle()
+check('archive without another conversation archives only',
+  JSON.stringify(quickCalls) === JSON.stringify([['archive', 'session-a']]), JSON.stringify(quickCalls))
+quickList = {
+  ids: ['session-a', 'session-b', 'session-c'],
+  byId: {
+    'session-a': { id: 'session-a', displayTitle: 'A', updatedAt: 3 },
+    'session-b': { id: 'session-b', displayTitle: 'B', updatedAt: 2 },
+    'session-c': { id: 'session-c', displayTitle: 'C', updatedAt: 1 },
+  },
+}
+
+const refusingArchive = { archiveSession: async () => { throw new Error('running') } }
+quickCalls = []
+renderQuick(refusingArchive).button.props.onClick()
+renderQuick(refusingArchive).menu.props.onSelect('archive')
+await settle()
+check('a refused archive is reported inside the menu',
+  hasLabel(renderQuick(refusingArchive).menu, 'quickActionsArchiveFailed'))
+check('a refused archive does not hop anywhere', quickCalls.length === 0, JSON.stringify(quickCalls))
+
+// Dragging moves the stored corner distance, clamps it to the window, and does
+// not count as a click on the button.
+const pressTarget = {
+  getBoundingClientRect: () => ({ right: 600, bottom: 700 }),
+  setPointerCapture() {},
+  releasePointerCapture() {},
+}
+const press = (overrides = {}) => ({
+  button: 0, isPrimary: true, pointerId: 1, clientX: 500, clientY: 600,
+  currentTarget: pressTarget, ...overrides,
+})
+const dragRender = renderQuick()
+dragRender.button.props.onPointerDown(press())
+dragRender.button.props.onPointerMove(press({ clientX: 470, clientY: 570 }))
+dragRender.button.props.onPointerUp(press())
+check('a drag stores the new distance from the corner',
+  quickStorage.get('ui-beautify:quick-actions-position') === '{"right":454,"bottom":98}',
+  String(quickStorage.get('ui-beautify:quick-actions-position')))
+const dragged = renderQuick()
+check('the dragged position replaces the resting one',
+  dragged.root.props.style.right === 454
+  && dragged.root.props.style.bottom === 'calc(98px + env(safe-area-inset-bottom, 0px))',
+  JSON.stringify(dragged.root.props.style))
+dragged.button.props.onClick()
+check('the pointerup that ended a drag does not toggle the menu', renderQuick().menu.props.open === false)
 
 for (const dispose of disposers) dispose()
 check(

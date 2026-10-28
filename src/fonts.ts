@@ -341,11 +341,52 @@ export interface BeautifySettings {
    */
   hideComposerStats: boolean
   /**
+   * Hides the composer's model selector (the `conversation.input.model` seat).
+   * Defaults off: the user turns it on to get the quieter composer, and the
+   * host's `/model` command still switches models.
+   */
+  hideModelSelector: boolean
+  /**
+   * Hides the composer's access-mode (permission) selector (the
+   * `conversation.input.permission` seat). Defaults off; the host's
+   * `/permission` command still changes the mode.
+   */
+  hideAccessMode: boolean
+  /**
    * Draws the current context occupancy as a ring around the composer's primary
    * (send / stop) button. Defaults on: it replaces the reading the stats switch
    * can hide.
    */
   contextRingEnabled: boolean
+  /**
+   * Lands a conversation opened from the host's unread-completion (green dot)
+   * state at the beginning of its last answer instead of the bottom. Defaults
+   * on: the dot means there is an answer the reader has not started yet.
+   */
+  unreadAnswerStartEnabled: boolean
+  /**
+   * Floating action button at the bottom-right of the conversation: one
+   * draggable control whose menu archives, pins, or jumps to the next unread
+   * conversation. Defaults on: it is an addition, not a host surface.
+   */
+  quickActionsEnabled: boolean
+  /**
+   * Phrase the running indicator shows instead of the host's "deep diving" copy.
+   * Empty keeps the host's localized wording. Applies to both the bare status and
+   * the one carrying elapsed time; the time itself stays the host's reading.
+   */
+  runningStatusText: string
+  /**
+   * Image URL replacing the host's whale tail in the running indicator. Empty
+   * keeps the host's mark; a built-in CSS animation stands in when the host mark
+   * is removed without an image.
+   */
+  runningStatusIcon: string
+  /**
+   * Whether the running indicator drops the host's whale mark and shows either
+   * `runningStatusIcon` or the built-in CSS animation instead. Defaults off.
+   */
+  replaceRunningIcon: boolean
 }
 
 /**
