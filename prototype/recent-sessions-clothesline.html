@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>最近会话 · 麻绳衣夹原型</title>
+<style>
+/* =====================================================================
+   原型说明（dsh-ui-beautify）
+   - 「最近会话」从一行普通 tab 改成一条麻绳：绳子两端固定在标题栏左右两侧，
+     5 个最近会话用衣夹夹在绳子中间，当前会话的夹子和吊牌变成蓝色。
+   - 颜色取自宿主 ui-theme 的 --dsw-alias-* 语义别名；原型里为了单文件
+     可运行先落成具体值，正式实现时必须换回 token。
+   - 交互照旧：点击吊牌切换会话；状态点复用宿主 StateDot 语义
+     （done 绿 / warning 琥珀 / ongoing 转圈 / idle 不显示）。
+   ===================================================================== */
+
+/* ---------- 宿主语义 token（浅色） ---------- */
+body {
+  --bg-base: rgb(255, 255, 255);
+  --bg-layer-1: rgb(255, 255, 255);
+  --bg-layer-2: rgb(255, 255, 255);
+  --bg-layer-3: rgb(255, 255, 255);
+  --bg-module-platform: rgb(245, 246, 247);
+  --sidebar-fill: rgb(249, 250, 251);
+  --border-l1: rgba(0, 0, 0, 0.04);
+  --border-l2: rgba(0, 0, 0, 0.10);
+  --border-l3: rgba(0, 0, 0, 0.12);
+  --border-l4: rgba(0, 0, 0, 0.16);
+  --label-primary: rgb(15, 17, 21);
+  --label-secondary: rgb(97, 102, 107);
+  --label-tertiary: rgb(129, 133, 140);
+  --label-caption: rgb(173, 178, 184);
+  --business: rgb(65, 118, 230);
+  --success: rgb(34, 197, 94);
+  --warn: rgb(245, 158, 11);
+  --idle: rgb(212, 212, 212);
+  --hover: rgba(38, 49, 72, 0.06);
+  --active: rgba(38, 49, 72, 0.10);
+  --bubble: rgb(237, 243, 254);
+  --code-bg: rgb(249, 250, 251);
+  --tag-fill: rgb(255, 255, 255);
+  --tag-shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 1px rgba(16, 24, 40, 0.03);
+  --rope-line: rgba(0, 0, 0, 0.22);
+  --rope-highlight: rgba(255, 255, 255, 0.55);
+  --pin-fill: linear-gradient(90deg, rgb(247, 247, 248), rgb(214, 216, 220));
+  --pin-stroke: rgba(0, 0, 0, 0.24);
+  --scene-bg: rgb(235, 238, 242);
+  --proto-bar: rgb(249, 250, 251);
+  --proto-border: rgba(0, 0, 0, 0.10);
+  --proto-ink: rgb(15, 17, 21);
+  --proto-muted: rgb(129, 133, 140);
+  --select-fill: rgb(255, 255, 255);
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ---------- 宿主语义 token（深色） ---------- */
+body[data-theme='dark'] {
+  --bg-base: rgb(21, 21, 23);
+  --bg-layer-1: rgb(35, 35, 36);
+  --bg-layer-2: rgb(44, 44, 46);
+  --bg-layer-3: rgb(53, 54, 56);
+  --bg-module-platform: rgb(53, 54, 56);
+  --sidebar-fill: rgb(27, 27, 28);
+  --border-l1: rgba(255, 255, 255, 0.06);
+  --border-l2: rgba(255, 255, 255, 0.12);
+  --border-l3: rgba(255, 255, 255, 0.16);
+  --border-l4: rgba(255, 255, 255, 0.20);
+  --label-primary: rgb(249, 250, 251);
+  --label-secondary: rgb(207, 211, 214);
+  --label-tertiary: rgb(173, 178, 184);
+  --label-caption: rgb(129, 133, 140);
+  --business: rgb(122, 170, 255);
+  --success: rgb(34, 197, 94);
+  --warn: rgb(245, 158, 11);
+  --idle: rgb(84, 85, 87);
+  --hover: rgba(255, 255, 255, 0.08);
+  --active: rgba(255, 255, 255, 0.14);
+  --bubble: rgb(44, 44, 46);
+  --code-bg: rgb(27, 27, 28);
+  --tag-fill: rgb(44, 44, 46);
+  --tag-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 1px 1px rgba(0, 0, 0, 0.25);
+  --rope-line: rgba(255, 255, 255, 0.30);
+  --rope-highlight: rgba(255, 255, 255, 0.08);
+  --pin-fill: linear-gradient(90deg, rgb(84, 85, 87), rgb(60, 60, 61));
+  --pin-stroke: rgba(255, 255, 255, 0.22);
+  --scene-bg: rgb(15, 15, 16);
+  --proto-bar: rgb(27, 27, 28);
+  --proto-border: rgba(255, 255, 255, 0.10);
+  --proto-ink: rgb(249, 250, 251);
+  --proto-muted: rgb(173, 178, 184);
+  --select-fill: rgb(44, 44, 46);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--scene-bg);
+  color: var(--label-primary);
+  font: 14px/22px var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; }
+button:focus-visible {
+  outline: 2px solid var(--business);
+  outline-offset: 2px;
+}
+
+/* ===================== 原型工具条（截图时隐藏） ===================== */
+.proto-bar {
+  flex: none;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 18px;
+  background: var(--proto-bar);
+  border-bottom: 1px solid var(--proto-border);
+  color: var(--proto-ink);
+}
+.proto-id { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.proto-id strong { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.proto-id span { font-size: 11px; color: var(--proto-muted); white-space: nowrap; }
+.proto-controls { display: flex; align-items: center; gap: 12px; }
+.chosen {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--proto-border);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--proto-ink);
+  background: var(--select-fill);
+  white-space: nowrap;
+}
+.chosen .dot-mark { width: 7px; height: 7px; border-radius: 50%; background: var(--business); }
+.seg {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--proto-border);
+  border-radius: 8px;
+  background: var(--bg-module-platform);
+}
+.seg button {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--proto-muted);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.seg button[aria-pressed='true'] {
+  background: var(--select-fill);
+  color: var(--proto-ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.motion { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--proto-muted); cursor: pointer; }
+.motion input { accent-color: var(--business); margin: 0; }
+
+/* ===================== 场景（模拟宿主窗口） ===================== */
+.stage { flex: 1; min-height: 0; display: flex; align-items: stretch; justify-content: center; }
+body.capture .proto-bar { display: none; }
+body.capture .stage { flex: 1; }
+
+.app {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  background: var(--bg-base);
+  color: var(--label-primary);
+  overflow: hidden;
+}
+
+/* ---------------------------- 左侧栏 ---------------------------- */
+.sidebar {
+  flex: none;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 12px 12px;
+  background: var(--sidebar-fill);
+  border-right: 1px solid var(--border-l1);
+}
+.brand { display: flex; align-items: baseline; gap: 6px; padding: 2px 8px 10px; }
+.brand .logo { font-size: 15px; color: var(--label-primary); }
+.brand b { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; }
+.brand i {
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.6px;
+  color: var(--label-tertiary);
+}
+.new-session {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  border: 1px solid var(--border-l2);
+  border-radius: 9px;
+  background: var(--bg-layer-1);
+  color: var(--label-primary);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: var(--tag-shadow);
+  cursor: pointer;
+}
+.new-session .plus { font-size: 15px; color: var(--label-secondary); }
+.sidebar .nav { display: flex; flex-direction: column; gap: 1px; margin-top: 6px; }
+.nav-item {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 9px;
+  border-radius: 8px;
+  color: var(--label-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+.nav-item:hover { background: var(--hover); }
+.nav-item .ico { width: 15px; display: inline-flex; justify-content: center; color: var(--label-tertiary); }
+.ws-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 9px 6px;
+  font-size: 12px;
+  color: var(--label-caption);
+}
+.ws-head .ws-tools { letter-spacing: 2px; color: var(--label-caption); }
+.ws-item {
+  height: 29px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 9px;
+  border-radius: 8px;
+  color: var(--label-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+.ws-item:hover { background: var(--hover); }
+.ws-item .folder { color: var(--label-tertiary); font-size: 12px; }
+.sidebar-foot { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 8px 9px 2px; color: var(--label-tertiary); font-size: 12px; }
+.sidebar-foot .avatar { width: 18px; height: 18px; border-radius: 50%; background: var(--hover); }
+
+/* ---------------------------- 主区 ---------------------------- */
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
+
+/* 标题行：与宿主 header 一致的 10px / 30px 节奏 */
+.chrome {
+  flex: none;
+  position: relative;
+  padding: 10px 28px 0 20px;
+  border-bottom: 0.5px solid var(--border-l3);
+  background: var(--bg-base);
+}
+.title-row { display: flex; align-items: center; min-height: 30px; gap: 10px; }
+.crumbs { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; }
+.crumb-now {
+  max-width: 260px;
+  overflow: hidden;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--label-primary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.chips { flex: none; display: flex; align-items: center; gap: 14px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; line-height: 18px; color: var(--label-caption); white-space: nowrap; }
+.chip .chip-ico { width: 7px; height: 7px; border: 1px solid var(--label-caption); border-radius: 50%; }
+.head-actions { flex: none; display: flex; align-items: center; gap: 6px; margin-left: 8px; }
+.model-btn {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid var(--border-l2);
+  border-radius: 8px;
+  background: var(--bg-base);
+  color: var(--label-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.icon-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--label-tertiary);
+  cursor: pointer;
+}
+.icon-btn:hover { background: var(--hover); }
+
+/* ------------------------------------------------------------------
+   视图 tab 行 + 麻绳
+   绳子从 header 左边缘拉到右边缘；最近会话用衣夹夹在绳子中间。
+   ------------------------------------------------------------------ */
+.tab-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 36px;
+  height: 58px;
+  margin-top: 10px;
+  padding-left: 8px;
+}
+.view-tabs { display: flex; align-items: flex-end; gap: 36px; flex: none; }
+.view-tab {
+  position: relative;
+  padding: 0 0 9px;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--label-tertiary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.view-tab:hover { color: var(--label-secondary); }
+.view-tab.is-active { color: var(--business); }
+.view-tab.is-active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--business);
+}
+
+/* 绳子两端钉在 header 的左右边上，所以这里对 header 的 padding box 铺满，
+   即从左侧栏边界一直拉到窗口右边缘，而不是浮在标题内容中间。 */
+.clothesline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 54px;
+  height: 52px;
+}
+.recent-tags {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 22px;
+  width: 100%;
+  height: 100%;
+}
+.line-rope {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 30px;
+  overflow: visible;
+  pointer-events: none;
+}
+.rope-path { fill: none; stroke: var(--rope-line); stroke-width: 1.6; stroke-linecap: round; }
+.rope-highlight { fill: none; stroke: var(--rope-highlight); stroke-width: 0.7; stroke-linecap: round; opacity: 0.7; }
+.rope-mount { fill: var(--label-caption); }
+.rope-mount-ring { fill: var(--bg-base); stroke: var(--border-l4); stroke-width: 1; }
+.rope-anchor { stroke: var(--border-l4); stroke-width: 1.4; stroke-linecap: round; }
+
+/* ---------------------------- 吊牌 ---------------------------- */
+.tag {
+  position: relative;
+  top: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--label-tertiary);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transform: translateY(var(--drop, 0px));
+}
+.tag .hang { position: relative; display: block; width: 100%; height: 12px; }
+.tag .card {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border-l2);
+  border-radius: 8px;
+  background: var(--tag-fill);
+  box-shadow: var(--tag-shadow);
+  transform: rotate(var(--tilt, 0deg));
+  transition: background-color var(--ease) 0.16s, border-color var(--ease) 0.16s,
+    transform var(--ease) 0.2s, box-shadow var(--ease) 0.16s;
+}
+.tag .label {
+  max-width: 5em;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--label-tertiary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition: color var(--ease) 0.16s;
+}
+.tag[aria-current] .label { color: var(--business); }
+.tag:hover .label { color: var(--label-secondary); }
+.tag[aria-current]:hover .label { color: var(--business); }
+
+/* 衣夹：两瓣夹住绳子，中间一道缝 */
+.tag .hang::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  width: 8px;
+  height: 13px;
+  transform: translateX(-50%);
+  border: 1px solid var(--pin-stroke);
+  border-radius: 2.5px;
+  background: var(--pin-fill);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.18);
+  transition: border-color var(--ease) 0.16s, background-color var(--ease) 0.16s;
+}
+.tag .hang::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 1px;
+  height: 8px;
+  transform: translateX(-50%);
+  background: var(--pin-stroke);
+  opacity: 0.55;
+}
+
+/* 吊牌的自然倾斜 */
+.tag:nth-child(odd) .card { --tilt: -1.6deg; }
+.tag:nth-child(even) .card { --tilt: 1.4deg; }
+.tag[aria-current] .card {
+  --tilt: 0deg;
+  border-color: color-mix(in srgb, var(--business) 52%, var(--border-l2));
+  background: color-mix(in srgb, var(--business) 8%, var(--tag-fill));
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--business) 20%, transparent);
+}
+.tag[aria-current] .hang::before {
+  border-color: color-mix(in srgb, var(--business) 55%, var(--pin-stroke));
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--business) 72%, var(--tag-fill)),
+    color-mix(in srgb, var(--business) 92%, var(--tag-fill)));
+}
+.tag:hover .card {
+  --tilt: 0deg;
+  border-color: var(--border-l4);
+  animation: card-swing 900ms var(--ease);
+}
+@keyframes card-swing {
+  0% { transform: rotate(var(--tilt, 0deg)); }
+  30% { transform: rotate(2.4deg); }
+  62% { transform: rotate(-1.5deg); }
+  84% { transform: rotate(0.6deg); }
+  100% { transform: rotate(0deg); }
+}
+
+/* 状态点（沿用宿主 StateDot 语义） */
+.dot {
+  position: relative;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.dot::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dot-color, transparent);
+}
+.dot[data-kind='done'] { --dot-color: var(--success); }
+.dot[data-kind='warning'] { --dot-color: var(--warn); }
+.dot[data-kind='idle'] { --dot-color: var(--idle); }
+.dot[data-kind='running']::after { display: none; }
+.dot svg { display: block; color: var(--label-tertiary); animation: dot-spin 1.5s linear infinite; }
+.dot-track { fill: none; stroke: currentColor; stroke-width: 1.6; opacity: 0.25; }
+.dot-arc { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 6 40; animation: dot-dash 1.5s ease-in-out infinite; }
+@keyframes dot-spin { to { transform: rotate(360deg); } }
+@keyframes dot-dash {
+  0% { stroke-dasharray: 6 40; stroke-dashoffset: 0; }
+  50% { stroke-dasharray: 12 40; stroke-dashoffset: -4; }
+  100% { stroke-dasharray: 6 40; stroke-dashoffset: 0; }
+}
+
+/* 没有最近会话时不占行高（正式实现同款降级） */
+.tab-row.is-empty { height: 36px; }
+.tab-row.is-empty .clothesline { display: none; }
+
+/* 窄一点的桌面容器：先缩小吊牌，绳子仍然两端到边；再窄就让绳子
+   单独占一行，避免吊牌压到「对话 / 轨迹」。 */
+@media (max-width: 1200px) {
+  .recent-tags { gap: 12px; }
+  .tag .card { height: 24px; padding: 0 8px; }
+  .tag .label { font-size: 12px; }
+  .tab-row { height: 54px; }
+}
+@media (max-width: 1100px) {
+  .tab-row { display: block; height: auto; padding: 0 0 12px; }
+  .view-tabs { justify-content: flex-start; }
+  /* 单独占一行时同样拉到 header 两边（抵消 header 的 20px / 28px 内边距）。 */
+  .clothesline { position: relative; left: auto; right: auto; top: 0; height: 50px; margin: 8px -28px 0 -20px; }
+  .tab-row .view-tab { padding-bottom: 0; }
+  .tab-row .view-tab.is-active::after { display: none; }
+  .tab-row .clothesline .line-rope { top: 0; }
+}
+
+/* ---------------------------- 正文 ---------------------------- */
+.thread-wrap { flex: 1; min-height: 0; overflow: hidden; padding: 22px 56px 0; }
+.thread { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.msg-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 18px; color: var(--label-tertiary); }
+.msg-meta .tick { color: var(--success); font-size: 12px; }
+.msg p { margin: 0; font-size: 14px; line-height: 23px; color: var(--label-primary); }
+.msg p + p { margin-top: 8px; }
+.msg .dim { color: var(--label-secondary); }
+.tool-row { display: flex; gap: 8px; }
+.tool-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--border-l2);
+  border-radius: 8px;
+  background: var(--code-bg);
+  font-size: 12px;
+  color: var(--label-secondary);
+}
+.user-row { display: flex; justify-content: flex-end; margin-top: 6px; }
+.user-bubble {
+  max-width: 70%;
+  padding: 9px 14px;
+  border-radius: 16px;
+  border-bottom-right-radius: 6px;
+  background: var(--bubble);
+  color: var(--label-primary);
+  font-size: 14px;
+  line-height: 22px;
+}
+.working { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--label-tertiary); }
+.working .dot { width: 12px; height: 12px; }
+
+/* ---------------------------- 输入区 ---------------------------- */
+.composer-wrap { flex: none; padding: 10px 56px 18px; }
+.composer {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 10px 12px 8px;
+  border: 1px solid var(--border-l3);
+  border-radius: 16px;
+  background: var(--bg-layer-1);
+  box-shadow: var(--tag-shadow);
+}
+.composer-input { display: flex; align-items: center; min-height: 30px; font-size: 14px; color: var(--label-caption); }
+.composer-bar { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.composer-pill {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid var(--border-l2);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--label-secondary);
+  background: var(--bg-base);
+}
+.composer-spacer { flex: 1; }
+.composer-icon {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--label-tertiary);
+  font-size: 14px;
+}
+.send-btn {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--business);
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+/* ---------------------------- 动效开关 ---------------------------- */
+body.motion-off *,
+body.capture * { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body data-theme="light">
+  <header class="proto-bar">
+    <div class="proto-id">
+      <strong>最近会话 · 麻绳衣夹原型</strong>
+      <span>绳子两端固定在标题栏左右两侧 · 指向吊牌可看悬挂反馈</span>
+    </div>
+    <div class="proto-controls">
+      <span class="chosen"><span class="dot-mark"></span>已选 B · 两端固定</span>
+      <div class="seg" role="group" aria-label="主题">
+        <button type="button" data-set-theme="light" aria-pressed="true">浅色</button>
+        <button type="button" data-set-theme="dark" aria-pressed="false">深色</button>
+      </div>
+      <label class="motion"><input type="checkbox" id="motion-toggle" checked> 微动效</label>
+    </div>
+  </header>
+
+  <div class="stage">
+    <div class="app" id="app">
+      <aside class="sidebar" aria-label="侧栏（模拟）">
+        <div class="brand"><span class="logo">◈</span><b>deepseek</b><i>HARNESS</i></div>
+        <button type="button" class="new-session"><span class="plus">＋</span>新会话</button>
+        <nav class="nav" aria-label="导航（模拟）">
+          <div class="nav-item"><span class="ico">◫</span>插件</div>
+          <div class="nav-item"><span class="ico">◔</span>自动化任务</div>
+          <div class="nav-item"><span class="ico">☑</span>任务列表</div>
+          <div class="nav-item"><span class="ico">▦</span>白板</div>
+        </nav>
+        <div class="ws-head"><span>工作区</span><span class="ws-tools">⌕ ⇅ ＋</span></div>
+        <div class="ws-item"><span class="folder">▱</span>iot-development-resources</div>
+        <div class="ws-item"><span class="folder">▱</span>after-sales-resources</div>
+        <div class="ws-item"><span class="folder">▱</span>DeepSeek</div>
+        <div class="ws-item"><span class="folder">▱</span>ai-company</div>
+        <div class="ws-item"><span class="folder">▱</span>Jianmen</div>
+        <div class="sidebar-foot"><span class="avatar"></span>设置</div>
+      </aside>
+
+      <main class="main">
+        <header class="chrome">
+          <div class="title-row">
+            <div class="crumbs"><span class="crumb-now" id="crumb-title">美化插件默认样式</span></div>
+            <div class="chips">
+              <span class="chip"><span class="chip-ico"></span>智能体团队</span>
+              <span class="chip"><span class="chip-ico"></span>标准模式</span>
+            </div>
+            <div class="head-actions">
+              <button type="button" class="model-btn">DeepSeek-V4.1-Flash High <span aria-hidden="true">⌄</span></button>
+              <button type="button" class="icon-btn" aria-label="更多">⋯</button>
+              <button type="button" class="icon-btn" aria-label="侧栏">
+                <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M10 2.5v11" stroke="currentColor" stroke-width="1.2"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="tab-row" id="tab-row">
+            <div class="view-tabs" role="tablist" aria-label="视图">
+              <button type="button" role="tab" aria-selected="true" class="view-tab is-active">对话</button>
+              <button type="button" role="tab" aria-selected="false" class="view-tab">轨迹</button>
+            </div>
+
+            <div class="clothesline" id="clothesline">
+              <nav class="recent-tags" id="recent-tags" aria-label="最近对话切换">
+                <svg class="line-rope" aria-hidden="true"></svg>
+
+                <button type="button" class="tag" data-status="running" aria-current="page"
+                  title="美化插件默认样式 · 运行中">
+                  <span class="hang" aria-hidden="true"></span>
+                  <span class="card">
+                    <span class="dot" data-kind="running" aria-hidden="true">
+                      <svg width="10" height="10" viewBox="0 0 10 10"><circle class="dot-track" cx="5" cy="5" r="3.4"/><circle class="dot-arc" cx="5" cy="5" r="3.4"/></svg>
+                    </span>
+                    <span class="label">美化插件默</span>
+                  </span>
+                </button>
+
+                <button type="button" class="tag" data-status="warning"
+                  title="定制版菜单与隐藏项 · 待审批">
+                  <span class="hang" aria-hidden="true"></span>
+                  <span class="card">
+                    <span class="dot" data-kind="warning" aria-hidden="true"></span>
+                    <span class="label">定制版菜单</span>
+                  </span>
+                </button>
+
+                <button type="button" class="tag" data-status="done"
+                  title="定制版隐藏开关 · 已完成">
+                  <span class="hang" aria-hidden="true"></span>
+                  <span class="card">
+                    <span class="dot" data-kind="done" aria-hidden="true"></span>
+                    <span class="label">定制版隐藏</span>
+                  </span>
+                </button>
+
+                <button type="button" class="tag" data-status="idle"
+                  title="隐藏定制版入口 · 空闲">
+                  <span class="hang" aria-hidden="true"></span>
+                  <span class="card">
+                    <span class="dot" data-kind="idle" aria-hidden="true"></span>
+                    <span class="label">隐藏定制版</span>
+                  </span>
+                </button>
+
+                <button type="button" class="tag" data-status="done"
+                  title="权限白名单管理 · 已完成">
+                  <span class="hang" aria-hidden="true"></span>
+                  <span class="card">
+                    <span class="dot" data-kind="done" aria-hidden="true"></span>
+                    <span class="label">权限白名单</span>
+                  </span>
+                </button>
+              </nav>
+            </div>
+          </div>
+        </header>
+
+        <div class="thread-wrap">
+          <div class="thread">
+            <div class="msg-meta"><span class="tick">✓</span>已完成分析</div>
+            <div class="msg">
+              <p>麻绳的两端钉在标题栏左右两侧，最近 5 个会话用衣夹夹在绳子中间，绳子在中间自然下垂。</p>
+              <p class="dim">吊牌保留原来的 5 字标题和状态点；当前会话的夹子和吊牌会着色，点击吊牌切换会话。</p>
+            </div>
+            <div class="tool-row">
+              <span class="tool-chip">✓ 更新了 recent-sessions.css</span>
+              <span class="tool-chip">✓ 修改了 2 个文件</span>
+            </div>
+            <div class="user-row"><div class="user-bubble">选 B 麻绳衣夹，左右两边要连接到边上，而不是悬浮。</div></div>
+            <div class="working">
+              <span class="dot" data-kind="running" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 12 12"><circle class="dot-track" cx="6" cy="6" r="4.2"/><circle class="dot-arc" cx="6" cy="6" r="4.2"/></svg>
+              </span>
+              正在生成原型
+            </div>
+          </div>
+        </div>
+
+        <div class="composer-wrap">
+          <div class="composer">
+            <div class="composer-input">发消息或创建任务，/ 调用指令，@ 文件或对话</div>
+            <div class="composer-bar">
+              <span class="composer-pill">＋</span>
+              <span class="composer-pill">完全权限</span>
+              <span class="composer-spacer"></span>
+              <span class="composer-pill">存为任务 ⌘</span>
+              <span class="composer-pill">DeepSeek-V4.1-Flash High ⌄</span>
+              <span class="composer-icon">🎙</span>
+              <button type="button" class="send-btn" aria-label="发送">↑</button>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+<script type="module">
+const body = document.body
+if (new URLSearchParams(location.search).has('capture')) body.classList.add('capture')
+
+const nav = document.getElementById('recent-tags')
+const rope = nav.querySelector('.line-rope')
+const crumb = document.getElementById('crumb-title')
+const SVG_NS = 'http://www.w3.org/2000/svg'
+const SAG = 14
+
+/** 绳子的两端钉在左右边上、中间下垂；每张吊牌跟着它所在位置的绳子走。 */
+function layoutRope() {
+  const tags = [...nav.querySelectorAll('.tag')]
+  for (const tag of tags) tag.style.setProperty('--drop', '0px')
+  const box = nav.getBoundingClientRect()
+  const width = box.width
+  if (!width) return
+  const centers = tags.map(tag => {
+    const rect = tag.getBoundingClientRect()
+    return Math.min(1, Math.max(0, (rect.left + rect.width / 2 - box.left) / width))
+  })
+  rope.replaceChildren()
+  rope.setAttribute('width', String(width))
+  rope.setAttribute('height', '30')
+
+  const startX = 2
+  const endX = width - 2
+  const path = document.createElementNS(SVG_NS, 'path')
+  path.setAttribute('d', `M ${startX} 3 Q ${width / 2} ${3 + 2 * SAG} ${endX} 3`)
+  path.classList.add('rope-path')
+  const highlight = document.createElementNS(SVG_NS, 'path')
+  highlight.setAttribute('d', `M ${startX} 2.4 Q ${width / 2} ${2.4 + 2 * SAG} ${endX} 2.4`)
+  highlight.classList.add('rope-highlight')
+  rope.append(path, highlight)
+
+  for (const [cx, side] of [[startX, 'left'], [endX, 'right']]) {
+    const anchor = document.createElementNS(SVG_NS, 'line')
+    anchor.setAttribute('x1', side === 'left' ? 0 : width)
+    anchor.setAttribute('x2', cx)
+    anchor.setAttribute('y1', '3')
+    anchor.setAttribute('y2', '3')
+    anchor.classList.add('rope-anchor')
+    const nail = document.createElementNS(SVG_NS, 'circle')
+    nail.setAttribute('cx', String(cx))
+    nail.setAttribute('cy', '3')
+    nail.setAttribute('r', '2.4')
+    nail.classList.add('rope-mount')
+    const ring = document.createElementNS(SVG_NS, 'circle')
+    ring.setAttribute('cx', String(cx))
+    ring.setAttribute('cy', '3')
+    ring.setAttribute('r', '3.6')
+    ring.classList.add('rope-mount-ring')
+    rope.append(anchor, ring, nail)
+  }
+
+  tags.forEach((tag, index) => {
+    const t = centers[index]
+    const ropeY = 3 + 4 * SAG * t * (1 - t)
+    // 衣夹顶边比绳子高 2px，tag 自身 top 是 4px。
+    tag.style.setProperty('--drop', (ropeY - 6).toFixed(2) + 'px')
+  })
+}
+
+/** 切换会话：更新选中态和标题（原型里不真正跳转）。 */
+function selectTag(tag) {
+  for (const other of nav.querySelectorAll('.tag')) other.removeAttribute('aria-current')
+  tag.setAttribute('aria-current', 'page')
+  const full = (tag.getAttribute('title') ?? '').split(' · ')[0]
+  if (full) crumb.textContent = full
+}
+
+for (const tag of nav.querySelectorAll('.tag')) {
+  tag.addEventListener('click', () => { selectTag(tag) })
+}
+
+const themeButtons = [...document.querySelectorAll('[data-set-theme]')]
+for (const button of themeButtons) {
+  button.addEventListener('click', () => {
+    body.dataset.theme = button.dataset.setTheme
+    for (const other of themeButtons) other.setAttribute('aria-pressed', String(other === button))
+    requestAnimationFrame(layoutRope)
+  })
+}
+
+document.getElementById('motion-toggle').addEventListener('change', event => {
+  body.classList.toggle('motion-off', !event.target.checked)
+})
+
+new ResizeObserver(() => layoutRope()).observe(nav)
+document.fonts?.ready.then(layoutRope)
+layoutRope()
+window.addEventListener('resize', layoutRope)
+</script>
+</body>
+</html>
