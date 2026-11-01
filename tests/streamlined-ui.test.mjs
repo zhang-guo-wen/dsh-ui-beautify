@@ -5,12 +5,19 @@ import { Config } from '../lib/index.mjs'
 import { en, zh } from '../src/client/locales.ts'
 import {
   AGENT_PRESET_HEADER_ACTION_ID, HIDDEN_SETTINGS_SECTIONS, MOVED_SIDEBAR_PANELS, OPEN_DOCUMENT_ACTION_ID,
-  SIDEBAR_PANEL_ROW_SELECTOR, SETTINGS_NAV_ROW_SELECTOR, applyStreamlinedUi, hiddenSectionRows,
-  movedSidebarRows, navHidingCss, orderedRowNumbers, sidebarHidingCss,
+  SIDEBAR_PANEL_ROW_SELECTOR, SIDEBAR_NAV_SELECTOR, SETTINGS_NAV_ROW_SELECTOR, SETTINGS_NAV_SELECTOR,
+  applyStreamlinedUi, hiddenSectionLabels, hiddenSectionRows, liveRowNumbers, movedPanelLabels,
+  movedSidebarRows, navHidingCss, orderedRowNumbers, resolveLabel, sidebarHidingCss,
 } from '../src/client/streamlined-ui.ts'
 
 /** One row registration, as its owner projects it. */
 const section = (id, order) => ({ options: { id, order } })
+
+/** One row registration carrying the text its owner paints. */
+const row = (id, order, label) => ({ options: { id, order, label } })
+
+/** A painted row list stand-in: the dialog's or the sidebar's list element. */
+const listOf = rows => ({ querySelectorAll: () => rows.map(text => ({ textContent: text })) })
 
 /** The shipped settings navigation with the branded deployment's rows in it. */
 const PRODUCT_LEDGER = [
@@ -40,8 +47,9 @@ const MAIN_LEDGER = [
 ]
 
 /** A `<style>` stand-in that knows how to remove itself from the head. */
-function fakeDocument() {
+function fakeDocument(painted = undefined) {
   const head = []
+  const list = painted === undefined ? null : listOf(painted)
   return {
     head,
     document: {
@@ -55,6 +63,7 @@ function fakeDocument() {
         },
       }),
       head: { appendChild: element => head.push(element) },
+      querySelector: selector => (selector === SETTINGS_NAV_SELECTOR ? list : null),
     },
   }
 }
@@ -215,6 +224,68 @@ test('locates the relocated sidebar rows by the sidebar projection', () => {
   assert.deepEqual(movedSidebarRows(PANEL_LEDGER, ['schedules']), [2])
   // The shared projection is the one the settings navigation uses.
   assert.deepEqual(orderedRowNumbers(PANEL_LEDGER, ['plugins', 'schedules']), [1, 2])
+})
+
+test('reads a registration label the way the owners project it', () => {
+  assert.equal(resolveLabel('账号管理'), '账号管理')
+  assert.equal(resolveLabel(() => '内置插件'), '内置插件')
+  assert.equal(resolveLabel('  品牌  '), '品牌')
+  // A thunk whose locale namespace is not ready must not take the sheet down.
+  assert.equal(resolveLabel(() => { throw new Error('locale not ready') }), undefined)
+  assert.equal(resolveLabel(undefined), undefined)
+  assert.equal(resolveLabel(42), undefined)
+  assert.equal(resolveLabel('   '), undefined)
+})
+
+test('resolves the hidden rows by the labels their registrations paint', () => {
+  const ledger = [
+    row('general', 0, '通用设置'),
+    row('plugins', 15, () => '内置插件'),
+    row('agent-presets', 20, 'Agent 预设'),
+    row('ui-beautify', 40, '界面美化'),
+  ]
+  assert.deepEqual(hiddenSectionLabels(ledger), ['内置插件', 'Agent 预设'])
+  assert.deepEqual(hiddenSectionLabels(ledger, ['plugins']), ['内置插件'])
+  // A deployment without those sections, and an unlabelled registration, add nothing.
+  assert.deepEqual(hiddenSectionLabels([row('general', 0, '通用设置')]), [])
+  assert.deepEqual(hiddenSectionLabels([section('plugins', 15)]), [])
+  assert.deepEqual(movedPanelLabels([row('plugins', 0, '插件'), row('schedules', 10, '自动化任务')]), ['插件', '自动化任务'])
+  assert.deepEqual(movedPanelLabels([row('custom-panel', 0, '自定义')]), [])
+})
+
+test('reads the rows a painted list shows instead of a ledger snapshot', () => {
+  const painted = listOf(['账号管理', '通用设置', '模型', '内置插件', 'Agent 预设', '界面美化'])
+  // The ledger moved after the last paint: its own numbers would hide the wrong pages.
+  assert.deepEqual(liveRowNumbers(painted, ['内置插件', 'Agent 预设'], [3, 4]), [4, 5])
+  // The dialog is closed or the labels are not painted yet: keep the ledger positions.
+  assert.deepEqual(liveRowNumbers(null, ['内置插件'], [8]), [8])
+  assert.deepEqual(liveRowNumbers(listOf(['通用设置']), ['内置插件'], [8]), [8])
+  // No label declared on the registrations: keep the ledger positions.
+  assert.deepEqual(liveRowNumbers(painted, [], [1, 2]), [1, 2])
+  // One match is enough: only the painted rows are hidden.
+  assert.deepEqual(liveRowNumbers(painted, ['内置插件', '不存在'], [8]), [4])
+})
+
+test('the switch hides the rows the dialog paints when the ledger moved', (t) => {
+  const fake = fakeDocument(['账号管理', '通用设置', '模型', '内置插件', 'Claude 兼容', 'Agent 预设', '界面美化'])
+  const previousDocument = globalThis.document
+  globalThis.document = fake.document
+  t.after(() => { globalThis.document = previousDocument })
+
+  // Ledger order says rows 1 and 3; the painted dialog shows them at 4 and 6.
+  const ledger = [
+    row('plugins', 15, '内置插件'),
+    row('agent-presets', 20, 'Agent 预设'),
+    row('general', 0, '通用设置'),
+  ]
+  assert.deepEqual(hiddenSectionRows(ledger), [2, 3])
+
+  const harness = context({ ledger })
+  const scope = settings({ streamlinedUiEnabled: true })
+  applyStreamlinedUi(harness.ctx, scope)
+  const navStyle = fake.head[0]
+  assert.equal(navStyle.textContent, navHidingCss([4, 6]))
+  t.after(() => { scope.set({ streamlinedUiEnabled: false }) })
 })
 
 test('the settings stylesheet names one row selector per position and nothing else', () => {

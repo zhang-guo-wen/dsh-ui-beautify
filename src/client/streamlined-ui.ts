@@ -11,16 +11,20 @@
  *    renders nothing, so the host's action stays registered but never shows.
  * 2. **The settings navigation rows** `plugins` and `agent-presets` have no
  *    attribute of their own: the shell renders one button per `settings.section`
- *    entry in ledger order. The rows therefore have to be addressed by position,
- *    and the position is recomputed from the same ledger whenever it changes.
+ *    entry in ledger order. A row is therefore addressed by position — and the
+ *    position is read from the rows the dialog currently paints, matched by the
+ *    registration's own label, so a ledger that moved after the last paint (a
+ *    section plugin activating late, a re-registration, a locale switch) cannot
+ *    leave the rule pointing at a different page. The ledger positions remain the
+ *    fallback for the moment before the dialog exists.
  * 3. **The Agent preset entries** — the new-session chip and the session-header
  *    label — are hidden while the Host's shared Coding Tools preference is
  *    explicitly off. That preference is watched rather than sampled, so
  *    re-enabling Coding Tools restores both entries immediately.
  * 4. **The sidebar's global panel rows** `plugins` and `schedules` leave the
- *    sidebar and reappear in the settings navigation: the sidebar rows carry no
- *    attribute either, so they are addressed by position from the same
- *    `sidebar.panellist` ledger the sidebar projects, and two `settings.section`
+ *    sidebar and reappear in the settings navigation: those rows carry no
+ *    attribute either, so they are matched the same way — by the panel label in
+ *    the rows the sidebar currently paints — and two `settings.section`
  *    registrations take the entries' place, each opening the page it names.
  *
  * Every part installs only while the switch is on and is released when it goes
@@ -121,11 +125,29 @@ export const MOVED_SIDEBAR_PANELS: readonly MovedSidebarPanel[] = [
 export const SIDEBAR_PANEL_ROW_SELECTOR = '[data-slot="sidebar"] > div > nav > button'
 
 /**
+ * The sidebar panel-list element the rows above live in.
+ *
+ * The list itself is the observation target: rows come and go with the panels
+ * the deployment composes, and each addition or removal renumbers every later
+ * row.
+ */
+export const SIDEBAR_NAV_SELECTOR = '[data-slot="sidebar"] > div > nav'
+
+/**
+ * The settings navigation list element, before its row.
+ *
+ * The settings shell paints one `<nav>` inside its modal: the title is that
+ * nav's first `<div>` and the row list its second. The list is the observation
+ * target because the dialog is portalled in and out of the document.
+ */
+export const SETTINGS_NAV_SELECTOR = '[data-shortcut-modal="settings"] nav > div:nth-of-type(2)'
+
+/**
  * One ordered registration as its owner projects it.
  *
- * Only the two members a projection reads are required: the owner maps every
- * registration to its id and `order`, then sorts. Reading a structural subset
- * keeps the row arithmetic testable without constructing slot entries.
+ * Only the members a projection reads are required: the owner maps every
+ * registration to its id, `order`, and label, then sorts. Reading a structural
+ * subset keeps the row arithmetic testable without constructing slot entries.
  */
 export interface OrderedRow {
   /** Row key; a registration always carries one. */
@@ -134,6 +156,8 @@ export interface OrderedRow {
     readonly id?: string | undefined
     /** Row position; absent means 0, as the owners read it. */
     readonly order?: number | undefined
+    /** Row text; a thunk in most registrations, absent when none was declared. */
+    readonly label?: unknown
   }
 }
 
@@ -206,24 +230,178 @@ export function sidebarHidingCss(rows: readonly number[]): string {
 }
 
 /**
+ * Read a registration's label the way its owner's projection does.
+ *
+ * Most registrations pass a thunk so the text follows the locale, so the label
+ * has to be evaluated when the rows are read, not cached at install time. A
+ * thunk whose locale namespace is not ready yet must not take the whole
+ * stylesheet down; the row is then matched by its ledger position instead.
+ * @param label - the registration's `label` option.
+ * @returns the painted row text, or `undefined` when the entry declares none.
+ */
+export function resolveLabel(label: unknown): string | undefined {
+  let value = label
+  if (typeof value === 'function') {
+    try {
+      value = (value as () => unknown)()
+    } catch {
+      return undefined
+    }
+  }
+  if (typeof value !== 'string') return undefined
+  const text = value.trim()
+  return text === '' ? undefined : text
+}
+
+/**
+ * Resolve the hidden settings sections' labels from the ledger.
+ * @param entries - `ctx.slots.entries('settings.section')` at this moment.
+ * @param hidden - section ids to locate; defaults to {@link HIDDEN_SETTINGS_SECTIONS}.
+ * @returns the labels those sections paint, in ledger order, without blanks.
+ */
+export function hiddenSectionLabels(
+  entries: readonly OrderedRow[],
+  hidden: readonly string[] = HIDDEN_SETTINGS_SECTIONS,
+): string[] {
+  const ids = new Set(hidden)
+  return entries.flatMap((entry) => {
+    if (!ids.has(entry.options.id ?? '')) return []
+    const label = resolveLabel(entry.options.label)
+    return label === undefined ? [] : [label]
+  })
+}
+
+/**
+ * Resolve the relocated sidebar panels' labels from the ledger.
+ * @param entries - `ctx.slots.entries('sidebar.panellist')` at this moment.
+ * @param moved - panel ids to locate; defaults to the ids in {@link MOVED_SIDEBAR_PANELS}.
+ * @returns the labels those panels paint, in ledger order, without blanks.
+ */
+export function movedPanelLabels(
+  entries: readonly OrderedRow[],
+  moved: readonly string[] = MOVED_SIDEBAR_PANELS.map(panel => panel.panelId),
+): string[] {
+  const ids = new Set(moved)
+  return entries.flatMap((entry) => {
+    if (!ids.has(entry.options.id ?? '')) return []
+    const label = resolveLabel(entry.options.label)
+    return label === undefined ? [] : [label]
+  })
+}
+
+/**
+ * Resolve the 1-based positions a painted row list gives those labels.
+ *
+ * The dialog and the sidebar paint one text row per registration, but the row
+ * a registration occupies depends on the ledger the owner projected for that
+ * paint — a section plugin that activates late, a re-registration, or a locale
+ * switch can move it after the stylesheet was last written. Reading the painted
+ * rows here keeps a stale snapshot from hiding an unrelated page.
+ * @param list - the painted row list, or `null` while it is not mounted.
+ * @param labels - row texts to locate; empty falls back to the ledger.
+ * @param fallback - 1-based ledger positions, used when nothing matches.
+ * @returns the 1-based positions of the matching rows, ascending and unique.
+ */
+export function liveRowNumbers(
+  list: ParentNode | null,
+  labels: readonly string[],
+  fallback: readonly number[] = [],
+): number[] {
+  if (labels.length === 0) return [...fallback]
+  const buttons = list === null ? [] : [...list.querySelectorAll(':scope > button')]
+  if (buttons.length === 0) return [...fallback]
+  const wanted = new Set(labels)
+  const rows = buttons.flatMap((button, at) => {
+    const text = (button.textContent ?? '').trim()
+    return wanted.has(text) ? [at + 1] : []
+  })
+  return rows.length === 0 ? [...fallback] : rows
+}
+
+/**
+ * Read one row list by selector, tolerating a document without query support.
+ * @param selector - selector of the list element.
+ * @returns the list when it is painted, otherwise `null`.
+ */
+function paintedList(selector: string): ParentNode | null {
+  const query = document.querySelector
+  if (typeof query !== 'function') return null
+  return document.querySelector(selector)
+}
+
+/**
+ * Re-run `sync` whenever one painted row list changes.
+ *
+ * The lists are owned by other plugins: the settings dialog is portalled in and
+ * out of `<body>` each time it opens, and both lists are re-rendered whenever an
+ * owner registers, drops, or relabels a row. A body-level child-list watch
+ * (cheap: only direct children) notices the list mounting and unmounting, and a
+ * targeted watch on the mounted list notices its rows and their texts changing.
+ * @param selector - selector of the list element to watch.
+ * @param sync - callback re-reading the painted rows.
+ * @returns disposer removing every observer.
+ */
+export function watchRowList(selector: string, sync: () => void): () => void {
+  const Observer = globalThis.MutationObserver
+  if (typeof Observer !== 'function' || document.body === undefined) return () => {}
+  let observed: ParentNode | null = null
+  let observer: MutationObserver | null = null
+  let scheduled = false
+  const schedule = (): void => {
+    if (scheduled) return
+    scheduled = true
+    queueMicrotask(() => {
+      scheduled = false
+      sync()
+    })
+  }
+  const attach = (): void => {
+    const list = paintedList(selector)
+    if (list === observed) return
+    observer?.disconnect()
+    observed = list
+    observer = list === null ? null : new Observer(schedule)
+    observer?.observe(list as Node, { childList: true, subtree: true, characterData: true })
+  }
+  const bodyObserver = new Observer(() => {
+    attach()
+    schedule()
+  })
+  bodyObserver.observe(document.body, { childList: true })
+  attach()
+  return () => {
+    bodyObserver.disconnect()
+    observer?.disconnect()
+  }
+}
+
+/**
  * Keep one stylesheet matching the hidden settings navigation rows.
  *
  * The ledger moves whenever a plugin registers or drops a section — the Account
  * row comes and goes with the credential — so the row numbers are recomputed on
- * every change instead of being frozen at install time.
- * @param ctx - client context owning the style element and the subscription.
- * @returns disposer removing the stylesheet and the subscription.
+ * every change instead of being frozen at install time, and every repaint of the
+ * dialog re-reads the rows it actually paints.
+ * @param ctx - client context owning the style element and the subscriptions.
+ * @returns disposer removing the stylesheet and the subscriptions.
  */
 export function installSettingsNavHiding(ctx: Context): () => void {
   const style = document.createElement('style')
   style.dataset.pluginCss = STYLESHEET_ID
   const sync = (): void => {
-    style.textContent = navHidingCss(hiddenSectionRows(ctx.slots.entries('settings.section')))
+    const entries = ctx.slots.entries('settings.section')
+    style.textContent = navHidingCss(liveRowNumbers(
+      paintedList(SETTINGS_NAV_SELECTOR),
+      hiddenSectionLabels(entries),
+      hiddenSectionRows(entries),
+    ))
   }
   sync()
   document.head.appendChild(style)
   const off = ctx.slots.subscribe('settings.section', sync)
+  const offRows = watchRowList(SETTINGS_NAV_SELECTOR, sync)
   return () => {
+    offRows()
     off()
     style.remove()
   }
@@ -233,20 +411,28 @@ export function installSettingsNavHiding(ctx: Context): () => void {
  * Keep one stylesheet matching the relocated sidebar rows.
  *
  * Panels come and go with the plugins that register them, so the row numbers are
- * recomputed on every ledger change instead of being frozen at install time.
- * @param ctx - client context owning the style element and the subscription.
- * @returns disposer removing the stylesheet and the subscription.
+ * recomputed on every ledger change instead of being frozen at install time, and
+ * every repaint of the panel list re-reads the rows it actually paints.
+ * @param ctx - client context owning the style element and the subscriptions.
+ * @returns disposer removing the stylesheet and the subscriptions.
  */
 export function installSidebarPanelHiding(ctx: Context): () => void {
   const style = document.createElement('style')
   style.dataset.pluginCss = SIDEBAR_STYLESHEET_ID
   const sync = (): void => {
-    style.textContent = sidebarHidingCss(movedSidebarRows(ctx.slots.entries('sidebar.panellist')))
+    const entries = ctx.slots.entries('sidebar.panellist')
+    style.textContent = sidebarHidingCss(liveRowNumbers(
+      paintedList(SIDEBAR_NAV_SELECTOR),
+      movedPanelLabels(entries),
+      movedSidebarRows(entries),
+    ))
   }
   sync()
   document.head.appendChild(style)
   const off = ctx.slots.subscribe('sidebar.panellist', sync)
+  const offRows = watchRowList(SIDEBAR_NAV_SELECTOR, sync)
   return () => {
+    offRows()
     off()
     style.remove()
   }

@@ -315,3 +315,47 @@ kind: "package-reference"
 - 日常实例未触碰；隔离实例为 0.2.1-rc.2，安装版 ArcuchiHarness 页面未实测。
 
 ---
+
+## 7、设置导航与侧栏入口按「画出来的行」隐藏（2026-11-01，产物 `67BF7C32` / `8A009CC0`）
+
+起因：用户截图报「界面美化」的「收起多余入口」已打开，但设置导航里的「内置插件」「Agent 预设」两行仍在。
+
+### 环境与产物绑定
+
+| 项 | 值 |
+|---|---|
+| 日期 | 2026-11-01T21:30:00+08:00 |
+| 插件 | @guowenzhang/dsh-ui-beautify@1.6.0（HEAD dac0359 之上未提交改动：本修复与 `lib/` 重建） |
+| 宿主 | 安装版 ArcuchiHarness 0.2.1-rc.2.20261026.1 的 desktop-host（隔离 profile `repro`，非日常实例） |
+| DSH_HOME | `C:\02-codespace\DeepSeek\.scratch\desktop-repro\home`（`profiles/repro` 的 `node_modules` 是 junction，插件指向本仓） |
+| 端口 / URL | 51892 / http://127.0.0.1:51892/?token=***（token 已抹） |
+| Node | v24.12.0 |
+| lib/index.mjs | `67bf7c32c991fcfe2a2bba3f7af29fc0ddbfb18569602c57594459b420bec570`（82786 字节，2026-11-01T13:19:34.076Z） |
+| lib/client.js | `8a009cc00427c19321bb5185f64c431c7ba8d5dfd404e243accf4b2b79229b9c`（315659 字节，2026-11-01T13:19:34.181Z） |
+| 证据文件 | `.scratch/beautify-streamlined/probe.json`、`probe2.json`（探针 `probe.js` / `probe2.js`） |
+
+### 车道结果
+
+| 车道 | 状态 | 读数 |
+|---|---|---|
+| unit（`npm test`，本包脚本） | passed（不含 4 条浏览器探针） | 230 项：221 pass / 4 fail / 5 skip；4 条 fail 全在 `tests/recent-sessions-browser.test.mjs`，原因是该文件把 playwright 硬编码在 `~\\.dsh\\profiles\\desktop\\node_modules\\playwright-core`（本机该目录不存在）。把 `DSH_MOBILE_PLAYWRIGHT` 指向 `~\\.arcuchi\\profiles\\desktop\\node_modules\\playwright-core\\index.mjs` 后单独复跑 **4/4 pass**，与本修复无关，属既有环境路径问题。 |
+| browser（自建探针 `probe2.js`，Playwright + Chrome 155 headless，1386×1195） | passed | 见下 |
+
+### 逐项读数
+
+- **修复前机制**：两份 CSS 的行号只来自账本快照（`ctx.slots.entries(...)` 的 `order` 排序序号）。账本在样式写好之后变化——晚激活的分区、重注册、语言切换——规则就会指到别的页面；用户在页面上的表现正是「开关是开的，两行还在」。
+- **修复后机制**：`hiddenSectionLabels` / `movedPanelLabels` 先按 id 取这两行自己的标签，`liveRowNumbers` 再在**对话框当前画出来的按钮**里按行文本配对出行号；对话框未挂载、或标签取不到时才回退账本序号。`watchRowList` 观察 `document.body` 的直接子节点（对话框 portal 进出）与该列表子树（行增减、文本变化），重画即重算。侧栏同类处理。
+- **修复后浏览器读数**（同一隔离实例，开关默认开）：导航 16 行，`button:nth-of-type(8)`「内置插件」与 `(12)`「Agent 预设」`display:none`；侧栏 `button:nth-of-type(1)`「插件」、`(2)`「自动化任务」`display:none`。
+- **开关来回**：点掉「收起多余入口」→ 两份 `<style>` 从 head 移除，导航 14 行（两个迁入行随释放消失，两行恢复），侧栏两行恢复；再点开 → 两份样式回填、16 行、第 8/12 行重新隐藏。全程 `page.on('console')` / `pageerror` **0 错误**。
+- **重开对话框**：Esc 关闭再打开，行号仍是 8/12（`watchRowList` 在 portal 重新挂载后重算），没有残留指向旧页面的规则。
+- **新增单测**（`tests/streamlined-ui.test.mjs`，+4 项）：标签解析（字符串 / thunk / 抛错 thunk / 非字符串）；按标签定位隐藏行；`liveRowNumbers` 的四条分支（画面行优先、未挂载回退、无匹配回退、未声明标签回退、部分匹配只隐藏画面上的行）；**账本已移位时按画面行隐藏**（账本说 2/3、画面在 4/6，断言样式等于 `navHidingCss([4, 6])`）。
+
+### 本节未覆盖
+
+- **日常实例未触碰**：没有在用户那台实例上取证「当时样式表是空的还是指错行」，本节只证明同一宿主版本下机制正确，并消除「账本快照过期」这一类失败。若修复后仍复现，需要在该实例的 DevTools 里读 `style[data-plugin-css*="streamlined-ui"]` 的 `textContent`。
+- **MutationObserver 开销**未做 Performance 采样：只观察 `document.body` 直接子节点与两个列表子树，但没有长会话流式输出下的帧时间读数。
+- **手机布局**（≤600px 设置弹窗重排）与浅深色主题未重新测量。
+- **Linux / macOS** 未测；`lanes.mjs` 全套车道未跑，本节只跑了本包 `npm test` 与自建浏览器探针。
+- 页面需硬刷新（Ctrl+F5）才会加载新的 `lib/client.js`，本记录不能说明旧页面缓存会不会继续显示旧行为。
+
+---
