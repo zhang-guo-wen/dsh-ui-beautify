@@ -401,3 +401,39 @@ kind: "package-reference"
 - 日常实例未触碰，页面需 Ctrl+F5 才会加载新的客户端产物。
 
 ---
+
+## 9、设置导航行选择器跨宿主版本（2026-11-01，产物 `67BF7C32` / `A4B1FD20`）
+
+起因：用户在**另一台桌面端**（不是 `ArcuchiHarness` 0.2.1 安装版）看到同样现象，并指出实例不同。
+
+### 环境与产物绑定
+
+| 项 | 值 |
+|---|---|
+| 日期 | 2026-11-01T21:50:00+08:00 |
+| 插件 | @guowenzhang/dsh-ui-beautify@1.6.0（本仓改动：`SETTINGS_NAV_ROW_SELECTOR` / `SETTINGS_NAV_SELECTOR` 改为不依赖 nav 内部位置） |
+| 被查实例 | 开发构建 `arcuchi-harness/0.2.2-alpha.2.20261031.4`（Electron 44.7.0 / Chrome 152，页面 `dsh-app://app/`，CDP 9333） |
+| 该实例 DSH_HOME | `C:\02-codespace\deepseek-harness\.agents\worktree\dev-155190\.dsh-build-tmp\arcuchi-home`（profile `desktop`） |
+| 该实例插件来源 | **嵌入副本**：`profiles/desktop/.dsh-preinstalled/6c36b8f7…/bundle.tgz` 里 `@arcuchi/arcuchi-plugins` 的 `embedded/guowenzhang-dsh-ui-beautify`（1.6.0，`lib/client.js` 308798 字节，改动前构建；profile 的 `node_modules/@guowenzhang` 没有该包） |
+| 回归实例 | 第 7/8 节的 0.2.1 隔离实例（同一份产物，端口 63695） |
+| lib/index.mjs | `67bf7c32c991fcfe2a2bba3f7af29fc0ddbfb18569602c57594459b420bec570`（82786 字节，2026-11-01T13:49:39.125Z） |
+| lib/client.js | `a4b1fd20163be0553885c67df009a45bc30924323467384737a24032d7969afc`（315015 字节，2026-11-01T13:49:39.242Z） |
+| 证据文件 | `.scratch/beautify-streamlined/probe-other.json`、`probe-selector-other.json`、`probe4.json` |
+
+### 逐项读数
+
+- **该实例的样式表本身是对的**：读 `style[data-plugin-css*="streamlined-ui"]` 得到 `button:nth-of-type(6)` 与 `(9)`——正是用户截图里「内置插件」第 6 行、「Agent 预设」第 9 行。
+- **侧栏那份是生效的**：`[data-slot="sidebar"] > div > nav > button` 第 1/2 行（插件、自动化任务）`display:none`。所以插件确实加载了，只有设置导航那份没命中。
+- **根因是结构变体**：该构建的宿主 bundle 里，`navTitle` 已从 `<nav>` 里挪到它旁边，`nav` 内只剩 `<div class=navList>`；旧选择器 `[data-shortcut-modal="settings"] nav > div:nth-of-type(2) > button` 要的是「nav 的第二个 div」，于是匹配 **0** 个元素。0.2.1 安装版仍是「nav 里 标题 div + 列表 div」。
+- **同引擎选择器对照**（在该 0.2.2 页面里构造两份脱离文档的 DOM，不入页面）：0.2.1 形状下旧选择器 6 个、新选择器 6 个；0.2.2 形状下旧选择器 **0** 个、新选择器 **6** 个（第 4 个是「内置插件」）。
+- **修正**：`SETTINGS_NAV_ROW_SELECTOR` 改为 `[data-shortcut-modal="settings"] nav button`，`SETTINGS_NAV_SELECTOR` 改为 `[data-shortcut-modal="settings"] nav`（观察与配对都以 nav 为单位，`liveRowNumbers` 改读其后代 `button`）。行号仍优先按画面行文本配对，账本序号只兜底。
+- **0.2.1 回归**：开关开 → 16 行、只藏「内置插件」「Agent 预设」，头部 `settings.action` 子节点 0；关 → 14 行、无隐藏、恢复「打开配置文件」。console 0 错误。
+- **单测**：`tests/streamlined-ui.test.mjs` 断言两个常量都不含 `div:nth-of-type`（防止再次钉住位置），并追加跨版本说明；`npm test` 230 项：225 pass / 0 fail / 5 skip。
+
+### 本节未覆盖
+
+- **没有把修正后的插件装进那台 0.2.2 实例**：它加载的是 `@arcuchi/arcuchi-plugins` 里的嵌入副本，改本仓不影响它；该实例上「修好后确实隐藏」目前只由同引擎的选择器对照证明，不是该实例的最终读数。要真正修好那台，需要重建/重装那份嵌入副本，或把它的 profile 指到本仓（未执行，等用户决定）。
+- 该实例的设置入口在页面里没有可点的 `settings.launcher` 内容，CDP 下没能打开它的设置弹窗，因此没有它的行 `display` 读数。
+- 0.2.2-alpha 的其它界面变化（手机布局、右侧栏）未回归。
+
+---

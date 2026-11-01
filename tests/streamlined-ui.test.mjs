@@ -294,7 +294,12 @@ test('the settings stylesheet names one row selector per position and nothing el
     navHidingCss([2, 4]),
     `${SETTINGS_NAV_ROW_SELECTOR}:nth-of-type(2),\n${SETTINGS_NAV_ROW_SELECTOR}:nth-of-type(4) {\n  display: none;\n}\n`,
   )
-  assert.equal(SETTINGS_NAV_ROW_SELECTOR, '[data-shortcut-modal="settings"] nav > div:nth-of-type(2) > button')
+  // The row selector must not pin the list's position inside the nav: 0.2.1 nests
+  // the title as the nav's first div, 0.2.2-alpha moved it out beside the nav.
+  assert.equal(SETTINGS_NAV_ROW_SELECTOR, '[data-shortcut-modal="settings"] nav button')
+  assert.doesNotMatch(SETTINGS_NAV_ROW_SELECTOR, /div:nth-of-type/)
+  assert.equal(SETTINGS_NAV_SELECTOR, '[data-shortcut-modal="settings"] nav')
+  assert.doesNotMatch(SETTINGS_NAV_SELECTOR, /div:nth-of-type/)
   // The rule hides rows only: it must not carry a colour, a font, or a width.
   assert.doesNotMatch(navHidingCss([1]), /#|rgb\(|hsl\(|font|width|height|opacity/)
 })
@@ -470,7 +475,7 @@ test('the built handoff carries the switch, the selectors, and the relocated row
     'streamlinedUiEnabled',
     // The bundle escapes the attribute's quotes, so the selectors are matched in parts.
     'data-shortcut-modal',
-    'nav > div:nth-of-type(2) > button',
+    'nav > button',
     'data-slot',
     'sidebar',
     'nav > button',

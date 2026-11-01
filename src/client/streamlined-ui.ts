@@ -74,13 +74,16 @@ export const HIDDEN_SETTINGS_SECTIONS: readonly string[] = ['plugins', 'agent-pr
 /**
  * The settings navigation row selector, before its row number.
  *
- * The settings shell paints one `<nav>` inside its modal: the title is that
- * nav's first `<div>`, the row list its second, and every row a `<button>`
- * inside the list, in ledger order. Nothing on a row identifies its section, so
- * a row is addressed by position, computed from the same ledger the shell
- * projects.
+ * The settings shell paints one `<nav>` inside its modal and every row is a
+ * `<button>` inside it, in ledger order. Where the title sits around that nav is
+ * the shell's own business: 0.2.1 nests it as the nav's first `<div>`, and
+ * 0.2.2-alpha moved it out beside the nav, so a selector pinned to the list's
+ * position inside the nav matches nothing on the newer shell (the 2026-11-01
+ * "these two pages will not hide" on a 0.2.2-alpha desktop build). Nothing else
+ * in that nav is a button, so matching the rows by their element alone holds
+ * across both layouts.
  */
-export const SETTINGS_NAV_ROW_SELECTOR = '[data-shortcut-modal="settings"] nav > div:nth-of-type(2) > button'
+export const SETTINGS_NAV_ROW_SELECTOR = '[data-shortcut-modal="settings"] nav button'
 
 /** Id of the settings header action that opens the configuration file. */
 export const OPEN_DOCUMENT_ACTION_ID = 'open-document'
@@ -134,13 +137,16 @@ export const SIDEBAR_PANEL_ROW_SELECTOR = '[data-slot="sidebar"] > div > nav > b
 export const SIDEBAR_NAV_SELECTOR = '[data-slot="sidebar"] > div > nav'
 
 /**
- * The settings navigation list element, before its row.
+ * The settings navigation element, whose buttons are the rows.
  *
- * The settings shell paints one `<nav>` inside its modal: the title is that
- * nav's first `<div>` and the row list its second. The list is the observation
- * target because the dialog is portalled in and out of the document.
+ * The observation target is the nav itself rather than the list inside it:
+ * 0.2.1 nests the list as the nav's second `<div>`, while 0.2.2-alpha moved the
+ * title out and left the list as the nav's only child, so pinning the list by
+ * position breaks on one of them (see {@link SETTINGS_NAV_ROW_SELECTOR}). The
+ * nav is laid out inside the portalled dialog, so it appears and disappears with
+ * the dialog.
  */
-export const SETTINGS_NAV_SELECTOR = '[data-shortcut-modal="settings"] nav > div:nth-of-type(2)'
+export const SETTINGS_NAV_SELECTOR = '[data-shortcut-modal="settings"] nav'
 
 /**
  * One ordered registration as its owner projects it.
@@ -297,7 +303,9 @@ export function movedPanelLabels(
  * paint — a section plugin that activates late, a re-registration, or a locale
  * switch can move it after the stylesheet was last written. Reading the painted
  * rows here keeps a stale snapshot from hiding an unrelated page.
- * @param list - the painted row list, or `null` while it is not mounted.
+ * @param list - the painted row container (the nav or the list), or `null` while
+ *   it is not mounted. Its buttons are the rows, at whatever depth the shell
+ *   places them.
  * @param labels - row texts to locate; empty falls back to the ledger.
  * @param fallback - 1-based ledger positions, used when nothing matches.
  * @returns the 1-based positions of the matching rows, ascending and unique.
@@ -308,7 +316,7 @@ export function liveRowNumbers(
   fallback: readonly number[] = [],
 ): number[] {
   if (labels.length === 0) return [...fallback]
-  const buttons = list === null ? [] : [...list.querySelectorAll(':scope > button')]
+  const buttons = list === null ? [] : [...list.querySelectorAll('button')]
   if (buttons.length === 0) return [...fallback]
   const wanted = new Set(labels)
   const rows = buttons.flatMap((button, at) => {
