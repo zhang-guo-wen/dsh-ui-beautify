@@ -359,3 +359,45 @@ kind: "package-reference"
 - 页面需硬刷新（Ctrl+F5）才会加载新的 `lib/client.js`，本记录不能说明旧页面缓存会不会继续显示旧行为。
 
 ---
+
+## 8、开关行只有开关本身可点（2026-11-01，产物 `67BF7C32` / `BAEB0031`）
+
+起因：用户问「除了点开关，点整个卡片是不是也会翻」——旧实现确实给开关行的行容器挂了按下处理器（粗指针下把整行当 44px 靶子）。用户选择**全部只留开关**，手机也一样，接受 36×20 的点击目标。
+
+### 环境与产物绑定
+
+| 项 | 值 |
+|---|---|
+| 日期 | 2026-11-01T21:31:00+08:00 |
+| 插件 | @guowenzhang/dsh-ui-beautify@1.6.0（上一节之后：删除 `src/client/row-toggle.ts` 与四处 `onClick`，去掉开关行的 `min-height:44px`/`cursor:pointer`） |
+| 宿主 | 安装版 ArcuchiHarness 0.2.1-rc.2.20261026.1 的 desktop-host（隔离 profile `repro`，非日常实例） |
+| DSH_HOME | `C:\02-codespace\DeepSeek\.scratch\desktop-repro\home`（`profiles/repro`） |
+| 端口 / URL | 55553 / http://127.0.0.1:55553/?token=***（token 已抹） |
+| Node | v24.12.0 |
+| lib/index.mjs | `67bf7c32c991fcfe2a2bba3f7af29fc0ddbfb18569602c57594459b420bec570`（82786 字节，2026-11-01T13:28:29.736Z，与上一节相同：宿主半边未改） |
+| lib/client.js | `baeb00315c4ec98a1884dca10b33cd9463ba268550738e31f22b5c5f037287a9`（314511 字节，2026-11-01T13:28:29.847Z） |
+| 证据文件 | `.scratch/beautify-streamlined/probe3.json`（探针 `probe3.js`） |
+
+### 车道结果
+
+| 车道 | 状态 | 读数 |
+|---|---|---|
+| unit（`npm test`，本包脚本） | passed | 230 项：225 pass / 0 fail / 5 skip（4 条浏览器探针用 `DSH_MOBILE_PLAYWRIGHT` 指向 `.arcuchi` 的 playwright 后计入 pass） |
+| browser（`probe3.js`，Playwright + Chrome 155 headless，1386×1195） | passed | 见下 |
+
+### 逐项读数
+
+- **点标题不翻**：`[data-beautify-feature="streamlinedUiEnabled"]` 行内点「收起多余入口」标题 → `aria-checked` 仍为 `true`。
+- **点描述不翻**：点描述文字 → 仍为 `true`。
+- **开关本身照常**：点开关 → `false`；再点 → `true`。
+- **导航隐藏不受影响**：开关打开时导航 16 行，`display:none` 的恰好是「内置插件」「Agent 预设」；开关关闭时 14 行、无隐藏行（两行迁入行随释放消失）。
+- 全程 `page.on('console')` / `pageerror` **0 错误**。
+- **单测**：`tests/client.mjs` 把「行内按下会翻」改为「行容器没有 `onClick`」，`row-toggle.ts` 与其两处断言删除。
+
+### 本节未覆盖
+
+- **触屏点击目标**只有静态结论（开关本体 36×20），没有真机或 `pointer: coarse` 模拟下的误点率读数。
+- 手机布局（≤600px）、浅深色主题、`prefers-reduced-motion` 未重新测量；`lanes.mjs` 全套车道仍未跑。
+- 日常实例未触碰，页面需 Ctrl+F5 才会加载新的客户端产物。
+
+---

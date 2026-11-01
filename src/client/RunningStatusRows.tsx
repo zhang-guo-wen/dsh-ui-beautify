@@ -6,7 +6,6 @@ import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { BRAND_ROUTE, MAX_BRAND_IMAGE_BYTES } from '../params.ts'
 import { imageUrl } from './image-url.ts'
 import { NS } from './locales.ts'
-import { rowToggle } from './row-toggle.ts'
 import { SaveNote } from './SaveNote.tsx'
 import type { SettingsRowFace } from './settings-controller.ts'
 import css from './SettingRow.module.css'
@@ -93,8 +92,7 @@ export function ReplaceRunningIconRow(props: Props): ReactNode {
     : !state.fields.replaceRunningIcon ? t('stale') : !state.writable ? t('readonly') : ''
   const disabled = !state.available || !state.writable || !state.fields.replaceRunningIcon
   return (
-    <div className={css.row} data-beautify-feature="replaceRunningIcon"
-      onClick={rowToggle(disabled, () => { choose('replaceRunningIcon', !state.replaceRunningIcon) })}>
+    <div className={css.row} data-beautify-feature="replaceRunningIcon">
       <div className={css.rowText}>
         <div className={css.title}>{t('replaceRunningIconTitle')}</div>
         <div className={css.desc}>{t('replaceRunningIconDesc')}</div>

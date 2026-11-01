@@ -290,14 +290,10 @@
 
 /* Touch targets follow the pointer, not the window: a phone held in landscape,
    or a tablet, is wider than the 600px phone breakpoint and needs the same
-   44px. A switch row's own press handler makes that whole band a target; the
-   host switch keeps its 36x20 body, which a plugin may not resize. */
+   44px. Only the row's own control is a target: a switch row carries no press
+   handler of its own (2026-11-01), so the host switch keeps its 36x20 body and
+   the row is not dressed up as one big button. */
 @media (pointer: coarse) {
-  [data-beautify-mobile-layout] .row:has(> button[role='switch']) {
-    min-height: 44px;
-    cursor: pointer;
-  }
-
   /* Every row control, including the host Button the translation row renders. */
   [data-beautify-mobile-layout] .row > button:not([role='switch']) {
     min-height: 44px;

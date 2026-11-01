@@ -1332,18 +1332,10 @@ for (const [componentName, field, title, desc] of [
   check(`${field} stays visible on phones`, !byClass('row')[0].props.className.includes('desktopOnly'))
   control.props.onChange(false)
   check(`${field} writes false to only its own field`, JSON.stringify(toggleWrites.at(-1)) === JSON.stringify([field, false]))
-  // A coarse pointer needs a 44px target, and the host switch is a fixed 36x20
-  // body no plugin may resize: the row's own press is the wider target.
+  // Only the switch answers a press (2026-11-01): the row carries no handler of
+  // its own, so a press on the title or the description changes nothing.
   const rowElement = elements.find(element => element.props?.className?.endsWith('_row'))
-  const writesBeforeRowPress = toggleWrites.length
-  rowElement?.props.onClick({ target: { closest: () => null } })
-  check(`${field} flips from a press anywhere on its row`,
-    JSON.stringify(toggleWrites.at(-1)) === JSON.stringify([field, !control.props.checked]),
-    JSON.stringify(toggleWrites.at(-1)))
-  rowElement?.props.onClick({ target: { closest: selector => selector.includes('button') ? {} : null } })
-  check(`${field} leaves the switch's own press to the switch`,
-    toggleWrites.length === writesBeforeRowPress + 1,
-    String(toggleWrites.length - writesBeforeRowPress))
+  check(`${field} row carries no press handler of its own`, rowElement?.props?.onClick === undefined)
   face.choose(field, false)
   await settle()
   for (const notify of subscribers) notify()

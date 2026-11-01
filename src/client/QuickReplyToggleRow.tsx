@@ -4,7 +4,6 @@ import { Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { NS } from './locales.ts'
 import type { SettingsRowFace } from './settings-controller.ts'
-import { rowToggle } from './row-toggle.ts'
 import { SaveNote } from './SaveNote.tsx'
 import css from './SettingRow.module.css'
 
@@ -18,8 +17,7 @@ export function QuickReplyToggleRow({ useBeautify, t, choose, retry }: QuickRepl
   const disabled = !state.available || !state.writable || !state.fields.quickRepliesEnabled
 
   return (
-    <div className={`${css.row} ${css.desktopOnly}`}
-      onClick={rowToggle(disabled, () => { choose('quickRepliesEnabled', !state.quickRepliesEnabled) })}>
+    <div className={`${css.row} ${css.desktopOnly}`}>
       <div className={css.rowText}>
         <div className={css.title}>{t('quickTitle')}</div>
         <div className={css.desc}>{t('quickReplyToggleDesc')}</div>

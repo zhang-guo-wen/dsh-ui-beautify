@@ -4,7 +4,6 @@ import { Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { NS } from './locales.ts'
 import type { SettingsRowFace } from './settings-controller.ts'
-import { rowToggle } from './row-toggle.ts'
 import { SaveNote } from './SaveNote.tsx'
 import css from './SettingRow.module.css'
 
@@ -56,8 +55,7 @@ function FeatureToggleRow({ useBeautify, t, choose, retry, field, title, descrip
   const detail = !state.available ? t('unavailable')
     : !state.fields[field] ? t('stale') : !state.writable ? t('readonly') : ''
   const disabled = !state.available || !state.writable || !state.fields[field]
-  return <div className={css.row} data-beautify-feature={field}
-    onClick={rowToggle(disabled, () => { choose(field, !state[field]) })}>
+  return <div className={css.row} data-beautify-feature={field}>
     <div className={css.rowText}>
       <div className={css.title}>{t(title)}</div>
       <div className={css.desc}>{t(description)}</div>

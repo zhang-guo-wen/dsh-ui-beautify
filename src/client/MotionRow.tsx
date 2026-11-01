@@ -4,7 +4,6 @@ import { Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SettingsRowFace } from './settings-controller.ts'
 import { NS } from './locales.ts'
-import { rowToggle } from './row-toggle.ts'
 import { SaveNote } from './SaveNote.tsx'
 import css from './SettingRow.module.css'
 
@@ -15,8 +14,7 @@ export function MotionRow({ useBeautify, t, choose, retry }: MotionRowProps): Re
   const detail = !state.available ? t('unavailable')
     : !state.fields.motion ? t('stale') : !state.writable ? t('readonly') : ''
   const disabled = !state.available || !state.writable || !state.fields.motion
-  return <div className={css.row} data-beautify-motion=""
-    onClick={rowToggle(disabled, () => { choose('motion', state.motion === 'always' ? 'off' : 'always') })}>
+  return <div className={css.row} data-beautify-motion="">
     <div className={css.rowText}>
       <div className={css.title}>{t('motionTitle')}</div>
       <div className={css.desc}>{t('motionDesc')}</div>

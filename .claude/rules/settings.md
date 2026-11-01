@@ -12,7 +12,6 @@ paths:
   - "src/client/BrandRows.tsx"
   - "src/client/branding.tsx"
   - "src/client/tagline.ts"
-  - "src/client/row-toggle.ts"
   - "src/client/MotionRow.tsx"
   - "src/client/locales.ts"
   - "locale/**"
@@ -77,8 +76,8 @@ paths:
 - **只贡献 `settings.section` 的页面不套 960px 内容列**（BASELINE §3.3）：`BeautifySection.module.css` 的 `.page` 用 `container-type: inline-size` + `max-width: 760px`，与宿主 `ui-settings-plugin-inventory` 的 `.section` 一致；`SettingRow.module.css` 的 `@container (max-width: 440px)` 在同一档把行改为纵向堆叠、`.rowText` 右留白从 48px 收到 16px。**容器必须匿名**：CSS Modules（lightningcss）按所在文件给 `container-name` 加哈希前缀，声明在 `BeautifySection.module.css`、查询在 `SettingRow.module.css` 时会变成两个名字（实测产物曾是 `container:VrIHLG_beautify-page/inline-size` vs `@container xrCt8G_beautify-page (width<=440px)`），查询永不匹配、整块规则是死代码——2026-10-16 由另一路浏览器验收发现（task-19），改为匿名后修复。`tests/settings-layout.test.mjs` 现在断言两侧都匿名，`tests/client.mjs` 的产物检查确保构建后仍如此。
   真实浏览器实测（隔离实例 0.2.0-rc.2，端口 61673，Chromium 155）：窗口 **601px** 时 `.page` 内容宽 312–317px、`(max-width: 600px)` 不匹配，`.row` 计算值 `flex-direction: column`、`.rowText` `padding-right: 0px` → 由容器查询接管；窗口 **600px** 时 `.page` 544px、`(max-width: 600px)` 匹配，`.row` 仍 `column` → 由既有手机媒体查询提供（≤600px 行为未变）。`.page` 计算值 `container-name: none` / `container-type: inline-size`。
   `mobile-layout.css` 的手机抽屉仍按窗口宽度与 `data-beautify-mobile-layout` 判，因为宿主抽屉断点本身是视口级的。
-- **粗指针下的开关行走整行 44px**：宿主 `Switch` 固定 36×20，插件不改控件本体；`rowToggle()`（`row-toggle.ts`）给开关行的行容器一个按下处理器，命中 `button/input/select/textarea/a` 的按下留给控件自己（否则会翻两次或抢走「重试」的按下）。`@media (pointer: coarse)` 只负责行高/光标与文本输入 16px/44px。
-- 回归：`tests/client.mjs` 覆盖三态（含重试、失败、退场）、重复点击去重、缓存读取合并与触发收窄、按角色重装（另一角色的 `<link>` 节点身份不变）、行内按下、IME 四条路径（`isComposing`、仅 229、关闭键、普通 Enter）与失焦仍保存、字段不以值为 key；`tests/settings-layout.test.mjs` 与 `tests/recent-sessions.test.mjs` 跟随容器与变量改名。`_team/audit-ui-standard.mjs dsh-ui-beautify` 从 HEAD 的 23 条降到 12 条：11 条是 `mobile-layout.css` / `recent-sessions.css` 覆盖宿主样式所需的 `!important`（标准未禁止），1 条 `token-redefine` 是 `--dsh-composer-side-clearance` —— 它是宿主自己在 `ui-conversation/.../ConversationRoot.module.css:389` 声明、供多处消费的布局变量，就地 rebind 才能生效，改名会直接失效。
+- **开关行只有开关本身可点（2026-11-01 用户要求改掉整行可点）**：宿主 `Switch` 固定 36×20，插件不改控件本体，**行容器不挂按下处理器**——点标题、描述或行内空白都不会翻转，桌面与触屏一致；`row-toggle.ts` 已删除，`@media (pointer: coarse)` 不再给开关行 `min-height: 44px` / `cursor: pointer`（那会让整行看起来可点）。代价是手机上开关的点击目标就是 36×20，用户已知并接受。其余行控件（字体下拉、选图按钮、文本输入、重试）仍各自 44px。
+- 回归：`tests/client.mjs` 覆盖三态（含重试、失败、退场）、重复点击去重、缓存读取合并与触发收窄、按角色重装（另一角色的 `<link>` 节点身份不变）、**开关行容器无按下处理器**、IME 四条路径（`isComposing`、仅 229、关闭键、普通 Enter）与失焦仍保存、字段不以值为 key；`tests/settings-layout.test.mjs` 与 `tests/recent-sessions.test.mjs` 跟随容器与变量改名。`_team/audit-ui-standard.mjs dsh-ui-beautify` 从 HEAD 的 23 条降到 12 条：11 条是 `mobile-layout.css` / `recent-sessions.css` 覆盖宿主样式所需的 `!important`（标准未禁止），1 条 `token-redefine` 是 `--dsh-composer-side-clearance` —— 它是宿主自己在 `ui-conversation/.../ConversationRoot.module.css:389` 声明、供多处消费的布局变量，就地 rebind 才能生效，改名会直接失效。
 
 ## 功能开关（2026-10-08）
 
