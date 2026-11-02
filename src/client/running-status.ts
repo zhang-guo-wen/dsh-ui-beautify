@@ -31,6 +31,7 @@ import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { BeautifySettings } from '../fonts.ts'
 import { imageUrl } from './image-url.ts'
 import { watchFeature } from './feature-switch.ts'
+import { textNodesOf, writeText } from './dom-text.ts'
 
 /**
  * The host's status row, and the text inside it that carries the phrase.
@@ -149,29 +150,6 @@ export function rewriteRunningText(text: string, phrase: string): string {
   return parts.rest === '' ? wanted : `${wanted}${parts.rest}`
 }
 
-/**
- * Collect the row's text nodes, leaving every element where the host put it.
- *
- * The row renders the phrase twice: the visible copy as a text node, and the
- * copy the highlight sweeps over as a `data-shimmer-text` attribute whose
- * pseudo-element paints it. Both are addressed through the node that carries
- * them — text nodes and attributes — and never through `textContent` on the
- * element that contains them.
- * @param node - the row element whose phrase is rewritten.
- * @returns the text nodes inside that element, in document order.
- */
-function textNodesOf(node: Node): Text[] {
-  const found: Text[] = []
-  const visit = (current: Node): void => {
-    for (const child of current.childNodes) {
-      if (child.nodeType === 3) found.push(child as Text)
-      else visit(child)
-    }
-  }
-  visit(node)
-  return found
-}
-
 /** Elements under the row whose pseudo-element paints the phrase from an attribute. */
 function generatedCopiesOf(node: Element): Element[] {
   const found: Element[] = []
@@ -200,16 +178,15 @@ function generatedCopiesOf(node: Element): Element[] {
  */
 export function installRunningText(root: Document, readPhrase: () => string): () => void {
   const apply = (node: Element): void => {
-    const texts = textNodesOf(node)
     const generated = generatedCopiesOf(node)
     // The visible copy is the host's text, and after a rewrite it is what the
     // next sweep compares against, which is what terminates the loop: the
     // rewrite is idempotent, so the record this write produces finds nothing to
     // do and stops.
-    const host = texts[0]?.nodeValue ?? generated[0]?.getAttribute(GENERATED_TEXT_ATTRIBUTE) ?? ''
+    const host = textNodesOf(node)[0]?.nodeValue ?? generated[0]?.getAttribute(GENERATED_TEXT_ATTRIBUTE) ?? ''
     const next = rewriteRunningText(host, readPhrase())
     if (next === host) return
-    for (const text of texts) if (text.nodeValue !== next) text.nodeValue = next
+    writeText(node, next)
     for (const copy of generated) {
       if (copy.getAttribute(GENERATED_TEXT_ATTRIBUTE) !== next) copy.setAttribute(GENERATED_TEXT_ATTRIBUTE, next)
     }

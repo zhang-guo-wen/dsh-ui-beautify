@@ -27,7 +27,19 @@ const bundle = new URL('../lib/client.js', import.meta.url)
 
 console.log('module evaluation')
 const head = []
-const headline = { textContent: '探索未至之境' }
+/** A host element whose whole content is one text node, like the hero headline. */
+const makeTextElement = text => {
+  const textNode = { nodeType: 3, nodeValue: text, parent: null }
+  const element = {
+    nodeType: 1,
+    childNodes: [textNode],
+    get textContent() { return textNode.nodeValue },
+    set textContent(value) { textNode.nodeValue = value },
+  }
+  textNode.parent = element
+  return element
+}
+const headline = makeTextElement('探索未至之境')
 // The sidebar cell the host fills while no custom name is set. Its text is the
 // deployment's product name in a packaged build, so the hint must read it rather
 // than repeat a copy of one.
