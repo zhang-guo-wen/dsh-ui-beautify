@@ -1539,6 +1539,80 @@ check('switching it on restores the up button',
   JSON.stringify(shownPrompt.map(element => element.props['aria-label'])))
 check('the control stays in the composer dock either way',
   registrations.filter(entry => entry.definition.id === 'ui-beautify-to-prompt').length === 1)
+console.log('the up button loads the older page instead of vanishing at the boundary')
+// At the end of the loaded history every round is in view, so the host's own
+// "load earlier" control is the only thing above the reader. The up button must
+// stay, press that control, and land on the round the new page added.
+const earlierJumps = []
+const earlierEvents = []
+const boundaryScroller = {
+  // The host's paging anchor left the reader where the old page boundary was.
+  scrollTop: 614,
+  addEventListener() {},
+  removeEventListener() {},
+  getBoundingClientRect: () => ({ top: 120 }),
+  scrollTo(options) { earlierJumps.push(options); this.scrollTop = Math.max(0, options.top) },
+  dispatchEvent(event) { earlierEvents.push(event.type) },
+}
+const hostEarlierButton = { tagName: 'BUTTON', disabled: false, clicks: 0, click() { this.clicks += 1 } }
+const hostEarlierWrapper = { hasAttribute: () => false, childElementCount: 1, firstElementChild: hostEarlierButton }
+/** A prompt `offset` pixels into the flow, measured the way the browser would. */
+const boundaryPrompt = offset => ({
+  offset,
+  closest: () => null,
+  getClientRects: () => [{}],
+  getBoundingClientRect: () => ({ top: 120 + offset - boundaryScroller.scrollTop }),
+})
+const inViewPrompt = boundaryPrompt(2000)
+const olderPrompt = boundaryPrompt(500)
+// What the host committed so far: one round, already in view, and the first row
+// the older-page wait compares against.
+const boundaryState = { rows: [inViewPrompt] }
+const boundaryFlow = {
+  children: [hostEarlierWrapper],
+  closest: () => boundaryScroller,
+  parentElement: { parentElement: { parentElement: promptFrame } },
+  querySelector: () => boundaryState.rows[0] ?? null,
+  querySelectorAll: () => boundaryState.rows,
+}
+conversationDom.content = {
+  querySelector: selector => selector === '[data-chat-flow]' ? boundaryFlow : null,
+}
+const mountBoundary = key => {
+  const props = { t, useBeautify: selector => selector({ ...snapshot(), scrollToPromptEnabled: true }) }
+  mount(key, promptEntry.component, props)
+  mount(key, promptEntry.component, props)
+  return elements.filter(element => element.type === 'button')
+}
+const boundaryControl = mountBoundary('prompt-boundary')[0]
+check('the up button stays while the host still holds an older page', boundaryControl !== undefined)
+boundaryControl.props.onClick()
+check('one press asks the host for the older page', hostEarlierButton.clicks === 1)
+check('the control is disabled while that page is in flight',
+  mountBoundary('prompt-boundary')[0].props.disabled === true)
+// The host commits the page: a round above the viewport becomes the first row and
+// its own control returns to enabled. The press then lands that round 24px below
+// the readable top and holds it there for a few frames.
+boundaryState.rows = [olderPrompt, inViewPrompt]
+hostEarlierButton.disabled = false
+const runFrames = (limit = 20) => {
+  let count = 0
+  while (clock.frame !== null && count < limit) {
+    const frame = clock.frame
+    clock.frame = null
+    frame()
+    count += 1
+  }
+  return count
+}
+runFrames()
+check('the landing steps one round up instead of jumping to the page start',
+  earlierJumps.length === 1 && earlierJumps[0].top === 476 && earlierJumps[0].behavior === 'instant',
+  JSON.stringify(earlierJumps))
+check('the landing settles host reading like every other jump',
+  earlierEvents.join(',') === 'scroll,scrollend', earlierEvents.join(','))
+check('the control is ready again after the page lands',
+  mountBoundary('prompt-boundary')[0].props.disabled === false)
 
 console.log('the conversation-start chip previews the round above')
 // The same host-node stand-in, extended for the chip: the target row carries a

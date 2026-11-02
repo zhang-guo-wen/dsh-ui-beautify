@@ -55,3 +55,9 @@
 .slot .button:hover {
   background: var(--dsw-alias-button-floating-hover);
 }
+
+/* The press asked the host for the older page and is waiting for its rows. */
+.slot .button:disabled {
+  cursor: default;
+  background: var(--dsw-alias-button-floating-fill);
+}

@@ -10,6 +10,9 @@
  */
 import { READING_INSET, readableTopOf } from './reading-top.ts'
 
+/** Every rendered transcript row, whatever its kind; a prepended page changes the first one. */
+export const FLOW_ROW_SELECTOR = '[data-chat-flow-kind]'
+
 export const PROMPT_SELECTOR = '[data-chat-flow-kind="user"], [data-chat-flow-kind="steering"]'
 
 /** The scroller a Chat flow reports to; the conversation body owns it when present. */
@@ -56,13 +59,17 @@ export function promptPreviewText(row: HTMLElement, limit = 400): string {
   return `${Array.from(text).slice(0, limit).join('')}…`
 }
 
-/** Position the nearest prompt above the reader, leaving a small reading inset. */
-export function scrollToPrompt(flow: HTMLElement): boolean {
+/**
+ * Position one row at the reading inset and settle the host's reader sampling,
+ * so the move is navigation rather than following the tail.
+ * @param flow - the Chat flow the row belongs to.
+ * @param row - the row to land at.
+ * @returns whether the flow had a scrollport to move.
+ */
+export function landRow(flow: HTMLElement, row: HTMLElement): boolean {
   const scroller = promptScrollerOf(flow)
   if (scroller === null) return false
-  const row = nearestPromptAbove(flow, scroller)
-  if (row === null) return false
-  // The session-start chip hangs over the scrollport's top edge; the prompt must
+  // The session-start chip hangs over the scrollport's top edge; the row must
   // land below it, not behind it.
   const top = scroller.scrollTop + row.getBoundingClientRect().top - readableTopOf(flow, scroller) - READING_INSET
   scroller.scrollTo({ top: Math.max(0, top), behavior: 'instant' })
@@ -71,4 +78,13 @@ export function scrollToPrompt(flow: HTMLElement): boolean {
   scroller.dispatchEvent(new Event('scroll'))
   scroller.dispatchEvent(new Event('scrollend'))
   return true
+}
+
+/** Position the nearest prompt above the reader, leaving a small reading inset. */
+export function scrollToPrompt(flow: HTMLElement): boolean {
+  const scroller = promptScrollerOf(flow)
+  if (scroller === null) return false
+  const row = nearestPromptAbove(flow, scroller)
+  if (row === null) return false
+  return landRow(flow, row)
 }

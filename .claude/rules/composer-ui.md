@@ -6,6 +6,7 @@ paths:
   - "src/client/follow-output.ts"
   - "src/client/output-rate.ts"
   - "src/client/scroll-to-prompt.ts"
+  - "src/client/earlier-page.ts"
   - "src/client/ScrollToPrompt.tsx"
   - "src/client/ScrollToPrompt.module.css"
   - "src/client/SessionStartChip.tsx"
@@ -18,6 +19,7 @@ paths:
   - "src/client/unread-answer-start.ts"
   - "tests/output-rate.test.mjs"
   - "tests/scroll-to-prompt.test.mjs"
+  - "tests/earlier-page.test.mjs"
   - "tests/scroll-to-prompt-browser.test.mjs"
   - "tests/context-ring.test.mjs"
   - "tests/composer-stats.test.mjs"
@@ -94,6 +96,8 @@ composer 卡片正上方那条整宽插槽是 `conversation.input.dock`（ui-con
 `ScrollToPrompt.tsx` 在 `conversation.input.dock` 注册零高度定位锚点，通过 portal 把向上按钮放入当前 Chat frame，保持宿主向下按钮不变。按钮复用宿主 Button、向上图标与 floating token，位于向下按钮左侧 42px。**2026-10-15 用户把目标从「最近一条提问」改成逐轮向上**：目标一律是「当前视口上方最近的一条可见 `user` / `steering` 已发送消息」——也就是读者正处的那一轮的开头；跳过去后（**可视顶部**下 24px 阅读缩进；会话开始行可见时可视顶部是它底边，见「浮动行与跳转落点」）下一次点击落到再上一轮，连续点击逐轮走回更早的对话。`nearestPromptAbove(flow, scroller)` 是这一判据的唯一实现，按钮与胶囊共用；切到没有可见提问（如空会话、或已停在最早一轮）时隐藏。不跳到整个历史开头、不读取草稿。滚动后立即交付 scroll/scrollend，让宿主结束读者位置采样、停止追随输出；切换轨迹视图或卸载时释放 portal、滚动监听与观察器。
 
 设置页「界面增强」第一行是它的开关：`scrollToPromptEnabled`（默认 `true` 的 volatile 字段）。注册时带上 `inject: () => controller.inject()`，组件读同一份设置快照；关闭时组件返回 `null`（**插槽条目照常注册**，否则重开就没法恢复），定位 effect 以该开关为依赖重跑——关着的时候没有锚点，重新打开必须重新定位，否则按钮再也不会出现。新增字段需要宿主重启一次，旧 schema 会把这一行显示成 `stale`。
+
+**2026-11-02：已加载历史用完后，同一颗箭头自动补页（用户原话「向上箭头，能自动滚动其加载更早，而不是需要手动点击一下」）。** 分页会话里滚到已加载历史开头时，视口上方没有已发送提问，旧实现把按钮隐藏，读者只能去点宿主自己的「加载更早」。现在 `src/client/earlier-page.ts` 在 `[data-chat-flow]` 里按结构找宿主的那个按钮（`flow` 的前几个元素子节点里、`div` 只含一个 `BUTTON` 的那个；消息行带 `data-chat-flow-kind`，命中即停，所以行内按钮不会被误当成它——**不要改成按文案「加载更早」匹配**，宿主文案随语言变）。按钮的可见判据从「上方有提问」改成「上方有提问 **或** 宿主还有更早一页（控件存在即可，加载中也要留着，否则请求期间会闪掉）」。点击：能跳就照旧逐轮跳；跳不了就 `requestEarlierPage()` 点一下宿主控件，等新页提交后 `scrollToPrompt()` 落到「视口上方最近的那条提问」——**只往上走一步，不跳到新页顶端**（用户 2026-11-02 明确选了这个，另一选项是「跳到那一页最早的一条」）。判「新页到了」用**首行身份变化**而不是行数增长：流式输出只会在尾部追加，不会换掉首行，把它当成补页会抢走读者位置；宿主把按钮 `disabled` 期间不动，且要连续 `EARLIER_PAGE_SETTLE_FRAMES` 帧（2 帧）才进入落点。**落点不能只做一次，也不能靠重试赢**（2026-11-02 真实浏览器实测两次）：宿主 `ChatNavigation.contentCommitted → ChatViewport.preserve → write` 在分页后**一直 armed**，每次程序化 `scrollTo` 之后同一毫秒就按锚点写回 `scrollTop`，而且写回发生在宿主自己的 `scroll` 事件投递之前——它永远等不到 `readerSampled`，所以等多久、重试多少次都会被打回。**可用解**：落点前在 `[data-conversation-scroll]` 上派发一次**合成的 `pointerdown`**（`releasePagingAnchor()`；宿主 `ChatViewport` 把 `wheel/touchstart/pointerdown/keydown/beforematch` 监听在 scroller 上且不查 `isTrusted`，命中后 `stopPreserving()`），实测派发后 12/12 帧稳在目标位置。之后捕获一次目标行（`nearestPromptAbove`），逐帧校验它距可视顶部是否 24px（±1px）：偏了就用 `landRow()` 再落一次，连续 `EARLIER_LAND_SETTLE_FRAMES` 帧（3 帧）稳住才收手；`landRow()` 连续 `EARLIER_LAND_STUCK_FRAMES` 帧（2 次）都没让 `scrollTop` 变化（历史顶端 clamp 到 0）也收手，避免死等。`landRow()` 是 `scrollToPrompt()` 与补页落点共用的唯一实现（含 `scroll`/`scrollend` 交付）。10 秒没等到就放弃（`EARLIER_PAGE_TIMEOUT_MS`），只解除等待，不影响宿主随后自己加载完的那一页。请求期间按钮 `disabled`（Busy），卸载或关开关时取消等待但**不撤销**宿主已发起的加载。
 
 `npm run test:scroll` 覆盖逐轮定位与空白/隐藏消息；真实浏览器回归设置 `DSH_SCROLL_URL`、`DSH_SCROLL_WORKSPACE`、`DSH_SCROLL_SESSION`，选择已有长对话，隔离测试浏览器仅替换本次 client bundle 响应，不覆盖正在使用的插件目录。验收包括向上/原向下、393px/桌面、浅色/深色、轨迹切换清理（按钮与胶囊都清掉），以及关掉开关后按钮消失、重开立即恢复。
 
