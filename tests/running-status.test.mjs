@@ -47,33 +47,69 @@ test('rewriting is idempotent, so a settled row never marks itself', () => {
 })
 
 // ---------------------------------------------------------------------------
-// A minimal document: just the element and observer surface both installers use.
+// A minimal document: the element, text, and observer surface both installers
+// use. Elements keep their children the way the browser does — assigning
+// `textContent` drops them — because leaving the host's React tree standing is
+// exactly what the phrase rewrite must not break.
 // ---------------------------------------------------------------------------
+function textNode(value) {
+  return {
+    nodeType: 3,
+    nodeValue: value,
+    parent: null,
+    get textContent() { return this.nodeValue },
+    set textContent(next) { this.nodeValue = next },
+  }
+}
+
 function element(attributes = {}, children = []) {
   const node = {
-    children,
+    nodeType: 1,
+    tag: undefined,
     attributes: { ...attributes },
-    textContent: '',
+    dataset: {},
+    childNodes: [],
+    parent: null,
+    get children() { return node.childNodes.filter(child => child.nodeType === 1) },
+    get textContent() { return node.childNodes.map(child => child.textContent).join('') },
+    // Mirror the DOM, including the part this module must stop using: the write
+    // drops every child, element or text.
+    set textContent(value) {
+      for (const child of node.childNodes) child.parent = null
+      node.childNodes = []
+      if (value !== '') node.appendChild(textNode(value))
+    },
     setAttribute(name, value) { this.attributes[name] = value },
     getAttribute(name) { return this.attributes[name] ?? null },
     removeAttribute(name) { delete this.attributes[name] },
-    appendChild(child) { this.children.push(child); child.parent = this; return child },
-    // Mirror the DOM: a node removes itself from wherever it was appended.
-    remove() {
-      const at = this.parent?.children.indexOf(this) ?? -1
-      if (at >= 0) this.parent.children.splice(at, 1)
+    appendChild(child) {
+      child.parent?.removeChild(child)
+      node.childNodes.push(child)
+      child.parent = node
+      return child
     },
+    removeChild(child) {
+      const at = node.childNodes.indexOf(child)
+      if (at < 0) throw new Error('the node to be removed is not a child of this node')
+      node.childNodes.splice(at, 1)
+      child.parent = null
+      return child
+    },
+    // Mirror the DOM: a node removes itself from wherever it was appended.
+    remove() { this.parent?.removeChild(this) },
     querySelector(selector) { return find(this, selector) },
     querySelectorAll(selector) { return findAll(this, selector) },
   }
-  for (const child of children) child.parent = node
+  for (const child of children) node.appendChild(child)
   return node
 }
 
-/** Match the two selectors these installers use, by attribute and by class token. */
+/** Match the selectors these installers use: attribute names, class tokens, and tags. */
 function matches(node, selector) {
   if (selector === RUNNING_ROW_SELECTOR) return node.attributes['data-chat-running'] !== undefined
   if (selector === 'img') return node.tag === 'img'
+  const presence = /^\[([\w-]+)\]$/.exec(selector)?.[1]
+  if (presence !== undefined) return node.attributes[presence] !== undefined
   const token = /^\[class\*="([^"]+)"\]$/.exec(selector)?.[1]
   return token !== undefined && (node.attributes.class ?? '').includes(token)
 }
@@ -86,7 +122,8 @@ function find(node, selector) {
 function findAll(node, selector) {
   const hits = []
   const walk = (current) => {
-    for (const child of current.children ?? []) {
+    for (const child of current.childNodes ?? []) {
+      if (child.nodeType !== 1) continue
       if (matches(child, selector)) hits.push(child)
       walk(child)
     }
@@ -98,23 +135,14 @@ function findAll(node, selector) {
 /** A document whose body holds the rows, with observers collected for the test. */
 function fakeDocument(rows) {
   const body = element({}, rows)
-  const head = []
+  const head = element({})
   const observers = []
   const document = {
     body,
-    head: { appendChild: node => head.push(node) },
+    head,
     createElement: (tag) => {
       const node = element({})
       node.tag = tag
-      node.dataset = {}
-      // Mirror the DOM: a created node removes itself from whichever collection
-      // it was appended to — the head, for a stylesheet, or a parent, for the mark.
-      node.remove = function () {
-        const fromHead = head.indexOf(this)
-        if (fromHead >= 0) { head.splice(fromHead, 1); return }
-        const at = this.parent?.children.indexOf(this) ?? -1
-        if (at >= 0) this.parent.children.splice(at, 1)
-      }
       return node
     },
     querySelectorAll: selector => findAll(body, selector),
@@ -129,46 +157,99 @@ function fakeDocument(rows) {
   return { document, body, head, observers }
 }
 
-/** A status row shaped like the host's: an icon span, then the text span. */
+/**
+ * A status row shaped like the host's.
+ *
+ * `RunningStatus` renders `TextShimmer` with `active={!holding}`, and `TextShimmer`
+ * renders the phrase twice while active: the visible copy as a text node, and the
+ * clipped copy its highlight sweeps over as a `data-shimmer-text` attribute whose
+ * pseudo-element paints it. Both sit inside element wrappers React owns, and the
+ * host removes the second one when the Turn settles.
+ */
 function runningRow(text) {
   const icon = element({ class: 'runningIcon_x1' })
-  const textSpan = element({ class: 'runningText_x2' })
-  textSpan.textContent = text
-  const content = element({ class: 'runningContent_x3' }, [icon, textSpan])
-  return { row: element({ class: 'running_x4', 'data-chat-running': '' }, [content]), icon, textSpan }
+  const visibleText = textNode(text)
+  const visible = element({ class: 'runningContent_x5' },
+    [element({ class: 'contentText_x6' }, [visibleText])])
+  const generated = element({ class: 'highlightText_x7', 'data-shimmer-text': text })
+  const decoration = element({ class: 'decoration_x8', 'aria-hidden': 'true' },
+    [element({ class: 'sweep_x9' }, [element({ class: 'runningContent_x5 highlight_x10' }, [generated])])])
+  const shimmer = element({ class: 'runningText_x2', 'data-shimmer': '' }, [visible, decoration])
+  const content = element({ class: 'runningContent_x3' }, [icon, shimmer])
+  return {
+    row: element({ class: 'running_x4', 'data-chat-running': '' }, [content]),
+    icon,
+    shimmer,
+    visibleText,
+    generated,
+  }
 }
 
-test('the phrase is written over the host text', () => {
-  const { row, textSpan } = runningRow(HOST_WITH_TIME)
+/** What the row shows: the visible copy's text, then the highlight's generated copy. */
+function phrases(shimmer) {
+  return [
+    shimmer.querySelector('[class*="contentText"]').textContent,
+    shimmer.querySelector('[data-shimmer-text]').getAttribute('data-shimmer-text'),
+  ]
+}
+
+test('the phrase is written over both copies, keeping the elapsed reading', () => {
+  const { row, shimmer } = runningRow(HOST_WITH_TIME)
   const { document } = fakeDocument([row])
   const dispose = installRunningText(document, () => '思考中')
-  assert.equal(textSpan.textContent, '思考中，用时 29秒 ···')
+  assert.deepEqual(phrases(shimmer), ['思考中，用时 29秒 ···', '思考中，用时 29秒 ···'])
+  dispose()
+})
+
+test('the rewrite leaves every element the host rendered where it was', () => {
+  const { row, shimmer } = runningRow(HOST_WITH_TIME)
+  const { document } = fakeDocument([row])
+  const rendered = [...shimmer.children]
+  const dispose = installRunningText(document, () => '思考中')
+  // The host removes the decoration copy when the Turn settles. A rewrite that
+  // replaced the row's subtree would delete it first and make that removal throw,
+  // blanking the whole Chat flow.
+  assert.deepEqual(shimmer.children, rendered)
+  assert.equal(shimmer.children[1].attributes['aria-hidden'], 'true')
   dispose()
 })
 
 test('a redraw of the host text is rewritten again', () => {
-  const { row, textSpan } = runningRow(HOST_WITH_TIME)
+  const { row, shimmer, visibleText, generated } = runningRow(HOST_WITH_TIME)
   const { document } = fakeDocument([row])
   const dispose = installRunningText(document, () => '思考中')
-  // The host's clock rewrites its own string every second.
-  textSpan.textContent = '深度求索中，用时 30秒 ···'
+  // The host's clock writes its own string every second, through the same text
+  // node and the same attribute React owns.
+  visibleText.nodeValue = '深度求索中，用时 30秒 ···'
+  generated.setAttribute('data-shimmer-text', '深度求索中，用时 30秒 ···')
   document.flush()
-  assert.equal(textSpan.textContent, '思考中，用时 30秒 ···')
+  assert.deepEqual(phrases(shimmer), ['思考中，用时 30秒 ···', '思考中，用时 30秒 ···'])
+  dispose()
+})
+
+test('a settled row is left alone by later sweeps', () => {
+  const { row, shimmer } = runningRow(HOST_WITH_TIME)
+  const { document } = fakeDocument([row])
+  const dispose = installRunningText(document, () => '思考中')
+  const settled = phrases(shimmer)
+  document.flush()
+  document.flush()
+  assert.deepEqual(phrases(shimmer), settled)
   dispose()
 })
 
 test('the observer stops rewriting once released', () => {
-  const { row, textSpan } = runningRow(HOST_WITH_TIME)
+  const { row } = runningRow(HOST_WITH_TIME)
   const { document, observers } = fakeDocument([row])
   installRunningText(document, () => '思考中')()
   assert.equal(observers[0].disconnected, true)
 })
 
 test('no stored phrase leaves the host text alone', () => {
-  const { row, textSpan } = runningRow(HOST_WITH_TIME)
+  const { row, shimmer } = runningRow(HOST_WITH_TIME)
   const { document } = fakeDocument([row])
   const dispose = installRunningText(document, () => '')
-  assert.equal(textSpan.textContent, HOST_WITH_TIME)
+  assert.deepEqual(phrases(shimmer), [HOST_WITH_TIME, HOST_WITH_TIME])
   dispose()
 })
 
@@ -181,8 +262,8 @@ test('the built-in mark hides the host icon and carries its own animation', () =
   const dispose = installRunningMark(document, () => '')
   assert.equal(icon.attributes[REPLACED_MARK_ATTRIBUTE], '')
   assert.equal(icon.children.length, 0)
-  assert.equal(head.length, 1)
-  assert.match(head[0].textContent, /dsh-beautify-running-spin/)
+  assert.equal(head.children.length, 1)
+  assert.match(head.children[0].textContent, /dsh-beautify-running-spin/)
   assert.match(RUNNING_MARK_CSS, /prefers-reduced-motion: reduce/)
   // The host also renders a static SVG fallback beside the animated span, and
   // reduced motion or forced colors show it. The mark must hide every non-image
@@ -234,7 +315,7 @@ test('releasing the mark restores the host icon', () => {
   dispose()
   assert.equal(icon.attributes[REPLACED_MARK_ATTRIBUTE], undefined)
   assert.equal(icon.children.length, 0)
-  assert.equal(head.length, 0)
+  assert.equal(head.children.length, 0)
 })
 
 // ---------------------------------------------------------------------------
@@ -258,16 +339,16 @@ function settings(value) {
 }
 
 test('the phrase follows a settings write without a reload', () => {
-  const { row, textSpan } = runningRow(HOST_WITH_TIME)
+  const { row, shimmer } = runningRow(HOST_WITH_TIME)
   const { document } = fakeDocument([row])
   globalThis.document = document
   const scope = settings({})
   const effects = []
   applyRunningStatus({ effect: (callback) => { const d = callback(); effects.push(d); return d } }, scope)
-  assert.equal(textSpan.textContent, HOST_WITH_TIME)
+  assert.deepEqual(phrases(shimmer), [HOST_WITH_TIME, HOST_WITH_TIME])
   scope.set({ runningStatusText: '思考中' })
   document.flush()
-  assert.equal(textSpan.textContent, '思考中，用时 29秒 ···')
+  assert.deepEqual(phrases(shimmer), ['思考中，用时 29秒 ···', '思考中，用时 29秒 ···'])
   for (const dispose of effects) dispose()
 })
 

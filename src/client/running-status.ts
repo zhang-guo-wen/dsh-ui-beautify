@@ -6,12 +6,16 @@
  * per running Session and offers no slot over it. This module therefore rewrites
  * what that row already put in the document, in two independent parts:
  *
- * 1. **The phrase** is the row's own text node, so it is replaced in place. The
- *    host re-renders that text every second — the elapsed clock lives in the
- *    same string — which would erase an edit made once. A `MutationObserver`
- *    watching the status row reapplies the phrase after each such render, and
- *    the replacement keeps the host's `{duration}` reading by finding it in the
- *    text it is about to overwrite.
+ * 1. **The phrase** is rewritten in the two carriers the row already holds: the
+ *    visible copy's text node, and the attribute the highlight's generated copy
+ *    paints from. Neither is replaced through `textContent` on the row: React
+ *    owns every element in that row, and dropping those elements makes the host
+ *    throw when it later unmounts one it still believes in. The host re-renders
+ *    the text every second — the elapsed clock lives in the same string — which
+ *    would erase an edit made once. A `MutationObserver` watching the status row
+ *    reapplies the phrase after each such render, and the replacement keeps the
+ *    host's `{duration}` reading by finding it in the text it is about to
+ *    overwrite.
  * 2. **The mark** is the row's leading icon span. It is swapped for an image when
  *    one is set, and otherwise for a built-in CSS animation, so a deployment that
  *    removed the host's whale never leaves the row without a mark.
@@ -42,6 +46,15 @@ export const REPLACED_MARK_ATTRIBUTE = 'data-beautify-running-mark'
 
 /** Identity written on the stylesheet that carries the built-in animation. */
 const STYLESHEET_ID = '@guowenzhang/dsh-ui-beautify/running-status.css'
+
+/**
+ * Attribute the host's shimmer paints its generated copy from.
+ *
+ * The highlight overlay renders no text node of its own — its `.text` span
+ * carries the phrase as this attribute and a pseudo-element draws it. Rewriting
+ * only the visible text leaves the overlay painting the host's own words.
+ */
+const GENERATED_TEXT_ATTRIBUTE = 'data-shimmer-text'
 
 /**
  * The built-in mark: a ring that turns while the Session runs.
@@ -137,24 +150,69 @@ export function rewriteRunningText(text: string, phrase: string): string {
 }
 
 /**
+ * Collect the row's text nodes, leaving every element where the host put it.
+ *
+ * The row renders the phrase twice: the visible copy as a text node, and the
+ * copy the highlight sweeps over as a `data-shimmer-text` attribute whose
+ * pseudo-element paints it. Both are addressed through the node that carries
+ * them — text nodes and attributes — and never through `textContent` on the
+ * element that contains them.
+ * @param node - the row element whose phrase is rewritten.
+ * @returns the text nodes inside that element, in document order.
+ */
+function textNodesOf(node: Node): Text[] {
+  const found: Text[] = []
+  const visit = (current: Node): void => {
+    for (const child of current.childNodes) {
+      if (child.nodeType === 3) found.push(child as Text)
+      else visit(child)
+    }
+  }
+  visit(node)
+  return found
+}
+
+/** Elements under the row whose pseudo-element paints the phrase from an attribute. */
+function generatedCopiesOf(node: Element): Element[] {
+  const found: Element[] = []
+  if (node.getAttribute(GENERATED_TEXT_ATTRIBUTE) !== null) found.push(node)
+  found.push(...node.querySelectorAll(`[${GENERATED_TEXT_ATTRIBUTE}]`))
+  return found
+}
+
+/**
  * Own the status row's phrase while the rename is on.
  *
  * A `MutationObserver` rather than a one-off edit: the host rewrites the row's
  * text every second and after every frame, and re-renders its children on the
  * way between turns. The observer reapplies the phrase after each such write,
  * and the reapplication is idempotent so a settled row marks nothing.
+ *
+ * The write goes through the text nodes and the generated copies, never through
+ * `textContent` on the row: assigning that property deletes the row's element
+ * children, and a Turn that stops before it closes then makes the host remove a
+ * node React still holds a reference to. React throws `NotFoundError` on that
+ * removal, the exception escapes the Chat flow, and the whole transcript
+ * renders blank.
  * @param root - the document the status row appears in.
  * @param readPhrase - reads the phrase currently stored.
  * @returns disposer disconnecting the observer.
  */
 export function installRunningText(root: Document, readPhrase: () => string): () => void {
-  const apply = (node: Node): void => {
-    const text = node.textContent ?? ''
-    const next = rewriteRunningText(text, readPhrase())
-    // Writing only when the text actually moves is what terminates the loop: the
+  const apply = (node: Element): void => {
+    const texts = textNodesOf(node)
+    const generated = generatedCopiesOf(node)
+    // The visible copy is the host's text, and after a rewrite it is what the
+    // next sweep compares against, which is what terminates the loop: the
     // rewrite is idempotent, so the record this write produces finds nothing to
     // do and stops.
-    if (next !== text) node.textContent = next
+    const host = texts[0]?.nodeValue ?? generated[0]?.getAttribute(GENERATED_TEXT_ATTRIBUTE) ?? ''
+    const next = rewriteRunningText(host, readPhrase())
+    if (next === host) return
+    for (const text of texts) if (text.nodeValue !== next) text.nodeValue = next
+    for (const copy of generated) {
+      if (copy.getAttribute(GENERATED_TEXT_ATTRIBUTE) !== next) copy.setAttribute(GENERATED_TEXT_ATTRIBUTE, next)
+    }
   }
 
   const sweep = (): void => {
