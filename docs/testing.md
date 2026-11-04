@@ -54,3 +54,48 @@ kind: "package-reference"
 - **桌面日常形态**（Arcuchi Harness 打包宿主）未实测；按红线只用隔离实例。`browser:mobile` / `browser:scroll` / `browser:replies` / `browser:recent` / `browser:remote-settings` 车道仍因缺 `DSH_*_URL` 与真实会话阻塞，本轮浏览器验收用的是 `.scratch` 里的一次性探针，**没有**并入 `npm test` 链。
 
 ---
+## 2、发版 1.6.1：适配 0.2.2-alpha.3 侧栏行结构（2026-11-04，产物 `67BF7C32` / `9E4D1176`）
+
+### 环境与产物绑定
+
+| 项 | 值 |
+|---|---|
+| 日期 | 2026-11-04T22:04:45+08:00 |
+| 插件 | @guowenzhang/dsh-ui-beautify@1.6.1（HEAD d9f1790，工作树 3 项未提交） |
+| 宿主 | （未绑定隔离实例；如为源码内验证请写明） |
+| DSH_HOME | （未绑定） |
+| 端口 / URL | （未绑定） |
+| Node | v24.12.0 |
+| lib/index.mjs | `67bf7c32c991fcfe2a2bba3f7af29fc0ddbfb18569602c57594459b420bec570`（82786 字节，2026-11-04T14:04:11.322Z） |
+| lib/client.js | `9e4d11764236a6b52ac13fe9a2b5756e0a3b8e361de1c3fd67fee8350977ea1b`（328455 字节，2026-11-04T14:04:11.429Z） |
+| 证据文件 | `.scratch/test-system/runs/2026-11-04-220434-dsh-ui-beautify.json` |
+
+### 车道结果
+
+| 车道 | 状态 | 退出码 | 耗时 |
+|---|---|---|---|
+| typecheck | passed | 0 | 1.6s |
+| build | passed | 0 | 0.8s |
+| metadata | passed | 0 | 0.4s |
+| unit | passed | 0 | 22.6s |
+| artifact | passed | 0 | 23.4s |
+
+### 逐项读数
+
+- **依赖还原**：工作区 `node_modules` 曾被 pnpm 重装（存在 `node_modules/.modules.yaml` 与未跟踪的 `pnpm-lock.yaml`），顶层 `react` 解析到 19.3.1，而 `react-dom` 是 18.3.1，`recent-sessions-browser` 4 项因此抛 `ReactCurrentDispatcher` 未定义。按 `package-lock.json` 执行 `npm ci` 后两者均为 **18.3.1**、`node_modules` 回到 npm 管理，这 4 项随即真实通过（首跑失败是环境漂移，与本次改动无关）。
+- `npm run typecheck`：`tsc --noEmit -p tsconfig.json`，退出码 0（1.6s）。
+- `npm run build`：tsdown（host）+ `build-client.mjs`，退出码 0；产物 `lib/index.mjs` 82786 字节、`lib/client.js` 328455 字节，SHA256 见上表。依赖还原后重建的字节与提交里 pnpm 工具链产物不同，故随发版提交一并提交。
+- `npm run test:metadata`：passed。
+- `npm test`（unit，22.6s）：**249 项：244 pass / 0 fail / 5 skip**；5 个 skip 是缺 `DSH_MOBILE_URL` / `DSH_SCROLL_URL` / `DSH_QUICK_REPLY_URL` / `DSH_SETTINGS_LOCAL_URL` 的既有浏览器探针。`DSH_MOBILE_PLAYWRIGHT` 指向工作区 `.scratch/pw-core`（`tools/testing/registry.mjs` 的既定来源），`recent-sessions-browser` 的 4 项真实通过。
+- `artifact`（23.4s）：`npm run build && npm test`，产物哈希跑前跑后一致（`67BF7C32` / `9E4D1176`）。
+- 本次改动对应的断言：`tests/streamlined-ui.test.mjs` 更新为「侧栏按行外层（`[data-slot=sidebar] nav > div`）计数、排除每行第二个按钮造成的序号偏移」。
+- `npm pack --dry-run`：`@guowenzhang/dsh-ui-beautify@1.6.1`，26 个文件、压缩 1358702 字节；含 `lib/`、`locale/`、`cordis.patch.yml`、双语 README 与 `docs/images`；无密钥、无 `pnpm-lock.yaml`。
+
+### 本节未覆盖
+
+- 未在隔离 Harness 实例（适配目标 0.2.2-alpha.3 宿主）里做真实点击验收；本节的浏览器证据是仓库自带的 Chrome/React fixture，没有日常实例读数。
+- `browser:mobile` / `browser:scroll` / `browser:replies` / `browser:recent` / `browser:remote-settings` 车道仍因缺 `DSH_*_URL` 跳过，未跑。
+- 未测真机手机触摸、深色主题与 `prefers-reduced-motion`（本改动不动样式与动效）。
+- 工作区里另一会话遗留的未跟踪 `pnpm-lock.yaml` 未提交、未删除；它不影响本包分发内容。
+
+---
