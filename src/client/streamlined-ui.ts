@@ -119,22 +119,28 @@ export const MOVED_SIDEBAR_PANELS: readonly MovedSidebarPanel[] = [
 /**
  * The sidebar panel row selector, before its row number.
  *
- * The slot's render anchor wraps the sidebar column root, whose first `<nav>` is
- * the global panel list: the brand row and the new-session button precede it,
- * and every row is one `<button>` in ledger order. A row carries no identifying
- * attribute, so it is addressed by position, computed from the same ledger the
- * sidebar projects.
+ * The slot's render anchor wraps the sidebar column root, and the global panel
+ * list is the `<nav>` inside it. Since the 2026-11-02 sidebar rework the nav sits
+ * under a scroll region and scroll area rather than directly under the column's
+ * first `<div>`, and every row occupies one `<div>` wrapper in ledger order:
+ * each wrapper holds the row's own `<button>` and, while a More menu exists, an
+ * unpin button beside it. The row is therefore the wrapper, addressed by its
+ * position among the nav's `<div>` children; a row carries no identifying
+ * attribute, so the position is computed from the same ledger the sidebar
+ * projects.
  */
-export const SIDEBAR_PANEL_ROW_SELECTOR = '[data-slot="sidebar"] > div > nav > button'
+export const SIDEBAR_PANEL_ROW_SELECTOR = '[data-slot="sidebar"] nav > div'
 
 /**
  * The sidebar panel-list element the rows above live in.
  *
  * The list itself is the observation target: rows come and go with the panels
  * the deployment composes, and each addition or removal renumbers every later
- * row.
+ * row. The sidebar paints exactly one `<nav>`; the scroll wrappers above it are
+ * the shell's business and may move again, so the selector starts at the sidebar
+ * slot and finds that nav by element.
  */
-export const SIDEBAR_NAV_SELECTOR = '[data-slot="sidebar"] > div > nav'
+export const SIDEBAR_NAV_SELECTOR = '[data-slot="sidebar"] nav'
 
 /**
  * The settings navigation element, whose buttons are the rows.
@@ -303,27 +309,38 @@ export function movedPanelLabels(
  * paint — a section plugin that activates late, a re-registration, or a locale
  * switch can move it after the stylesheet was last written. Reading the painted
  * rows here keeps a stale snapshot from hiding an unrelated page.
+ *
+ * Settings rows are buttons at whatever depth the shell places them, so the
+ * default read queries every descendant button. Sidebar rows are the direct
+ * `<div>` wrappers of the nav, because each wrapper also carries the row's
+ * unpin control once a More menu exists; counting buttons there would index a
+ * row twice.
  * @param list - the painted row container (the nav or the list), or `null` while
- *   it is not mounted. Its buttons are the rows, at whatever depth the shell
- *   places them.
+ *   it is not mounted.
  * @param labels - row texts to locate; empty falls back to the ledger.
  * @param fallback - 1-based ledger positions, used when nothing matches.
+ * @param rowTag - direct-child tag name that denotes one row; omitted reads
+ *   every descendant button.
  * @returns the 1-based positions of the matching rows, ascending and unique.
  */
 export function liveRowNumbers(
   list: ParentNode | null,
   labels: readonly string[],
   fallback: readonly number[] = [],
+  rowTag?: string,
 ): number[] {
   if (labels.length === 0) return [...fallback]
-  const buttons = list === null ? [] : [...list.querySelectorAll('button')]
-  if (buttons.length === 0) return [...fallback]
+  if (list === null) return [...fallback]
+  const rows: readonly { textContent: string | null }[] = rowTag === undefined
+    ? [...list.querySelectorAll('button')]
+    : [...list.querySelectorAll(`:scope > ${rowTag}`)]
+  if (rows.length === 0) return [...fallback]
   const wanted = new Set(labels)
-  const rows = buttons.flatMap((button, at) => {
-    const text = (button.textContent ?? '').trim()
+  const matches = rows.flatMap((row, at) => {
+    const text = (row.textContent ?? '').trim()
     return wanted.has(text) ? [at + 1] : []
   })
-  return rows.length === 0 ? [...fallback] : rows
+  return matches.length === 0 ? [...fallback] : matches
 }
 
 /**
@@ -433,6 +450,7 @@ export function installSidebarPanelHiding(ctx: Context): () => void {
       paintedList(SIDEBAR_NAV_SELECTOR),
       movedPanelLabels(entries),
       movedSidebarRows(entries),
+      'div',
     ))
   }
   sync()

@@ -266,6 +266,27 @@ test('reads the rows a painted list shows instead of a ledger snapshot', () => {
   assert.deepEqual(liveRowNumbers(painted, ['内置插件', '不存在'], [8]), [4])
 })
 
+test('reads sidebar rows as their wrapper elements so an unpin control does not shift the index', () => {
+  // One wrapper per row; the wrapper text is its label because the unpin control is icon-only.
+  const wrappers = [{ textContent: '插件' }, { textContent: '自动化任务' }, { textContent: '智能体' }]
+  const nav = {
+    querySelectorAll: selector => {
+      if (selector === ':scope > div') return wrappers
+      // A raw button read sees the row button and, while a More menu exists, its unpin button.
+      return [
+        { textContent: '插件' }, { textContent: '' },
+        { textContent: '自动化任务' }, { textContent: '' },
+        { textContent: '智能体' },
+      ]
+    },
+  }
+  assert.deepEqual(liveRowNumbers(nav, ['插件', '自动化任务'], [1, 2], 'div'), [1, 2])
+  assert.deepEqual(liveRowNumbers(nav, ['智能体'], [3], 'div'), [3])
+  assert.deepEqual(liveRowNumbers(nav, ['不存在'], [7, 8], 'div'), [7, 8])
+  // The button read identifies the button index, not the row: the wrappers stay authoritative.
+  assert.deepEqual(liveRowNumbers(nav, ['自动化任务'], [2]), [3])
+})
+
 test('the switch hides the rows the dialog paints when the ledger moved', (t) => {
   const fake = fakeDocument(['账号管理', '通用设置', '模型', '内置插件', 'Claude 兼容', 'Agent 预设', '界面美化'])
   const previousDocument = globalThis.document
@@ -310,7 +331,7 @@ test('the sidebar stylesheet hides one row selector per position and nothing els
     sidebarHidingCss([1, 2]),
     `${SIDEBAR_PANEL_ROW_SELECTOR}:nth-of-type(1),\n${SIDEBAR_PANEL_ROW_SELECTOR}:nth-of-type(2) {\n  display: none;\n}\n`,
   )
-  assert.equal(SIDEBAR_PANEL_ROW_SELECTOR, '[data-slot="sidebar"] > div > nav > button')
+  assert.equal(SIDEBAR_PANEL_ROW_SELECTOR, '[data-slot="sidebar"] nav > div')
   // Properties, not colours: the row is removed from layout, nothing is repainted.
   assert.doesNotMatch(sidebarHidingCss([1]), /#|rgb\(|hsl\(|font|width|height|opacity/)
 })
@@ -352,8 +373,8 @@ test('the switch shadows, relocates, follows Coding Tools, and restores every ho
   // The sidebar stylesheet targets the moved panel rows.
   const sidebarStyle = fake.head[1]
   assert.equal(sidebarStyle.dataset.pluginCss, '@guowenzhang/dsh-ui-beautify/sidebar-panels.css')
-  assert.match(sidebarStyle.textContent, /button:nth-of-type\(1\)/)
-  assert.match(sidebarStyle.textContent, /button:nth-of-type\(2\)/)
+  assert.match(sidebarStyle.textContent, /div:nth-of-type\(1\)/)
+  assert.match(sidebarStyle.textContent, /div:nth-of-type\(2\)/)
 
   // The relocated navigation rows carry the plugin's labels and open their page.
   const [pluginsRow, schedulesRow] = harness.registrations.slice(1)
@@ -406,7 +427,7 @@ test('the switch shadows, relocates, follows Coding Tools, and restores every ho
   // A panel ledger change renumbers the sidebar rows the same way.
   harness.setPanels([section('custom-panel', 0), section('schedules', 10)])
   assert.equal(fake.head.length, 2)
-  assert.match(sidebarStyle.textContent, /button:nth-of-type\(2\)/)
+  assert.match(sidebarStyle.textContent, /div:nth-of-type\(2\)/)
   assert.doesNotMatch(sidebarStyle.textContent, /nth-of-type\(1\)/)
 
   // Switching off releases every registration, both stylesheets, and every preference watch.
@@ -475,10 +496,10 @@ test('the built handoff carries the switch, the selectors, and the relocated row
     'streamlinedUiEnabled',
     // The bundle escapes the attribute's quotes, so the selectors are matched in parts.
     'data-shortcut-modal',
-    'nav > button',
+    'nav > div',
     'data-slot',
     'sidebar',
-    'nav > button',
+    'nav > div',
     'sidebar-panels.css',
     'ui-beautify-plugins',
     'ui-beautify-schedules',
@@ -499,3 +520,4 @@ test('both test chains run this file', () => {
     assert.ok(manifest.scripts[script].includes('tests/streamlined-ui.test.mjs'), script)
   }
 })
+
