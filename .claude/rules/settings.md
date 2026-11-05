@@ -68,7 +68,7 @@ paths:
 ## 已发布版本行（2026-11-05）
 
 - **位置**：注册进宿主 ui-settings-general 的 `settings.general.item` 列表（id `ui-beautify-update`，order 101）。宿主自己的当前版本行是 order 100，所以这一行总是紧贴在其下方；不要试图把这个数字塞进那一行——它属于宿主。
-- **紧挨着宿主那一行**：宿主版本行是 `padding: 16px 0` 包着 22px 文字，本行 12px 小字在自身 28px 控件行里从顶部起算 5px，所以整行要给 `margin-top: -18px`（= 16 + 5 − 4），小字与上一行文字的间距才等于其他设置行标题与说明之间的 4px。数字随宿主那行的 padding 走：宿主改 padding 就要重算，不要在别处再叠第二份补偿。文案与颜色也对齐其他行的小字（`--dsw-font-xxs-12` + `--dsw-alias-label-tertiary`），要表达「有新版本」用可点的按钮，而不是把这行加粗或换成主色。
+- **整体对齐**：宿主版本行是 `padding: 16px 0` 包着 22px 单行文字；本行 `margin-top: -38px` 覆盖标题及底部留白，说明 `padding-top: 26px` 预留标题和 4px 间距，让按钮居中于「当前版本＋说明」整个文字块，而不是只对齐说明。按钮不参与收缩，触摸端最小高 44px，说明换行由自然布局撑高。依赖宿主标题单行、22px 行高和16px padding；宿主结构改变或标题换行需要重新测量，不能叠加位移补偿。文案与颜色沿用 `--dsw-font-xxs-12` + `--dsw-alias-label-tertiary`。`browser:update-row` 车道测量真实浏览器盒子；fixture 通过不代表已认证宿主验收通过。
 - **数字来源**：桌面壳的更新源，不是 npm、不是写死的地址。Host 半 `src/update-check.ts` 读 `<exe 同级>/resources/app-update.yml`（macOS 为 `Contents/Resources/`），取 `url` 与 `channel`（缺省 `latest`）拼出 `<url>/<channel>.yml`；`config.updateFeedUrl` 非空时优先用它（非 http(s) 视为未配置）。两处都没有就返回 `unavailable`，客户端整行不渲染——**不要为了「总有东西可显示」编一个默认厂商地址**。
 - **判定**：`compareVersions` 只承诺符号（semver 预发布规则：数字标识按数值、低于字母标识；带预发布低于同版本正式版；解析不了按相等处理，避免「永远升不了」）。当前版本取 Host 进程的 `DSH_CLIENT_VERSION`（桌面壳启动 Host 时注入），取不到就不报有更新。
 - **升级动作**：只调 `window.dshDesktop.updates.open()`，走桌面壳原有检查→下载→重启流程；插件自己**不下载、不安装**。没有该桥（普通浏览器、或 preload 只有 `protocolVersion`）时按钮置灰并带 `updateDesktopOnly` 提示。
