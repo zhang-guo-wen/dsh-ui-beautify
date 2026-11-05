@@ -185,10 +185,10 @@ theme 服务每个来源只保留一层，所以两个角色的 token 必须在*
 
 ## 加一款字体
 
-1. `npm run probe -- <包名>[@版本]` 评估候选包（见下节），拿到可用的样式表路径与字体族名。
+1. `pnpm run probe -- <包名>[@版本]` 评估候选包（见下节），拿到可用的样式表路径与字体族名。
 2. 在 `src/fonts.ts` 的 `FONT_FACES`（正文字体）或 `CODE_FACES`（代码字体）加一行（`id` / `family` / `group` / `source`）——`family` 必须与该包样式表里的 `font-family` **逐字一致**，写错会让所有 `@font-face` 匹配不上而静默回退；`id` 只能是 `[a-z0-9-]`，它同时是路由段，且两份表之间必须唯一。`FONT_CHOICES` / `CODE_FONT_CHOICES` 由这张表派生，不用另改。
 3. 在 `src/client/FontRows.tsx` 的 `CHOICE_COPY` 加名称与描述的字典键，并在 `src/client/locales.ts` 补齐中英文案。
-4. `npm run test:cdn` 验证（**务必跑**，下面两个坑只有联网才看得出来），再 `npm run build && npm test`。
+4. `pnpm run test:cdn` 验证（**务必跑**，下面两个坑只有联网才看得出来），再 `pnpm run build && pnpm test`。
 
 除此之外插件里没有别处枚举字体。
 
@@ -203,11 +203,11 @@ theme 服务每个来源只保留一层，所以两个角色的 token 必须在*
 
 同类但未收录的还有 `@chinese-fonts/*`、`cn-fontsource-*`、`misans-vf`（MiSans）等——最后一个是 jsDelivr 独有（npmmirror 没同步），加进来就得依赖 jsDelivr。
 
-`npm run probe` 就是给第二类准备的评估器：
+`pnpm run probe` 就是给第二类准备的评估器：
 
 ```sh
-npm run probe -- @fontsource/zcool-kuaile
-npm run probe -- lxgw-wenkai-webfont 1.7.0 lxgwwenkai-regular.css
+pnpm run probe -- @fontsource/zcool-kuaile
+pnpm run probe -- lxgw-wenkai-webfont 1.7.0 lxgwwenkai-regular.css
 ```
 
 它对每个候选样式表报出：两个镜像各自的状态码、声明的字体族、`@font-face` 与 `unicode-range` 条数（决定**是不是真分片**）、首个分片的实际字节数；拿到切片样式表后，直接打印一行可以粘进 `fonts.ts` 的配置。实测同一款字体的两种样式表：
@@ -229,7 +229,7 @@ chinese-simplified-400.css   registry.npmmirror.com=200 cdn.jsdelivr.net=200
 
 **二、`style.css` 可能只是 `@import`。** `lxgw-wenkai-webfont` 的 `style.css` 只有 248 字节、6 条 `@import`，一个 `@font-face` 都没有。要直接指向 `lxgwwenkai-regular.css` 这类真正带规则的子样式表。（顺带一提：该包的 `@fontsource` 版本 `@fontsource/lxgw-wenkai` 只有 3 个拉丁整字体、合计 22 MB，**没有中文分片**，不能用。）
 
-`npm run test:cdn` 对每条样式表都断言「`@font-face` 条数 > 1 且条条带 `unicode-range`」，上面两种坑都会被它挡下来。
+`pnpm run test:cdn` 对每条样式表都断言「`@font-face` 条数 > 1 且条条带 `unicode-range`」，上面两种坑都会被它挡下来。
 
 ### 字重
 

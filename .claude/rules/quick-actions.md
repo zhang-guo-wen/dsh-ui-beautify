@@ -41,7 +41,7 @@ paths:
 
 - 纯逻辑：`tests/quick-actions.test.mjs`（19 项：默认位置、钳制、存储解析/序列化、三档优先级与包裹/过滤、时间档的 `updatedAt` 排序与绕回）。
 - 产物级：`tests/client.mjs` 的「the floating quick actions」一节（注册/dock/order/共享快照、注入的动作、开关关闭仍保留注册、三行菜单、运行中禁用与说明、绿点优先、无绿点时回退到收藏再回退到时间、无其他会话时禁用并说明、置顶翻转、归档后 hop 到下一个会话、无其他会话时只归档不 hop、归档被拒时不 hop、失败行、拖动存储与 reload 位置、拖完不误开菜单）。
-- 真实浏览器（隔离实例，插件指向 worktree）：`.scratch/ui-beautify-unread/verify/probe-next-priority.mjs` 造三个会话——普通 A（在屏完成）、收藏 B（在屏完成后用按钮置顶）、绿点 C（离开期间完成）——从主视图连点「下一个会话」依次落在 **C → B → A**（绿点 > 收藏 > 对话时间），绿点被清空、菜单文案为「下一个会话」、控制台 0 错误；`probe-archive-hop.mjs` 归档当前会话后落在下一个会话而不是空白新建会话页（见 `docs/testing.md` 第 6 节）。`probe-quick-actions.mjs` / `probe-quick-actions-settings.mjs` 保留拖动、手机布局与设置开关的读数。读数与截图登记在 `docs/testing.md` 第 4、5、6 节。探针依赖假 provider 的隔离实例，**不进** `npm test` 链。
+- 真实浏览器（隔离实例，插件指向 worktree）：`.scratch/ui-beautify-unread/verify/probe-next-priority.mjs` 造三个会话——普通 A（在屏完成）、收藏 B（在屏完成后用按钮置顶）、绿点 C（离开期间完成）——从主视图连点「下一个会话」依次落在 **C → B → A**（绿点 > 收藏 > 对话时间），绿点被清空、菜单文案为「下一个会话」、控制台 0 错误；`probe-archive-hop.mjs` 归档当前会话后落在下一个会话而不是空白新建会话页（见 `docs/testing.md` 第 6 节）。`probe-quick-actions.mjs` / `probe-quick-actions-settings.mjs` 保留拖动、手机布局与设置开关的读数。读数与截图登记在 `docs/testing.md` 第 4、5、6 节。探针依赖假 provider 的隔离实例，**不进** `pnpm test` 链。
 - 不把「宿主菜单样式」「真实手机触摸」当已覆盖项：真机未驱动，触屏手势只用 4px 阈值 + `touch-action: none` 的设计与鼠标拖动近似验证。
 
 ## 易崩清单

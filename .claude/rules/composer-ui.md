@@ -99,7 +99,7 @@ composer 卡片正上方那条整宽插槽是 `conversation.input.dock`（ui-con
 
 **2026-11-02：已加载历史用完后，同一颗箭头自动补页（用户原话「向上箭头，能自动滚动其加载更早，而不是需要手动点击一下」）。** 分页会话里滚到已加载历史开头时，视口上方没有已发送提问，旧实现把按钮隐藏，读者只能去点宿主自己的「加载更早」。现在 `src/client/earlier-page.ts` 在 `[data-chat-flow]` 里按结构找宿主的那个按钮（`flow` 的前几个元素子节点里、`div` 只含一个 `BUTTON` 的那个；消息行带 `data-chat-flow-kind`，命中即停，所以行内按钮不会被误当成它——**不要改成按文案「加载更早」匹配**，宿主文案随语言变）。按钮的可见判据从「上方有提问」改成「上方有提问 **或** 宿主还有更早一页（控件存在即可，加载中也要留着，否则请求期间会闪掉）」。点击：能跳就照旧逐轮跳；跳不了就 `requestEarlierPage()` 点一下宿主控件，等新页提交后 `scrollToPrompt()` 落到「视口上方最近的那条提问」——**只往上走一步，不跳到新页顶端**（用户 2026-11-02 明确选了这个，另一选项是「跳到那一页最早的一条」）。判「新页到了」用**首行身份变化**而不是行数增长：流式输出只会在尾部追加，不会换掉首行，把它当成补页会抢走读者位置；宿主把按钮 `disabled` 期间不动，且要连续 `EARLIER_PAGE_SETTLE_FRAMES` 帧（2 帧）才进入落点。**落点不能只做一次，也不能靠重试赢**（2026-11-02 真实浏览器实测两次）：宿主 `ChatNavigation.contentCommitted → ChatViewport.preserve → write` 在分页后**一直 armed**，每次程序化 `scrollTo` 之后同一毫秒就按锚点写回 `scrollTop`，而且写回发生在宿主自己的 `scroll` 事件投递之前——它永远等不到 `readerSampled`，所以等多久、重试多少次都会被打回。**可用解**：落点前在 `[data-conversation-scroll]` 上派发一次**合成的 `pointerdown`**（`releasePagingAnchor()`；宿主 `ChatViewport` 把 `wheel/touchstart/pointerdown/keydown/beforematch` 监听在 scroller 上且不查 `isTrusted`，命中后 `stopPreserving()`），实测派发后 12/12 帧稳在目标位置。之后捕获一次目标行（`nearestPromptAbove`），逐帧校验它距可视顶部是否 24px（±1px）：偏了就用 `landRow()` 再落一次，连续 `EARLIER_LAND_SETTLE_FRAMES` 帧（3 帧）稳住才收手；`landRow()` 连续 `EARLIER_LAND_STUCK_FRAMES` 帧（2 次）都没让 `scrollTop` 变化（历史顶端 clamp 到 0）也收手，避免死等。`landRow()` 是 `scrollToPrompt()` 与补页落点共用的唯一实现（含 `scroll`/`scrollend` 交付）。10 秒没等到就放弃（`EARLIER_PAGE_TIMEOUT_MS`），只解除等待，不影响宿主随后自己加载完的那一页。请求期间按钮 `disabled`（Busy），卸载或关开关时取消等待但**不撤销**宿主已发起的加载。
 
-`npm run test:scroll` 覆盖逐轮定位与空白/隐藏消息；真实浏览器回归设置 `DSH_SCROLL_URL`、`DSH_SCROLL_WORKSPACE`、`DSH_SCROLL_SESSION`，选择已有长对话，隔离测试浏览器仅替换本次 client bundle 响应，不覆盖正在使用的插件目录。验收包括向上/原向下、393px/桌面、浅色/深色、轨迹切换清理（按钮与胶囊都清掉），以及关掉开关后按钮消失、重开立即恢复。
+`pnpm run test:scroll` 覆盖逐轮定位与空白/隐藏消息；真实浏览器回归设置 `DSH_SCROLL_URL`、`DSH_SCROLL_WORKSPACE`、`DSH_SCROLL_SESSION`，选择已有长对话，隔离测试浏览器仅替换本次 client bundle 响应，不覆盖正在使用的插件目录。验收包括向上/原向下、393px/桌面、浅色/深色、轨迹切换清理（按钮与胶囊都清掉），以及关掉开关后按钮消失、重开立即恢复。
 
 ## 会话开始胶囊（2026-10-15）
 
@@ -107,7 +107,7 @@ composer 卡片正上方那条整宽插槽是 `conversation.input.dock`（ui-con
 
 定位portal 的宿主结构依赖有二，均已核对安装版 0.2.0-rc.2：Chat frame 是 `position: relative; display: flex; flex-direction: column`，`.slot` 借 `order: -1` 排到最前（sticky 的自然位置必须在 frame 顶部，portal 只能追加在末尾）；宿主用户行带 `data-clock`（图标动作行）与 `data-message-attachments`（附件胶囊），行内文字据此剥壳。frame 改掉 flex 列或换掉这两个属性时，行会退化成停在 frame 底部或文字混入时间——先核对再改。独立（无 `[data-conversation-scroll]`）聊天里 sticky 同样成立。
 
-开关是新的 volatile 字段 `sessionStartChipEnabled`（默认 `true`）：行为照「环境开关不要挡在注册前面」的旧规——插槽条目照常注册，关闭只让组件返回 `null`，重开立即恢复；旧宿主 schema 缺字段时该行显示 `stale` 并禁用开关，但功能按默认开启生效，重启宿主后开关才可写。`tests/client.mjs` 覆盖注册（dock/order 102/共享快照）、开关、行内文字剥壳与附件名回退、点击落点与 sticky/order/无底色块的样式回归；`npm run test:scroll` 的浏览器回归在 393px/桌面断言行框内、点击落点与轨迹清理。
+开关是新的 volatile 字段 `sessionStartChipEnabled`（默认 `true`）：行为照「环境开关不要挡在注册前面」的旧规——插槽条目照常注册，关闭只让组件返回 `null`，重开立即恢复；旧宿主 schema 缺字段时该行显示 `stale` 并禁用开关，但功能按默认开启生效，重启宿主后开关才可写。`tests/client.mjs` 覆盖注册（dock/order 102/共享快照）、开关、行内文字剥壳与附件名回退、点击落点与 sticky/order/无底色块的样式回归；`pnpm run test:scroll` 的浏览器回归在 393px/桌面断言行框内、点击落点与轨迹清理。
 
 ## 浮动行与跳转落点（2026-10-25）
 
@@ -141,7 +141,7 @@ composer 卡片正上方那条整宽插槽是 `conversation.input.dock`（ui-con
 
 **宿主 DOM 依赖**（已核对安装版 0.2.1-rc.2 的 client bundle）：`data-conversation-content`、`data-conversation-session`、`data-conversation-scroll` 由 ui-conversation 输出，`data-chat-flow`/`data-chat-flow-kind`/`data-chat-anchor-key` 由 ui-chat 输出。宿主改属性名时最坏是静默不滚（所有读取都守门、不抛错）。轨迹视图没有 `[data-chat-flow]`，此时不落点；之后切回对话也不会补做（等待窗口已过）——刻意不猜用户意图。不要改成按 `data-chat-turn` 找最后一轮：最后一条回答的判据是「最后一条可见 assistant-step」，不是最后一轮的开头。
 
-**回归**：`tests/unread-answer-start.test.mjs` 覆盖转换判定（基线、读掉、开跑、仍在读、删除、顺序）、可见回答筛选、落点几何与顶部截断、等待 DOM、开跑不触发、超时放弃、五类手势取消与两类不取消、卸载清理、稳定帧数，以及 2026-10-25 的浮动行修正（可视顶部三档、带行落点、落点后行才出现时的二次校正）；`tests/client.mjs` 用假 `uiSession.sessionStatus` 驱动「绿点出现 → 打开 → 落到 1276（无行时 24px 缩进）并派发 scroll/scrollend → 不重复 → 关开关释放 → 重开恢复」，并覆盖该开关行的默认开、写字段、缺字段 `stale`、只读与不可用禁用；`tests/smoke.mjs` 钉住 `Config` 的 volatile 与默认值。**真实浏览器验收**（2026-10-25，隔离实例 0.2.1-rc.2、Chrome 155 headless、1440×900、本地假 Messages provider）：默认开时绿点会话打开后回答顶距滚动区顶 24.0px、`nearBottom=1275`、不追随尾部；设置页第 4 行写入 `false` 后同一流程落点 `nearBottom=0`、追随尾部；再写回 `true`；控制台无错误。探针与读数在 `.scratch/ui-beautify-unread/verify/`，证据登记在 `docs/testing.md` 第 1 节；同日的浮动行修正读数与手机 393×844 截图登记在第 2 节（修复前重叠 9px，修复后回答顶在行下 24px）。它依赖假 provider，未并入 `npm test`。
+**回归**：`tests/unread-answer-start.test.mjs` 覆盖转换判定（基线、读掉、开跑、仍在读、删除、顺序）、可见回答筛选、落点几何与顶部截断、等待 DOM、开跑不触发、超时放弃、五类手势取消与两类不取消、卸载清理、稳定帧数，以及 2026-10-25 的浮动行修正（可视顶部三档、带行落点、落点后行才出现时的二次校正）；`tests/client.mjs` 用假 `uiSession.sessionStatus` 驱动「绿点出现 → 打开 → 落到 1276（无行时 24px 缩进）并派发 scroll/scrollend → 不重复 → 关开关释放 → 重开恢复」，并覆盖该开关行的默认开、写字段、缺字段 `stale`、只读与不可用禁用；`tests/smoke.mjs` 钉住 `Config` 的 volatile 与默认值。**真实浏览器验收**（2026-10-25，隔离实例 0.2.1-rc.2、Chrome 155 headless、1440×900、本地假 Messages provider）：默认开时绿点会话打开后回答顶距滚动区顶 24.0px、`nearBottom=1275`、不追随尾部；设置页第 4 行写入 `false` 后同一流程落点 `nearBottom=0`、追随尾部；再写回 `true`；控制台无错误。探针与读数在 `.scratch/ui-beautify-unread/verify/`，证据登记在 `docs/testing.md` 第 1 节；同日的浮动行修正读数与手机 393×844 截图登记在第 2 节（修复前重叠 9px，修复后回答顶在行下 24px）。它依赖假 provider，未并入 `pnpm test`。
 
 ## 隐藏模型与访问模式（2026-10-25，默认值 2026-10-26 改为关）
 

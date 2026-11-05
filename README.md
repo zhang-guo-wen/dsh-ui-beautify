@@ -43,7 +43,7 @@ Recent conversations have their own switch in **Settings → UI Beautify** and d
 
 On desktop the strip is a hemp line pinned to the header's left and right edges. Up to five recent conversations hang from it on clothespins in the middle, the selected conversation is tinted, and the line sags toward the middle. The line shares the row with the host conversation/trace tabs, which stay clickable; the header grows by the line height. When the header narrows, the tags shrink and then move to their own row below the host tabs, and the line still reaches both edges. At widths of 600px or less, phones keep the previous text-tab strip and hide the host view tabs. A host-native recent strip takes precedence. Disabling recent conversations or unloading the plugin removes the strip and restores the host tabs.
 
-For development, `npm run test:recent` runs catalog/status tests and a real Chrome/React fixture at 1200, 601, 600 and 393px, including delayed tab bars, the band/stack fallbacks, session navigation and cleanup. It uses the existing desktop-profile Playwright installation and local Chrome; set `DSH_MOBILE_PLAYWRIGHT` and `DSH_MOBILE_CHROME` to use other installations. It does not launch or change a running DSH host.
+For development, `pnpm run test:recent` runs catalog/status tests and a real Chrome/React fixture at 1200, 601, 600 and 393px, including delayed tab bars, the band/stack fallbacks, session navigation and cleanup. It uses the existing desktop-profile Playwright installation and local Chrome; set `DSH_MOBILE_PLAYWRIGHT` and `DSH_MOBILE_CHROME` to use other installations. It does not launch or change a running DSH host.
 
 ## Unread conversations
 

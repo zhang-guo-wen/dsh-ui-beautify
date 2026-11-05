@@ -43,7 +43,7 @@ npx @deepseek-ai/dsh plugin --profile web add @guowenzhang/dsh-ui-beautify
 
 桌面端是一条麻绳：两端钉在标题区左右边缘，最多五条最近对话用衣夹夹在绳子中段，当前对话着色，绳子向中间自然下垂。绳子与宿主的对话／轨迹标签同排，后者仍可正常点击；标题区高度按绳子这一行增加。标题区变窄时吊牌先缩小、再落到宿主标签下方单独一行，两种情况下绳子仍然连到左右两边。宽度不超过 600px 时手机端保持原来的文字标签样式，并隐藏宿主视图标签。宿主自带的最近对话栏优先显示。关闭最近对话或卸载插件时，移除插件标签栏并恢复宿主标签与标题区高度。
 
-开发时可运行 `npm run test:recent`，覆盖列表／状态单测与 1200、601、600、393px 的真实 Chrome／React fixture，包括标签栏延迟出现、并排／换行两种挂法、会话切换和清理。测试使用现有 desktop profile 的 Playwright 与本机 Chrome，也可通过 `DSH_MOBILE_PLAYWRIGHT`、`DSH_MOBILE_CHROME` 指定安装位置；不会启动或修改正在运行的 DSH 宿主。
+开发时可运行 `pnpm run test:recent`，覆盖列表／状态单测与 1200、601、600、393px 的真实 Chrome／React fixture，包括标签栏延迟出现、并排／换行两种挂法、会话切换和清理。测试使用现有 desktop profile 的 Playwright 与本机 Chrome，也可通过 `DSH_MOBILE_PLAYWRIGHT`、`DSH_MOBILE_CHROME` 指定安装位置；不会启动或修改正在运行的 DSH 宿主。
 
 ## 未读会话
 

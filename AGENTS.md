@@ -19,22 +19,22 @@ cordis.patch.yml      把插件行插进组合的 bundle 层；打包配置为 b
 ## 构建与测试
 
 ```sh
-npm install            # 或 npm ci（依据锁文件）
-npm run typecheck      # tsc --noEmit -p tsconfig.json
-npm run build          # tsdown（host → lib/index.mjs）+ build-client.mjs（→ lib/client.js）
-npm test               # 冒烟 + HTTP 层验证（对构建产物运行，不联网）
-npm run test:cdn       # 联网：逐字体校验两个镜像、分片与字体族名
-npm run probe -- <包>  # 联网：评估一个候选 npm 包能不能当字体用
-npm run test:mobile    # 手机布局控制器（可选真实浏览器，设 DSH_MOBILE_URL）
-npm run test:scroll    # 回到最近提问（可选真实浏览器，设 DSH_SCROLL_URL）
-npm run test:replies   # 快捷回复「一行放不下就少显示几条」（可选真实浏览器，设 DSH_QUICK_REPLY_URL）
+pnpm install            # 或 pnpm install --frozen-lockfile（依据锁文件）
+pnpm run typecheck      # tsc --noEmit -p tsconfig.json
+pnpm run build          # tsdown（host → lib/index.mjs）+ build-client.mjs（→ lib/client.js）
+pnpm test               # 冒烟 + HTTP 层验证（对构建产物运行，不联网）
+pnpm run test:cdn       # 联网：逐字体校验两个镜像、分片与字体族名
+pnpm run probe -- <包>  # 联网：评估一个候选 npm 包能不能当字体用
+pnpm run test:mobile    # 手机布局控制器（可选真实浏览器，设 DSH_MOBILE_URL）
+pnpm run test:scroll    # 回到最近提问（可选真实浏览器，设 DSH_SCROLL_URL）
+pnpm run test:replies   # 快捷回复「一行放不下就少显示几条」（可选真实浏览器，设 DSH_QUICK_REPLY_URL）
 ```
 
-测试都从 `lib/index.mjs` / `lib/client.js` 读产物，**改完源码先 `npm run build` 再测**。
+测试都从 `lib/index.mjs` / `lib/client.js` 读产物，**改完源码先 `pnpm run build` 再测**。
 
 ## 关键硬约束
 
-- **`lib/` 必须随源码一起提交**：它是提交进仓库的构建产物，别人直接从 git 安装；改完源码跑 `npm run build` 并把 `lib/` 一并提交，不要把 `lib/` 落在外面的工作区。
+- **`lib/` 必须随源码一起提交**：它是提交进仓库的构建产物，别人直接从 git 安装；改完源码跑 `pnpm run build` 并把 `lib/` 一并提交，不要把 `lib/` 落在外面的工作区。
 - **不得停止、重启、升级或修改日常 Harness 实例**：真实浏览器验收一律用独立 `DSH_HOME` + npm 发布版的隔离实例（随机高位端口）；不占用日常实例端口、不改它的配置与凭据。认证失败就报告认证条件，**不绕过认证、不改日常实例**。
 - **不得写死用户可见文案**：所有可见字符串（含 `aria-label`、`title`、`placeholder`、空态与状态格式化）进本包 `src/client/locales.ts` 的 typed 字典；用户数据、模型输出、代码 token 与协议字段保持原样。**不得写死颜色**：一律取 `--dsw-alias-*` 语义别名，不新写 `#hex`/`rgb()` 字面量、不复制静态调色板值、不写浅色/深色选择器、不覆盖 token，写进 CSS 的 token 必须能在 `ui-theme` 或宿主组件里搜到同名定义或消费点。
 - **必须复用宿主控件**：优先用 `@deepseek-ai/dsh-client-ui-primitives` 的 `Button`、`Input`、`Modal`、`Menu`、`SegmentedTabs`、`Tag`、`Toast`、`Switch`、`Tooltip`、`Pill`，不自己仿造；样式写在 `ComponentName.module.css`，用 `clsx` 组合类名，不引入组件库或 Tailwind。更完整的配色、排版、断点、动效、可访问性、性能与验收标准见工作区根 `AGENTS.md` 的「插件 UI 规范」，那是更高权威。

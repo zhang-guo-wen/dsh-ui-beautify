@@ -61,7 +61,7 @@ tools/
   probe-font.mjs          联网评估候选 npm 包：分片、族名、镜像可达、可直接粘贴的配置行
 ```
 
-- `lib/` —— 构建产物：**已提交进仓库**（`index.mjs` host + `client.js` 浏览器 handoff），这样别人可以直接从 git 安装。改完源码**记得 `npm run build` 并把 `lib/` 一起提交**。
+- `lib/` —— 构建产物：**已提交进仓库**（`index.mjs` host + `client.js` 浏览器 handoff），这样别人可以直接从 git 安装。改完源码**记得 `pnpm run build` 并把 `lib/` 一起提交**。
 
 ### 打包配置与许可
 
@@ -72,9 +72,9 @@ tools/
 ## 构建
 
 ```sh
-npm install
-npm run typecheck      # tsc --noEmit -p tsconfig.json
-npm run build          # tsdown（host）+ build-client.mjs（client handoff 包）
+pnpm install
+pnpm run typecheck      # tsc --noEmit -p tsconfig.json
+pnpm run build          # tsdown（host）+ build-client.mjs（client handoff 包）
 ```
 
 - host：`tsdown` 打 `src/index.ts` → `lib/index.mjs`，`@deepseek-ai/*` 全部保持 external（`deps.neverBundle`），`clean: true`。
@@ -82,14 +82,14 @@ npm run build          # tsdown（host）+ build-client.mjs（client handoff 包
 
 CSS module 的类名映射按 local 名排序后才输出：lightningcss 的 `exports` 没有稳定键序，不排序会让每次构建产出字节不同的 `lib/client.js`，在提交进仓库的产物上表现为无意义的 diff。
 
-`lib/` 是**提交进仓库的构建产物**，这样可以直接从 git 安装。改完源码记得 `npm run build` 并把 `lib/` 一起提交。
+`lib/` 是**提交进仓库的构建产物**，这样可以直接从 git 安装。改完源码记得 `pnpm run build` 并把 `lib/` 一起提交。
 
 ## 测试
 
 ```sh
-npm test               # 冒烟 + HTTP 层验证（对构建产物运行，不联网）
-npm run test:cdn       # 联网：逐字体校验两个镜像、分片与字体族名
-npm run probe -- <包>  # 联网：评估一个候选 npm 包能不能当字体用
+pnpm test               # 冒烟 + HTTP 层验证（对构建产物运行，不联网）
+pnpm run test:cdn       # 联网：逐字体校验两个镜像、分片与字体族名
+pnpm run probe -- <包>  # 联网：评估一个候选 npm 包能不能当字体用
 ```
 
 - `tests/smoke.mjs`：mock ctx 调 `apply()`，断言路由注册、字体表完整性（id 字符集、包名版本、样式表路径）、路由解析与路径穿越防护、镜像模板拼接、缓存目录解析、设置 schema。
@@ -98,9 +98,9 @@ npm run probe -- <包>  # 联网：评估一个候选 npm 包能不能当字体�
   同一份桩还模拟了宿主 ref、commit 后 effect 与**可控时钟**，于是 composer 车道可以逐帧驱动：断言它注册进 `conversation.input.dock`、order 100、`aria-hidden`、**没有输出时位移与轮转都精确为 0**、有输出时前进并转轮、**输出停下后仍滑行 2 秒、8 秒后才完全停住**、以及**在车道上时从不跳回起点**（换行只允许发生在两端都基本在画面外的那一帧）；再加上三种动效选择的行为——`system` + 浏览器要求减少动效时不渲染也不申请帧、`always` 时照常播放并在动、`off` 时什么都不画。车道那一行也在这里渲染：三选一的选项、以及状态行写出「为什么带子是空的」。两个测量辅助函数把「没写过 transform」当成停住（0），而不是 `NaN`——停住的车道**什么都不写**，用 `NaN` 会让停住的断言全部假失败；`travelOf` / `turnOf` 读的是像素，所以「没跳回起点」要按**可见性**判断（换行那一帧两端都在画面外，DOM 上却是一次 800px 的跳跃）。车轮角度必须取模（`((to - from) % 360 + 360) % 360` 并只在单帧内测量）——绝对角度会绕圈，增量会因绕圈变成负数。
 - `tests/cdn.mjs`：对真实镜像逐个字体跑，除了 200 还检查两件容易踩的事——样式表里声明的 `font-family` 与表里写的一致，以及它**确实是 `unicode-range` 分片**而不是一个整字体文件。
 - 快捷回复在同一份 `tests/client.mjs` 里断言：注册进 `conversation.composer.dock`（不是 `settings.general.item`）、order 1、四个内置短语按字典顺序各占一个标签、外层的 `role="group"` 与 `aria-label`、每个标签自己的 `aria-label`、点击后先按捕获到的光标位置 `insertText` 再 `submit`、**插入被拒时一次都不提交**、以及 `submitting` 相位下全部禁用。再加上自定义那一段：存的短语整排顶替内置、空槽不占标签、超过 4 条被截断、四个都空回落内置、点击发的是自定义文本。设置行单独走一遍**点击 → 编辑 → 保存**：4 个标签按字典显示内置短语且都是灰的、`aria-label` 是「编辑「<显示的字>」」、点灰标签写入该内置短语并把这一格换成输入框（`defaultValue`/`placeholder`/`autoFocus`）、失焦写回裁剪后的文字、清空把这一格关掉、Esc 写回点击前的值并关掉输入框、点实心标签本身不写入、点「恢复默认」写入空列表、宿主 schema 缺字段时显示 `stale` 且标签禁用。**测试桩的 `useState` 会跨 mount 保留值**，所以「点击 → 再 mount 同一实例」就是一次重渲染。`src/quick-replies.ts` 的纯函数（裁剪、去空、保位）在 `tests/smoke.mjs` 里断言。设置行那一整块断言由 `pageComponents.has('QuickReplyRow')` 守卫：这一行现在不挂载，所以整块跳过并打一行 parked；把它挂回页面即 24 条全部重跑，不需要改测试。`Pill` 是为此加进桩表的——client 半边新增 import 同样要同步那一张（见易崩清单 12）。**一行放不下就少显示几条**那一节另有一组断言：桩里给行挂上假的 `classList`/`getBoundingClientRect` 与「每个可见条数对应多大的盒子」，再由 `ResizeObserver` 桩手动触发测量，断言放得下就四条、超出就丢尾部并加 `.hidden`、窄到一条都放不下时显示 0 条但行仍在（否则变宽后测不回来）、变宽后整排回来；`window` 桩因此补了 `addEventListener`/`removeEventListener`。**闪烁修复后这一段桩也模拟了「class 两份」与 React 的提交**：每条标签的 class 是一个集合，`classList.toggle(name, on)` 按名字增删（不再是单个 `hidden` 布尔），并且只有带 `.tag` 的可见标签才报自己的宽度、丢了 `.tag` 的可见标签宽度算 0（被压进盒子）；`fitsTo()` 先用 React 上一次渲染的 `className` 覆盖节点（模拟 commit），再触发观察器，并把**探索自己写下的 class** 与**紧接着要渲染的 class** 分别记下来对比。两条新断言就是这次闪烁的回归：`the measurement leaves exactly the classes React renders for its answer`（探索留下的 DOM 必须等于该条数要渲染的 DOM）与 `measuring the same line again answers the same`（同一布局连测三次答案必须一致）。把 `show()` 改回只 toggle `.hidden`，这两条连同上面两条都会 FAIL——旧代码实测输出是「四条 → 三条 → 四条」。
-- `tests/quick-replies-browser.test.mjs`：真实宿主上的那条回归。设 `DSH_QUICK_REPLY_URL`（多工作区时再设 `DSH_QUICK_REPLY_WORKSPACE`、`DSH_QUICK_REPLY_SESSION`）后用隔离浏览器只替换本插件 client bundle 响应，先按需打开侧边栏并选中已有会话，再按 760→601 逐档静置，**每档看两次**：每次 1.2 秒逐帧采样断言 0 次条数变化、0 帧标签溢出行的盒子，两次之间再断言条数没变；最后断言总得有点标签（否则「一行都没有」会让前面全部空过）与 600px 由媒体查询整行隐藏。**只取可见的那一行**（`[role="group"]:has(> button):visible`）并把它抓成 elementHandle：宿主会把别的会话挂在后面，那一行是 `display: none`，量它会得到「没有标签、没有闪烁」的假通过。**故意不断言「越宽越多」**——宿主自己的右侧栏会在窄宽度自动收起，房间变大是合理的，这条断言只会误报。`npm run test:replies` 单独跑它，`npm test` 也带（未设环境变量时跳过）。旧构建实测在 640px 触发溢出断言、在 601px 触发闪烁断言，修好后全绿。
+- `tests/quick-replies-browser.test.mjs`：真实宿主上的那条回归。设 `DSH_QUICK_REPLY_URL`（多工作区时再设 `DSH_QUICK_REPLY_WORKSPACE`、`DSH_QUICK_REPLY_SESSION`）后用隔离浏览器只替换本插件 client bundle 响应，先按需打开侧边栏并选中已有会话，再按 760→601 逐档静置，**每档看两次**：每次 1.2 秒逐帧采样断言 0 次条数变化、0 帧标签溢出行的盒子，两次之间再断言条数没变；最后断言总得有点标签（否则「一行都没有」会让前面全部空过）与 600px 由媒体查询整行隐藏。**只取可见的那一行**（`[role="group"]:has(> button):visible`）并把它抓成 elementHandle：宿主会把别的会话挂在后面，那一行是 `display: none`，量它会得到「没有标签、没有闪烁」的假通过。**故意不断言「越宽越多」**——宿主自己的右侧栏会在窄宽度自动收起，房间变大是合理的，这条断言只会误报。`pnpm run test:replies` 单独跑它，`pnpm test` 也带（未设环境变量时跳过）。旧构建实测在 640px 触发溢出断言、在 601px 触发闪烁断言，修好后全绿。
 
-三个测试都从 `lib/index.mjs` / `lib/client.js` 读产物，所以改完源码先 `npm run build` 再测。
+三个测试都从 `lib/index.mjs` / `lib/client.js` 读产物，所以改完源码先 `pnpm run build` 再测。
 `tools/probe-font.mjs` 同样 `import { DEFAULT_MIRRORS } from '../lib/index.mjs'`，跑 probe 之前也要有 `lib/`。
 
 ## 部署
@@ -144,7 +144,7 @@ npx @deepseek-ai/dsh plugin --profile web remove @guowenzhang/dsh-ui-beautify   
 `lib/` 是提交进仓库的，所以**发版 = 改版本号 + 构建 + 提交产物 + 打 tag**。别人按 tag 安装，`master` 上的临时提交不会被他们拿到。
 
 1. 改根 `package.json` 的 `version`（当前 `1.0.0`）。
-2. `npm run build`，确认 `lib/index.mjs` 与 `lib/client.js` 是最新。
+2. `pnpm run build`，确认 `lib/index.mjs` 与 `lib/client.js` 是最新。
 3. 提交源码与 `lib/`（不要把 `lib/` 落在外面的工作区）。
 4. 打带注释的 tag 并推送：
 
