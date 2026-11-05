@@ -1,6 +1,6 @@
 # AGENTS.md
 
-本仓 `dsh-ui-beautify` 是**独立于 harness monorepo** 的 DeepSeek Harness (DSH) 插件：在「设置 → 界面美化」独立页面提供字体、动效、PC 端快捷回复开关与品牌设置（快捷回复的内容编辑行**暂时不挂载**，组件留在仓库里），并给 composer 上下各加一件——上方是光柱，下方是快捷回复标签（内置四条，可经手改配置替换）。
+本仓 `dsh-ui-beautify` 是**独立于 harness monorepo** 的 DeepSeek Harness (DSH) 插件：在「设置 → 界面美化」独立页面提供字体、动效、PC 端快捷回复开关与品牌设置（快捷回复的内容编辑行**暂时不挂载**，组件留在仓库里），并给 composer 上下各加一件——上方是光柱，下方是快捷回复标签（内置四条，可经手改配置替换）；「设置 → 通用」的当前版本下方再补一行已发布版本与升级按钮（读桌面壳自己的更新源，按钮唤起桌面壳原生升级流程）。
 字体**不随包分发**——包里只有 npm 包名、锁定版本与包内样式表路径，字体在首次使用时由 Host 从镜像下载到本机缓存，之后完全离线可用。它不打包 `@deepseek-ai/*`，运行时从宿主 harness 解析这些包。
 
 姊妹插件：[`dsh-web-design`](../dsh-web-design)（在 DSH 侧栏里预览与编辑 HTML）。
@@ -8,8 +8,8 @@
 仓库根**就是**包（`package.json` 即 `@guowenzhang/dsh-ui-beautify`）：`dsh plugin add <git-url>` 取的是仓库根，包放在 `packages/*` 下会被装成错误的东西。
 
 ```
-src/                  Host 与两半边共用：params、fonts、motion、quick-replies、source、store、serve、settings、brand-assets、description-*、pdf-worker-compat、index
-  client/             浏览器半边：设置页、品牌、字体行、光柱、快捷回复、滚动锚点、会话开始胶囊、未读会话落点、快捷操作悬浮按钮、隐藏模型与访问模式、手机布局、描述翻译、locales.ts
+src/                  Host 与两半边共用：params、fonts、motion、quick-replies、source、store、serve、settings、brand-assets、description-*、pdf-worker-compat、update-check、index
+  client/             浏览器半边：设置页、品牌、字体行、光柱、快捷回复、滚动锚点、会话开始胶囊、未读会话落点、快捷操作悬浮按钮、隐藏模型与访问模式、手机布局、描述翻译、已发布版本行、locales.ts
 tests/                smoke / http / client / brand / cdn 等，读 lib/ 产物运行
 docs/                 说明文档与 README 截图（images/）；tools/ 是字体探针；locale/ 是随包分发的 nls 文案
 lib/                  构建产物（index.mjs host + client.js 浏览器 handoff），**提交进仓库**

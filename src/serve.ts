@@ -1,5 +1,5 @@
 /**
- * The plugin's two HTTP surfaces.
+ * The plugin's HTTP surfaces.
  *
  * The browser fetches a face's stylesheets and shards from the application
  * origin, so this plugin claims one `webServer` prefix and resolves each path
@@ -10,6 +10,11 @@
  * The second surface is the cache read-out the picker labels each face with. It
  * is a separate exact route, because nothing under the font prefix is a JSON
  * document.
+ *
+ * The third is the published release the version row shows. It is a route of
+ * its own for the same reason, and it exists at all because the manifest sits on
+ * another origin: the browser would need the feed's CORS permission, while the
+ * Host reaches it the way its updater does.
  *
  * Request paths are untrusted input and the resolved file is written to disk,
  * so a path outside the route, a path that names no face, and a path that would
@@ -27,6 +32,7 @@ import { anyFaceById, FACE_ID_PATTERN, type FontFace } from './fonts.ts'
 import { FONTS_ROUTE } from './params.ts'
 import { FontDownloadError } from './source.ts'
 import type { FontStore } from './store.ts'
+import type { UpdateChecker } from './update-check.ts'
 
 /** Where one request under the font route points. */
 export type FontRoute =
@@ -174,6 +180,35 @@ export async function serveCacheUsage(
     return
   }
   const body = JSON.stringify({ faces: await store.usage() })
+  res.writeHead(200, {
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': String(Buffer.byteLength(body)),
+    'cache-control': 'no-store',
+  })
+  res.end(req.method === 'HEAD' ? undefined : body)
+}
+
+/**
+ * Answer one request for the published release.
+ *
+ * The row re-reads this every time the settings page opens, and a reading is
+ * already reused for its TTL, so the response itself is never cached; `?force=1`
+ * is how the row asks past that TTL.
+ * @param req - the incoming request.
+ * @param res - the response to own.
+ * @param checker - the reader that knows the installed version and the feed.
+ */
+export async function serveUpdateStatus(
+  req: IncomingMessage,
+  res: ServerResponse,
+  checker: Pick<UpdateChecker, 'status'>,
+): Promise<void> {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    res.writeHead(405, { allow: 'GET, HEAD' }).end('method not allowed')
+    return
+  }
+  const force = new URL(req.url ?? '/', 'http://x').searchParams.get('force') === '1'
+  const body = JSON.stringify(await checker.status(force))
   res.writeHead(200, {
     'content-type': 'application/json; charset=utf-8',
     'content-length': String(Buffer.byteLength(body)),

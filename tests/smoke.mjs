@@ -9,7 +9,7 @@ import {
   resolveMotionChoice, BRAND_ROUTE, CACHE_ROUTE, CODE_FACES, CODE_FONT_CHOICES, Config, DEFAULT_CODE_FONT_ID,
   DEFAULT_FONT_ID, DEFAULT_MIRRORS, DEFAULT_MOTION_CHOICE, FACE_ID_PATTERN, FONT_CHOICES,
   FONT_FACES, FONT_ROLES, FONTS_ROUTE, FONT_SETTINGS_NS, MAX_QUICK_REPLIES, MAX_QUICK_REPLY_LENGTH,
-  MOTION_CHOICE_IDS, SYSTEM_FONT_ID, quickReplySlots, visibleQuickReplies,
+  MOTION_CHOICE_IDS, SYSTEM_FONT_ID, quickReplySlots, visibleQuickReplies, UPDATE_ROUTE,
 } from '../lib/index.mjs'
 
 const failures = []
@@ -42,15 +42,18 @@ apply({
 const fontRoute = routes.find(route => route.path === FONTS_ROUTE)
 const cacheRoute = routes.find(route => route.path === CACHE_ROUTE)
 const brandRoute = routes.find(route => route.path === BRAND_ROUTE)
-check('claims three routes', routes.length === 3, routes.map(route => route.path).join(', '))
+const updateRoute = routes.find(route => route.path === UPDATE_ROUTE)
+check('claims four routes', routes.length === 4, routes.map(route => route.path).join(', '))
 check('the font route is a prefix route', fontRoute?.kind === 'prefix', String(fontRoute?.kind))
 check('the font route carries a request handler', typeof fontRoute?.handler === 'function')
 check('the cache read-out is an exact route', cacheRoute?.kind === 'exact', String(cacheRoute?.kind))
 check('the cache read-out carries a request handler', typeof cacheRoute?.handler === 'function')
 check('the brand-image route is a prefix route', brandRoute?.kind === 'prefix')
 check('the brand-image route carries a request handler', typeof brandRoute?.handler === 'function')
+check('the published-release read-out is an exact route', updateRoute?.kind === 'exact', String(updateRoute?.kind))
+check('the published-release read-out carries a request handler', typeof updateRoute?.handler === 'function')
 check('the two routes do not overlap', !CACHE_ROUTE.startsWith(`${FONTS_ROUTE}/`), CACHE_ROUTE)
-check('registers one explicit effect per route', disposers.length === 3, String(disposers.length))
+check('registers one explicit effect per route', disposers.length === 4, String(disposers.length))
 
 console.log('face catalogue')
 check('offers several body faces', FONT_FACES.length >= 6, String(FONT_FACES.length))
@@ -218,6 +221,9 @@ check('the model seat can be hidden', Config({ hideModelSelector: true }).hideMo
 check('declares the access-mode switch live', Config.dict.hideAccessMode.meta.volatile === true)
 check('the access-mode seat defaults shown', Config({}).hideAccessMode.get() === false)
 check('the access-mode seat can be hidden', Config({ hideAccessMode: true }).hideAccessMode.get() === true)
+check('declares the sidebar-brand switch live', Config.dict.hideSidebarBrand.meta.volatile === true)
+check('the sidebar brand defaults shown', Config({}).hideSidebarBrand.get() === false)
+check('the sidebar brand can be hidden', Config({ hideSidebarBrand: true }).hideSidebarBrand.get() === true)
 check('declares the context-ring switch live', Config.dict.contextRingEnabled.meta.volatile === true)
 check('the context ring defaults on', Config({}).contextRingEnabled.get() === true)
 check('the context ring accepts false', Config({ contextRingEnabled: false }).contextRingEnabled.get() === false)

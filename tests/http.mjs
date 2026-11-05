@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto'
 import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { apply, CACHE_ROUTE, Config, FONT_FACES, FONTS_ROUTE } from '../lib/index.mjs'
+import { apply, CACHE_ROUTE, Config, FONT_FACES, FONTS_ROUTE, UPDATE_ROUTE } from '../lib/index.mjs'
 
 const failures = []
 const check = (label, ok, detail = '') => {
@@ -108,14 +108,14 @@ async function startPlugin(options) {
       },
     },
   }, Config(options))
-  if (handlers.size !== 3) throw new Error(`the plugin registered ${String(handlers.size)} routes`)
+  if (handlers.size !== 4) throw new Error(`the plugin registered ${String(handlers.size)} routes`)
   // The same dispatch the real webserver performs: exact table first, then the
   // prefix table.
-  const exact = handlers.get(CACHE_ROUTE)
+  const exact = new Map([CACHE_ROUTE, UPDATE_ROUTE].map(path => [path, handlers.get(path)]))
   const prefix = handlers.get(FONTS_ROUTE)
   const server = createServer((req, res) => {
     const pathname = new URL(req.url ?? '/', 'http://x').pathname
-    void (pathname === CACHE_ROUTE ? exact : prefix)(req, res)
+    void (exact.get(pathname) ?? prefix)(req, res)
   })
   await new Promise(ready => { server.listen(0, '127.0.0.1', ready) })
   return {
@@ -249,6 +249,56 @@ try {
     check('and says so without being cached', uncached.headers.get('cache-control') === 'no-store', String(uncached.headers.get('cache-control')))
   } finally {
     await offline.stop()
+  }
+
+  console.log('the published-release read-out')
+  // A Web install has no shell update file beside the executable, so the route
+  // answers "no feed" instead of inventing one.
+  const bareHost = await startPlugin({ mirrors: [registry.template], cacheDir })
+  try {
+    const bareRelease = await fetch(`${bareHost.base}${UPDATE_ROUTE}`)
+    check('200', bareRelease.status === 200, String(bareRelease.status))
+    check('application/json', bareRelease.headers.get('content-type') === 'application/json; charset=utf-8',
+      String(bareRelease.headers.get('content-type')))
+    check('never cached', bareRelease.headers.get('cache-control') === 'no-store',
+      String(bareRelease.headers.get('cache-control')))
+    const bareAnswer = await bareRelease.json()
+    check('a Host with no feed reports that rather than a version',
+      bareAnswer.state === 'unavailable' && bareAnswer.latest === null && bareAnswer.hasUpdate === false,
+      JSON.stringify(bareAnswer))
+  } finally {
+    await bareHost.stop()
+  }
+
+  // With a feed configured, the route names the release that feed publishes and
+  // reuses one reading until it is forced.
+  let manifestReads = 0
+  const feed = createServer((req, res) => {
+    manifestReads += 1
+    res.writeHead(200, { 'content-type': 'text/yaml' })
+    res.end('version: 9.9.9\nfiles:\n  - url: Arcuchi Harness-9.9.9.exe\n    sha512: x\n    size: 1\n')
+  })
+  await new Promise(ready => { feed.listen(0, '127.0.0.1', ready) })
+  const feedCache = await mkdtemp(join(tmpdir(), 'ui-beautify-update-'))
+  const announced = await startPlugin({
+    mirrors: [registry.template],
+    cacheDir: feedCache,
+    updateFeedUrl: `http://127.0.0.1:${String(feed.address().port)}/nightly.yml`,
+  })
+  try {
+    const answer = await (await fetch(`${announced.base}${UPDATE_ROUTE}`)).json()
+    check('names the published release', answer.state === 'ok' && answer.latest === '9.9.9', JSON.stringify(answer))
+    check('reads the manifest once', manifestReads === 1, String(manifestReads))
+    await fetch(`${announced.base}${UPDATE_ROUTE}`)
+    check('a second open reuses that reading', manifestReads === 1, String(manifestReads))
+    const forced = await (await fetch(`${announced.base}${UPDATE_ROUTE}?force=1`)).json()
+    check('an explicit re-check reads it again', manifestReads === 2 && forced.latest === '9.9.9', String(manifestReads))
+    const posted = await fetch(`${announced.base}${UPDATE_ROUTE}`, { method: 'POST' })
+    check('refuses a write', posted.status === 405, String(posted.status))
+  } finally {
+    await announced.stop()
+    await rm(feedCache, { recursive: true, force: true })
+    await new Promise(done => { feed.close(done) })
   }
 } finally {
   await rm(cacheDir, { recursive: true, force: true })

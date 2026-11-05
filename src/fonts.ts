@@ -353,6 +353,12 @@ export interface BeautifySettings {
    */
   hideAccessMode: boolean
   /**
+   * Hides the sidebar's logo and product name at its top-left, both the built-in
+   * mark and any custom brand image or name. Defaults off; the sidebar toggle
+   * and the New Session button below stay.
+   */
+  hideSidebarBrand: boolean
+  /**
    * Draws the current context occupancy as a ring around the composer's primary
    * (send / stop) button. Defaults on: it replaces the reading the stats switch
    * can hide.

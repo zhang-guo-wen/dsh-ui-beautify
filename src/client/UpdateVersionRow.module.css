@@ -1,0 +1,34 @@
+/* The published release under the shell's own version row, with the upgrade
+   action beside it.
+
+   It reads as the second line of that block, not as a preference row: other
+   rows put their small grey line 4px under the title (`.rowText` gap), and this
+   one has to do the same across a row boundary. The shell's version row is
+   `padding: 16px 0` around a 22px line, and this row's 12px line sits 5px into
+   its own 28px control row, so the block starts 18px above where the flow would
+   put it: 16px of the shell's bottom padding, 5px of this row's leading, less
+   the 4px that matches the other rows. Colours come from the --dsw-* alias
+   tokens, so the line follows the active palette. */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: -18px;
+  padding: 0 0 16px;
+  overflow-wrap: anywhere;
+}
+
+/* The same tone as the small line under every other settings title. */
+.detail {
+  flex: 1;
+  min-width: 0;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+@media (pointer: coarse) {
+  .row > button {
+    min-height: 44px;
+  }
+}

@@ -116,6 +116,8 @@ export interface SettingsRowState {
   hideModelSelector: boolean
   /** Whether the composer's access-mode selector is hidden; defaults off. */
   hideAccessMode: boolean
+  /** Whether the sidebar's logo and product name are hidden; defaults off. */
+  hideSidebarBrand: boolean
   /** Whether the composer's primary button carries the context ring; defaults on. */
   contextRingEnabled: boolean
   /** Whether an opened unread conversation lands at its last answer's start; defaults on. */
@@ -361,6 +363,7 @@ export class SettingsController {
         hideComposerStats: value?.hideComposerStats !== undefined,
         hideModelSelector: value?.hideModelSelector !== undefined,
         hideAccessMode: value?.hideAccessMode !== undefined,
+        hideSidebarBrand: value?.hideSidebarBrand !== undefined,
         contextRingEnabled: value?.contextRingEnabled !== undefined,
         unreadAnswerStartEnabled: value?.unreadAnswerStartEnabled !== undefined,
         quickActionsEnabled: value?.quickActionsEnabled !== undefined,
@@ -396,6 +399,9 @@ export class SettingsController {
       // renders it; hiding is the user's explicit choice.
       hideModelSelector: value?.hideModelSelector === true,
       hideAccessMode: value?.hideAccessMode === true,
+      // Same default again: the logo and the name identify the deployment, so an
+      // unread or absent field keeps them on screen.
+      hideSidebarBrand: value?.hideSidebarBrand === true,
       // On unless the document says otherwise, like every other default-on row.
       contextRingEnabled: value?.contextRingEnabled !== false,
       // Same default: the green dot already means an unread answer is waiting.

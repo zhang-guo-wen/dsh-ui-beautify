@@ -24,6 +24,19 @@ Restart the corresponding host and reload the browser, then open **Settings → 
 
 Translations sharing the same local data directory are deduplicated across host processes, including recovery after an owner exits. Unknown locks are preserved rather than deleted. Recovery retains small generation-marker directories to prevent stale processes from taking a newer lock; do not clean these markers while any host is running.
 
+## Version and upgrade
+
+General settings gains one line under **Current version**: the newest release published to the desktop shell's own update feed, with an **Upgrade** button beside it. The button opens the shell's existing update flow, so downloading and installing stay with the updater that owns them; when the running install is already the newest release, the line says so and the button is disabled.
+
+The line appears only where a feed exists. A desktop build carries `resources/app-update.yml` naming its feed URL and channel, which is what the row reads; a plain `dsh web` install has no such file and sees no row. A deployment that publishes elsewhere — an internal mirror, a different channel — names its manifest explicitly:
+
+```yaml
+- id: ui-beautify
+  name: '@guowenzhang/dsh-ui-beautify'
+  config:
+    updateFeedUrl: 'https://example.com/releases/latest.yml'
+```
+
 ## Recent conversations
 
 Recent conversations have their own switch in **Settings → UI Beautify** and do not require the code work view or mobile adaptation. The strip shows up to five eligible conversations in activity order; selecting one does not reorder it. Tabs use the host theme tokens in light and dark mode, including when the host has no conversation/trace tab bar.
@@ -63,6 +76,8 @@ Both halves are live: a row already streaming updates on its next repaint, with 
 The same page hides the three readings below the message box with its own switch, **Hide the statistics under the message box**: the round/step count with output speed, the token spend with its cache-hit share, and the host's context meter. It is independent of the switch above, and turning it off brings all three readings back.
 
 Two more switches in the same group empty the message box's bottom row: **Hide the model selector** and **Hide the access mode**. They are independent of each other and **default off**, so a fresh install keeps the host's model and access-mode controls; turning a row on hides only that host seat, and turning it off restores it. Both controls stay reachable through the host's own **/model** and **/permission** commands.
+
+**Hide the sidebar logo and name** empties the sidebar's top-left corner: the mark — the host's own or an uploaded brand image — and the product name beside it both go, while the sidebar toggle in the same row and the **New Session** button below it keep their places. It is independent of the other rows and **default off**, so the brand stays until someone turns it on.
 
 ## Context progress ring
 

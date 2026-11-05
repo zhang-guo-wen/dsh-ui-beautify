@@ -2,6 +2,8 @@
 paths:
   - "src/settings.ts"
   - "src/brand-assets.ts"
+  - "src/update-check.ts"
+  - "src/serve.ts"
   - "src/client/BeautifySection.tsx"
   - "src/client/BeautifySection.module.css"
   - "src/client/SettingRow.module.css"
@@ -13,6 +15,10 @@ paths:
   - "src/client/branding.tsx"
   - "src/client/tagline.ts"
   - "src/client/MotionRow.tsx"
+  - "src/client/UpdateVersionRow.tsx"
+  - "src/client/UpdateVersionRow.module.css"
+  - "src/client/update-check.ts"
+  - "src/client/desktop-update.ts"
   - "src/client/locales.ts"
   - "locale/**"
   - "tests/ui-copy.test.mjs"
@@ -20,6 +26,9 @@ paths:
   - "tests/settings-layout-browser.test.mjs"
   - "tests/feature-switch.test.mjs"
   - "tests/brand.mjs"
+  - "tests/update-check.test.mjs"
+  - "tests/http.mjs"
+  - "tests/smoke.mjs"
 ---
 
 > 覆盖什么、何时读：本文件覆盖设置页的字段与可配项、配置写在哪个文件、设置文案约定、单项保存反馈与请求去重、以及「界面增强」的五个功能开关；当你需要改设置页、加设置字段或改设置文案时读它。
@@ -55,6 +64,16 @@ paths:
 `cacheDir` 留空时的解析顺序：`$DSH_HOME`（非空时）→ `~/.dsh`，再拼 `cache/ui-beautify/fonts`。插件自己展开 `~` / `~/` / `~\` 前缀，因为 `@deepseek-ai/dsh-home-paths` 是 harness 内部包，loader 从 profile 解析本插件的 import，那里没装它。填了值就 `resolve()` 成绝对路径，所以**相对路径按宿主进程的 cwd 解析**，不是 profile 目录。
 
 所有用户可配字段都是 volatile；显示开关是 `z.boolean().default(...).volatile()`，各开关默认值见下文各节（多数默认开；「界面精简」组的 `streamlinedUiEnabled`、`hideComposerStats`、`hideModelSelector`、`hideAccessMode` 默认关）：字体、动效、品牌五项是 `z.string().volatile()`，快捷回复是 `z.array(z.string()).volatile()`（默认 `[]`，不写 `.max()`——schema 拒绝一个字段会让整份命名空间回落到上一个好值，超长列表在读取处裁掉，见「短语是可自定义的」）。字体和动效的未知值在读取处回落到默认值，图片地址、短语列表在使用时检查。`mirrors` / `cacheDir` 有默认值但不是 volatile，不出现在设置页。
+
+## 已发布版本行（2026-11-05）
+
+- **位置**：注册进宿主 ui-settings-general 的 `settings.general.item` 列表（id `ui-beautify-update`，order 101）。宿主自己的当前版本行是 order 100，所以这一行总是紧贴在其下方；不要试图把这个数字塞进那一行——它属于宿主。
+- **紧挨着宿主那一行**：宿主版本行是 `padding: 16px 0` 包着 22px 文字，本行 12px 小字在自身 28px 控件行里从顶部起算 5px，所以整行要给 `margin-top: -18px`（= 16 + 5 − 4），小字与上一行文字的间距才等于其他设置行标题与说明之间的 4px。数字随宿主那行的 padding 走：宿主改 padding 就要重算，不要在别处再叠第二份补偿。文案与颜色也对齐其他行的小字（`--dsw-font-xxs-12` + `--dsw-alias-label-tertiary`），要表达「有新版本」用可点的按钮，而不是把这行加粗或换成主色。
+- **数字来源**：桌面壳的更新源，不是 npm、不是写死的地址。Host 半 `src/update-check.ts` 读 `<exe 同级>/resources/app-update.yml`（macOS 为 `Contents/Resources/`），取 `url` 与 `channel`（缺省 `latest`）拼出 `<url>/<channel>.yml`；`config.updateFeedUrl` 非空时优先用它（非 http(s) 视为未配置）。两处都没有就返回 `unavailable`，客户端整行不渲染——**不要为了「总有东西可显示」编一个默认厂商地址**。
+- **判定**：`compareVersions` 只承诺符号（semver 预发布规则：数字标识按数值、低于字母标识；带预发布低于同版本正式版；解析不了按相等处理，避免「永远升不了」）。当前版本取 Host 进程的 `DSH_CLIENT_VERSION`（桌面壳启动 Host 时注入），取不到就不报有更新。
+- **升级动作**：只调 `window.dshDesktop.updates.open()`，走桌面壳原有检查→下载→重启流程；插件自己**不下载、不安装**。没有该桥（普通浏览器、或 preload 只有 `protocolVersion`）时按钮置灰并带 `updateDesktopOnly` 提示。
+- **缓存**：Host 端一次读数复用 `UPDATE_CACHE_MS`（10 分钟），并发请求合并为一次；客户端每次挂载带 `?force=1` 重新读，避免设置页被一小时前的读数回答。响应一律 `cache-control: no-store`，`POST` 返回 405。
+- **状态与文案**：`updateLatest`（有小字版本号）/ `updateCurrent`（已是最新）/ `updateChecking`（读取中）/ `updateFailed`（读不到，不能假装是最新）四态都在 `locales.ts`；`tests/client.mjs` 的「the published-release row」段落逐态断言文案、按钮禁用与点击转发。
 
 ## 设置文案简化（2026-10-08）
 
@@ -107,6 +126,15 @@ paths:
 - 两个座位是宿主的 `single` 槽：`conversation.input.model`（`dsh-client-ui-model-selection` 注册）与 `conversation.input.permission`（`dsh-client-ui-permission-presets` 注册）。single 槽一格只渲染优先级最低的注册，同优先级再注册会抛错；本插件用 `priority: -10` + 返回 null 的组件赢下格子，宿主注册仍在账本上，关开关只释放影子。不要改成用 `[data-slot=...]` 的 CSS 隐藏：`renderSlot` 的锚点在两种状态下都在，只有宿主座位真的被替换才算隐藏（真实验收里 `anchor` 存在但 `button` 数为 0）。
 - 两个 `watchFeature` 各自独立，都传 `{ defaultOn: false }`（默认关；旧宿主 schema 缺字段时不安装影子），互不释放；`ctx.slots.inject` 等宿主的槽声明出现后再注册，旧宿主没有这两个槽时静默等待，不抛错。改宿主槽名或 kind 前先核对 `dsh-client-ui-conversation` 的 `SlotMap` 类型再改常量。
 - `tests/hide-composer-seats.test.mjs` 覆盖常量与优先级、默认关冷启动不安装影子、冷加载等待、各自释放/恢复、卸载退订、单座位影子、`Config` 默认 false 与可开启、中英文案（含 /model /permission）、构建产物含字段与槽名；`tests/client.mjs` 覆盖两行的默认关、文案、写字段、缺字段提示、只读禁用，以及运行时「默认无影子 → 打开模型只遮蔽模型 → 两个都开遮蔽两个 → 关掉恢复」；`tests/smoke.mjs` 与 `tests/ui-copy.test.mjs` 同步字段与文案约束。
+
+## 隐藏侧栏标志与名称开关（2026-11-05）
+
+- 用户 2026-11-05 要求「UI美化插件增加开关，隐藏这个 logo 和描述」，截图圈的是侧栏左上角的标志与产品名。新增独立开关 `hideSidebarBrand`（默认 false、volatile），设置页放在「界面精简」组、访问模式之后，由 `src/client/sidebar-brand.ts` 管理，走 `watchFeature(..., { defaultOn: false })`：只有快照明确 `true` 才装样式表。
+- **为什么用 CSS 而不是影子插槽**：标志（`sidebar.brand.mark`）与名称（`sidebar.brand.name`）两个 single 槽被宿主包在同一个容器里——`ui-sidebar` 的 `SidebarRoot` 渲染 `.logoRow > .brand`（`.brand` 只在展开态出现，收起轨道没有），而这个容器同时是「新会话」快捷入口（`flex: 1`，铺满整行）。只把两个槽影成 null 会留下一条看不见的整行点击区，所以开关隐藏的是容器本身：同一行的折叠按钮与下方的「新会话」按钮位置不变，关掉开关即恢复宿主自己的标志、名称与点击目标。
+- 选择器是 `[data-slot="sidebar"] [class*="_logoRow"] > [class*="_brand"]`：`[data-slot="sidebar"]` 是宿主插槽的稳定锚点（`display: contents`），`_logoRow` / `_brand` 是 CSS Module 生成的 `<hash>_<name>` 类名片段（与 `host-defaults.ts` 的 `[class*="_brandName"]` 同一套判定）；`brandMark` / `brandName` 是 `.brand` 的孙子节点，不会被直接子选择器误伤。宿主改结构时最坏只是选择器不匹配（品牌继续显示），不会隐藏别的元素。
+- 样式表用 `style[data-plugin-css="@guowenzhang/dsh-ui-beautify/sidebar-brand.css"]` 标记，只有一条 `display: none` 规则——不带颜色、尺寸、字号，也不碰同一行的折叠按钮。自定义品牌图（`brandIcon` / `brandName` 槽）同样在这个容器里，所以开关一并生效；清空品牌值与这个开关互不依赖。
+- `tests/hide-sidebar-brand.test.mjs` 覆盖选择器与「只有一条 display:none、无颜色/尺寸」、开关全生命周期（默认关 / 开→一条 style / 重复开不叠加 / 关→移除 / 卸载→移除并退订）、`Config` 默认 false 与 volatile、中英文案、构建产物含字段与选择器片段、`test`/`test:mobile` 链断言；`tests/client.mjs` 覆盖该行默认关、文案、写字段、缺字段提示、只读禁用与运行时样式表安装/释放，`tests/smoke.mjs` 与 `tests/ui-copy.test.mjs` 同步字段与文案约束。
+- 真实验收（隔离实例 0.2.1-rc.5、端口 52836、web profile、Chromium）：打开开关后 `.brand` 计算值 `display: none`、尺寸 0×0，`.logoRow` 仍 256×60、折叠按钮 28×28 在原位（x239/y22），「新会话」38px 高按钮仍在 y70；刷新后仍隐藏（值已写入 profile 补丁）；把值改回 false 后规则消失、`.brand` 恢复 `display: flex`、216×24。**未单独验证**：桌面壳的 `[data-windows-titlebar]` 变体（DOM 相同、仅行高与按钮定位不同）与收起轨道（该态不渲染 `.brand`，右上角收起位里的鲸鱼标不受影响）。
 
 ## 上下文进度圈开关（2026-10-24）
 

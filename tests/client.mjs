@@ -448,7 +448,10 @@ const setStored = (values) => {
   stored = { ...stored, ...values }
   for (const notify of subscribers) notify()
 }
-const snapshot = () => stores.at(-1)?.get()
+// The plugin owns more than one store now (the settings snapshot and the
+// published-release reading), so the row snapshot is found by its shape rather
+// than by creation order.
+const snapshot = () => stores.find(store => store.get() !== undefined && 'available' in store.get())?.get()
 const settle = () => new Promise(resolve => { setTimeout(resolve, 10) })
 /** Wait out a real delay the plugin owns, such as its cache re-read. */
 const wait = milliseconds => new Promise(resolve => { setTimeout(resolve, milliseconds) })
@@ -466,9 +469,11 @@ const codeRow = row('CodeFontRow', 'ui-beautify-code')
 const motionRow = row('MotionRow', 'ui-beautify-motion')
 
 check(
-  'registers one settings page, the quick replies, and the composer lane',
+  'registers one settings page, the quick replies, the composer lane, and the published-release row',
   registrations.filter(entry => entry.definition.name === 'settings.section').length === 1
-    && registrations.every(entry => entry.definition.name !== 'settings.general.item')
+    && registrations.filter(entry => entry.definition.name === 'settings.general.item')
+      .every(entry => entry.definition.id === 'ui-beautify-update')
+    && registrations.length > 0
     && laneEntry !== undefined
     && repliesEntry !== undefined,
   String(registrations.length),
@@ -1496,6 +1501,41 @@ check('turning both back on shadows both seats again',
   seatShadows().length === 2
   && seatShadows().every(entry => entry.component() === null))
 setStored({ hideModelSelector: undefined, hideAccessMode: undefined })
+console.log('the sidebar brand switch defaults off')
+// The logo and the product name identify the deployment, so the row defaults
+// off in both places: the row reads on only when the document says so, and the
+// runtime watcher installs its stylesheet from the same field.
+const renderHideBrand = (overrides = {}) => {
+  mount('feature-hideSidebarBrand', pageComponents.get('HideSidebarBrandToggleRow'), {
+    t,
+    useBeautify: selector => selector({ ...snapshot(), ...overrides }),
+    choose: (key, value) => { toggleWrites.push([key, value]) },
+  })
+  return elements.find(element => element.type === 'switch')
+}
+const brandStyles = () => head.filter(element => element.dataset?.pluginCss === '@guowenzhang/dsh-ui-beautify/sidebar-brand.css')
+check('an older profile reads the sidebar-brand switch as off', snapshot().hideSidebarBrand === false)
+check('no sidebar-brand stylesheet is installed by default', brandStyles().length === 0)
+const hideBrand = renderHideBrand()
+check('the sidebar-brand row keeps its label and description',
+  hideBrand.props.label === 'hideSidebarBrandTitle'
+  && byClass('desc')[0].props.children === 'hideSidebarBrandDesc')
+hideBrand.props.onChange(true)
+check('turning it on writes only its own field',
+  JSON.stringify(toggleWrites.at(-1)) === JSON.stringify(['hideSidebarBrand', true]))
+setStored({ hideSidebarBrand: true })
+check('the host switch shows the stored sidebar-brand value', renderHideBrand().props.checked === true)
+check('the switch installs one stylesheet hiding only the logo row\'s brand', brandStyles().length === 1
+  && brandStyles()[0].textContent === '[data-slot="sidebar"] [class*="_logoRow"] > [class*="_brand"] {\n  display: none;\n}\n')
+setStored({ hideSidebarBrand: false })
+check('turning it off releases the stylesheet, restoring the host brand', brandStyles().length === 0)
+setStored({ hideSidebarBrand: undefined })
+check('a host without the sidebar-brand field explains the restart',
+  renderHideBrand().props.disabled && byClass('meta')[0].props.children === 'stale')
+setStored({ hideSidebarBrand: true })
+check('read-only settings disable the sidebar-brand switch', renderHideBrand({ writable: false }).props.disabled)
+setStored({ hideSidebarBrand: undefined })
+check('the sidebar brand is restored once the switch is off', brandStyles().length === 0)
 console.log('the up button follows its settings switch')
 // Only the DOM the control locates is modelled here: its conversation body, the
 // chat flow inside it, and the frame the portal lands in. The lane's own checks
@@ -2398,6 +2438,52 @@ check('the dragged position replaces the resting one',
   JSON.stringify(dragged.root.props.style))
 dragged.button.props.onClick()
 check('the pointerup that ended a drag does not toggle the menu', renderQuick().menu.props.open === false)
+
+console.log('the published-release row')
+const updateEntry = registrations.find(entry => entry.definition.id === 'ui-beautify-update')
+check(
+  'the published release registers directly under the shell version row',
+  updateEntry?.definition.name === 'settings.general.item'
+  && updateEntry.definition.order === 101
+  && updateEntry.definition.locale === 'settings.uiBeautify',
+  JSON.stringify(updateEntry?.definition),
+)
+/** Copy as the fake `t` renders it: the key, plus the version it was given. */
+const updateCopy = (key, params) => params === undefined ? key : `${key}=${Object.values(params).join(',')}`
+let upgrades = 0
+const renderUpdate = (state, canUpgrade = true) => {
+  mount('update-row', updateEntry.component, {
+    t: updateCopy,
+    useUpdate: selector => selector(state),
+    checkUpdate: () => {},
+    openUpgrade: () => { upgrades += 1 },
+    canUpgrade,
+  })
+  return {
+    detail: elements.find(element => element.props?.role === 'status')?.props.children,
+    button: elements.find(element => element.type === 'button')?.props,
+  }
+}
+const ready = { phase: 'ready', current: '0.2.2-alpha.3', latest: '0.2.3', hasUpdate: true }
+const newest = renderUpdate(ready)
+check('a newer release is named under the version', newest.detail === 'updateLatest=0.2.3', String(newest.detail))
+check('the button is the upgrade action while a release is waiting',
+  newest.button?.disabled === false && newest.button.children === 'updateAction')
+newest.button.onClick()
+check('the button opens the desktop update flow', upgrades === 1, String(upgrades))
+const current = renderUpdate({ ...ready, latest: '0.2.2-alpha.3', hasUpdate: false })
+check('an install at the newest release says so', current.detail === 'updateCurrent', String(current.detail))
+check('nothing can be upgraded when nothing is newer', current.button?.disabled === true)
+const busy = renderUpdate({ ...ready, latest: null, hasUpdate: false, phase: 'loading' })
+check('a reading in flight says it is checking', busy.detail === 'updateChecking', String(busy.detail))
+const broken = renderUpdate({ ...ready, latest: null, hasUpdate: false, phase: 'failed' })
+check('a failed reading says so instead of claiming the install is current',
+  broken.detail === 'updateFailed' && broken.button?.disabled === true, String(broken.detail))
+const browser = renderUpdate(ready, false)
+check('a page without the desktop shell offers no upgrade',
+  browser.button?.disabled === true && browser.button.title === 'updateDesktopOnly')
+const absent = renderUpdate({ phase: 'unavailable', current: null, latest: null, hasUpdate: false })
+check('a host with no release feed renders no row', absent.button === undefined && absent.detail === undefined)
 
 for (const dispose of disposers) dispose()
 check(

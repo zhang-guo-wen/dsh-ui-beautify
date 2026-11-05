@@ -52,12 +52,15 @@ import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import {
   faceById, fontStack, resolveFontChoice, FONT_ROLES, type BeautifySettings, type FontFace, type FontRole,
 } from '../fonts.ts'
-import { FONTS_ROUTE, FONT_SETTINGS_NS } from '../params.ts'
+import { FONTS_ROUTE, FONT_SETTINGS_NS, UPDATE_ROUTE } from '../params.ts'
 import { LightBeam } from './LightBeam.tsx'
 import { installOutputTokens } from './follow-output.ts'
 import { BeautifySection } from './BeautifySection.tsx'
 import { applyBranding } from './branding.tsx'
+import { desktopUpdateEntry } from './desktop-update.ts'
 import { en, NS, zh, type SettingsKey } from './locales.ts'
+import { UpdateVersionRow } from './UpdateVersionRow.tsx'
+import { UpdateCheckController } from './update-check.ts'
 import { QuickReplies } from './QuickReplies.tsx'
 import { QuickActions } from './QuickActions.tsx'
 import { ScrollToPrompt } from './ScrollToPrompt.tsx'
@@ -68,6 +71,7 @@ import { applyMobileLayout } from './mobile-layout.tsx'
 import { applyStreamlinedUi } from './streamlined-ui.ts'
 import { applyComposerStats } from './composer-stats.ts'
 import { applyHiddenSeats } from './composer-seats.ts'
+import { applySidebarBrand } from './sidebar-brand.ts'
 import { applyContextRing } from './ContextRing.tsx'
 import { installRemoteSettings } from './remote-settings.ts'
 import { applyDescriptionTranslation } from './description-translation.ts'
@@ -133,6 +137,15 @@ const CHIP_ORDER = 102
 const QUICK_ACTIONS_ID = 'ui-beautify-quick-actions'
 const QUICK_ACTIONS_ORDER = 103
 
+/**
+ * The published-release row's seat in the shell's General section.
+ *
+ * The shell's own version row is order 100, so 101 puts this line directly
+ * under the installed version it belongs with, whatever else a deployment has
+ * registered there.
+ */
+const UPDATE_ROW_ORDER = 101
+
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
     /** This plugin's settings-row and quick-reply copy. */
@@ -177,6 +190,7 @@ export async function apply(ctx: Context): Promise<void> {
   // Independent switches: hiding the model seat must not release the
   // access-mode shadow, so the two effects are wired side by side.
   applyHiddenSeats(ctx, scope)
+  applySidebarBrand(ctx, scope)
   applyContextRing(ctx, scope)
   applyRunningStatus(ctx, scope)
   // The switch owns the whole watcher: releasing it drops the status
@@ -192,6 +206,21 @@ export async function apply(ctx: Context): Promise<void> {
     label: () => t('nav'), locale: NS,
     inject: () => ({ ...controller.inject(), descriptions }),
   }, BeautifySection))
+
+  // The published release, directly under the shell's own version row. The
+  // reading comes from the Host because the release feed is another origin; the
+  // button is the shell's update flow, so this page installs nothing itself and
+  // shows no action where that flow does not exist.
+  const upgrade = desktopUpdateEntry(globalThis)
+  const updateCheck = new UpdateCheckController(UPDATE_ROUTE)
+  ctx.effect(() => () => { updateCheck.dispose() }, 'ui-beautify: published release reading')
+  ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+    name: 'settings.general.item', id: 'ui-beautify-update', order: UPDATE_ROW_ORDER, locale: NS,
+    inject: () => updateCheck.inject(
+      () => { void upgrade?.open().catch(() => {}) },
+      upgrade !== undefined,
+    ),
+  }, UpdateVersionRow))
 
   // The switch that hides this control lives in the settings namespace, so the
   // entry reads the same snapshot the rows do rather than a copy of the choice.

@@ -77,6 +77,11 @@ export interface Config {
    */
   hideAccessMode: Volatile<BeautifySettings['hideAccessMode']>
   /**
+   * Whether the sidebar's logo and product name are hidden. Defaults off: the
+   * mark identifies the deployment, so removing it is an explicit choice.
+   */
+  hideSidebarBrand: Volatile<BeautifySettings['hideSidebarBrand']>
+  /**
    * Whether the composer's primary button carries the context-occupancy ring.
    * Defaults on: the ring is the reading that survives hiding the stats pills.
    */
@@ -107,6 +112,12 @@ export interface Config {
   mirrors: string[]
   /** Directory caching downloaded files; empty follows `$DSH_HOME`, then `~/.dsh`. */
   cacheDir: string
+  /**
+   * Manifest URL of the release feed the version row reads; empty reads the
+   * desktop shell's own `app-update.yml`, which is the feed its updater installs
+   * from. A Host with neither stays silent rather than guessing a vendor URL.
+   */
+  updateFeedUrl: string
 }
 
 /** Schema served to settings clients.
@@ -138,6 +149,9 @@ export const Config = z.object({
   // the host renders them; hiding them is an explicit choice the user makes.
   hideModelSelector: z.boolean().default(false).volatile(),
   hideAccessMode: z.boolean().default(false).volatile(),
+  // Off by default: the logo and the product name are the deployment's identity,
+  // so an untouched install keeps them.
+  hideSidebarBrand: z.boolean().default(false).volatile(),
   // On by default: the ring is the plugin's own reading, not a host surface it
   // takes away, and it is what remains when the stats switch hides the pills.
   contextRingEnabled: z.boolean().default(true).volatile(),
@@ -157,4 +171,5 @@ export const Config = z.object({
   replaceRunningIcon: z.boolean().default(false).volatile(),
   mirrors: z.array(z.string()).default([...DEFAULT_MIRRORS]),
   cacheDir: z.string().default(''),
+  updateFeedUrl: z.string().default(''),
 })

@@ -14,12 +14,13 @@
 import type { Context } from '@deepseek-ai/cordis'
 // Type-only: pulls the webserver plugin's Context merge (ctx.webServer).
 import type {} from '@deepseek-ai/dsh-host-webserver'
-import { BRAND_ROUTE, CACHE_ROUTE, FONTS_ROUTE } from './params.ts'
+import { BRAND_ROUTE, CACHE_ROUTE, FONTS_ROUTE, UPDATE_ROUTE } from './params.ts'
 import { serveBrandAsset } from './brand-assets.ts'
-import { serveCacheUsage, serveFontFile } from './serve.ts'
+import { serveCacheUsage, serveFontFile, serveUpdateStatus } from './serve.ts'
 import { Config } from './settings.ts'
 import { FontStore, resolveBrandDir, resolveCacheDir } from './store.ts'
 import { applyDescriptionTranslationService } from './description-translation-service.ts'
+import { readDesktopUpdateFeed, resolveFeedUrl, UpdateChecker } from './update-check.ts'
 
 /** Loader row name for this plugin. */
 export const name = 'ui-beautify'
@@ -31,8 +32,13 @@ export const inject = ['webServer']
 // catalogue, the cache layout, and the namespace identity without reaching into
 // internal module paths. These are the only values published beyond the plugin
 // surface.
-export { BRAND_ROUTE, CACHE_ROUTE, FONTS_ROUTE, MAX_BRAND_IMAGE_BYTES } from './params.ts'
+export { BRAND_ROUTE, CACHE_ROUTE, FONTS_ROUTE, UPDATE_ROUTE, MAX_BRAND_IMAGE_BYTES } from './params.ts'
 export { imageType, saveBrandImage, serveBrandAsset } from './brand-assets.ts'
+export {
+  compareVersions, parseAppUpdateYaml, parseManifestVersion, readDesktopUpdateFeed,
+  resolveFeedUrl, UpdateChecker, UPDATE_CACHE_MS,
+} from './update-check.ts'
+export type { DesktopUpdateFeed, UpdateCheckerOptions, UpdateStatus } from './update-check.ts'
 export {
   anyFaceById, choicesFor, CODE_FACES, CODE_FALLBACK_STACK, CODE_FONT_CHOICES,
   DEFAULT_CODE_FONT_ID, DEFAULT_FONT_ID, FACE_ID_PATTERN, FONT_CHOICES, FONT_FACES,
@@ -41,7 +47,7 @@ export {
 export type {
   FontCacheReport, FontCacheUsage, FontFace, FontGroup, FontRole, FontRoleSpec, FontSource,
 } from './fonts.ts'
-export { fontRouteFor, serveCacheUsage, serveFontFile } from './serve.ts'
+export { fontRouteFor, serveCacheUsage, serveFontFile, serveUpdateStatus } from './serve.ts'
 export type { FontRoute } from './serve.ts'
 export { FONT_SETTINGS_NS } from './settings.ts'
 export { DEFAULT_MIRRORS, downloadFile, mirrorUrl } from './source.ts'
@@ -94,5 +100,24 @@ export function apply(ctx: Context, config: Config): void {
       handler: (req, res) => serveBrandAsset(req, res, brandDir),
     }),
     'ui-beautify: brand images',
+  )
+  // The version row's reading. The feed is resolved per reading, so switching
+  // the desktop shell's channel — which rewrites `app-update.yml` — is visible
+  // without restarting the Host; the TTL keeps that from costing a request per
+  // settings open.
+  const updates = new UpdateChecker({
+    current: process.env.DSH_CLIENT_VERSION,
+    resolveFeed: async () => resolveFeedUrl(
+      config.updateFeedUrl,
+      await readDesktopUpdateFeed(process.execPath),
+    ),
+  })
+  ctx.effect(
+    () => ctx.webServer.register({
+      kind: 'exact',
+      path: UPDATE_ROUTE,
+      handler: (req, res) => serveUpdateStatus(req, res, updates),
+    }),
+    'ui-beautify: published release',
   )
 }

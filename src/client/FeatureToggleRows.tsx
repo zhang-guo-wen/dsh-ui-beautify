@@ -20,6 +20,7 @@ type Feature =
   | 'hideComposerStats'
   | 'hideModelSelector'
   | 'hideAccessMode'
+  | 'hideSidebarBrand'
   | 'contextRingEnabled'
 
 function FeatureToggleRow({ useBeautify, t, choose, retry, field, title, description }: Props & {
@@ -36,6 +37,7 @@ function FeatureToggleRow({ useBeautify, t, choose, retry, field, title, descrip
     | 'hideComposerStatsTitle'
     | 'hideModelSelectorTitle'
     | 'hideAccessModeTitle'
+    | 'hideSidebarBrandTitle'
     | 'contextRingTitle'
   description:
     | 'mobileLayoutDesc'
@@ -49,6 +51,7 @@ function FeatureToggleRow({ useBeautify, t, choose, retry, field, title, descrip
     | 'hideComposerStatsDesc'
     | 'hideModelSelectorDesc'
     | 'hideAccessModeDesc'
+    | 'hideSidebarBrandDesc'
     | 'contextRingDesc'
 }): ReactNode {
   const state = useBeautify(snapshot => snapshot)
@@ -100,6 +103,9 @@ export function HideModelSelectorToggleRow(props: Props): ReactNode {
 }
 export function HideAccessModeToggleRow(props: Props): ReactNode {
   return <FeatureToggleRow {...props} field="hideAccessMode" title="hideAccessModeTitle" description="hideAccessModeDesc" />
+}
+export function HideSidebarBrandToggleRow(props: Props): ReactNode {
+  return <FeatureToggleRow {...props} field="hideSidebarBrand" title="hideSidebarBrandTitle" description="hideSidebarBrandDesc" />
 }
 export function ContextRingToggleRow(props: Props): ReactNode {
   return <FeatureToggleRow {...props} field="contextRingEnabled" title="contextRingTitle" description="contextRingDesc" />

@@ -27,6 +27,15 @@ export const CACHE_ROUTE = '/plugins/dsh-ui-beautify/cache'
 /** Uploaded branding images are written and served by the Host. */
 export const BRAND_ROUTE = '/plugins/dsh-ui-beautify/brand'
 
+/**
+ * Exact path reporting the published release beside the installed one.
+ *
+ * The General-settings row asks the Host rather than the feed directly: the
+ * manifest lives on another origin, so a browser request would need the feed's
+ * CORS permission, while the Host already reads the same file for the updater.
+ */
+export const UPDATE_ROUTE = '/plugins/dsh-ui-beautify/update'
+
 /** Maximum bytes accepted for one uploaded brand image. */
 export const MAX_BRAND_IMAGE_BYTES = 2 * 1024 * 1024
 
