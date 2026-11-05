@@ -99,3 +99,44 @@ kind: "package-reference"
 - 工作区里另一会话遗留的未跟踪 `pnpm-lock.yaml` 未提交、未删除；它不影响本包分发内容。
 
 ---
+## 3、隐藏侧栏品牌时移除桌面空行（2026-11-05，产物 `830A73B8` / `F21DD6C8`）
+
+### 环境与产物绑定
+
+| 项 | 值 |
+|---|---|
+| 日期 | 2026-11-05T16:18:09+08:00 |
+| 插件 | @guowenzhang/dsh-ui-beautify@1.6.1（HEAD d110170，工作树 8 项未提交） |
+| 宿主 | @deepseek-ai/dsh@0.2.1-rc.5 隔离实例启动，但无认证 URL、访问返回 401；实际几何测试使用工作区 ui-sidebar@0.2.1-alpha.2 的已构建 CSS（SHA256 见 fixture 报告） |
+| DSH_HOME | `C:\02-codespace\DeepSeek\.scratch\harness-tests\sidebar-brand-gap-0.2.1-rc.5-pdx7g4` |
+| 端口 / URL | 39023 / http://127.0.0.1:39023/；401，已通过 isolate stop 核对 PID 并停止、端口已释放 |
+| Node | v24.12.0 |
+| lib/index.mjs | `830a73b8de65908c5705b67842ff5a65a83c48415a3aa98c01cb6307416a4094`（93113 字节，2026-11-05T08:15:16.839Z） |
+| lib/client.js | `f21dd6c8047a8aec738cdeefa398f3716a4fa235f01c881e270e28cb5357313b`（341663 字节，2026-11-05T08:15:16.956Z） |
+| 证据文件 | `.scratch/test-system/runs/2026-11-05-161717-dsh-ui-beautify.json` |
+
+### 车道结果
+
+| 车道 | 状态 | 退出码 | 耗时 |
+|---|---|---|---|
+| unit | passed | 0 | 28.9s |
+| build | passed | 0 | 1.0s |
+| typecheck | passed | 0 | 1.8s |
+| browser:sidebar-brand | passed | 0 | 24.4s |
+| static gate | passed | 0 | error 0 / warning 0 |
+
+### 逐项读数
+
+- 失败先行：旧产物在 Windows 首项断言失败，品牌行隐藏后仍为 40px；证据 `.scratch/test-system/runs/2026-11-05-160845-dsh-ui-beautify.json`。
+- 独立 Chromium DOM fixture 使用真实 SidebarRoot 样式与本插件产物中的 install/dispose：Windows/macOS/Web × 11 个视口（320…1440px）× 浅深主题，共 66 项通过；减少动态效果模式。报告 `.scratch/test-system/sidebar-brand-gap/report.json` 绑定宿主样式、主题与插件产物 SHA256。
+- Windows 1280px 展开态：品牌行 40→0px，新会话 top 86→46px，标题栏按钮仍为 top=2px、H28；macOS 保留 H52 顶栏，新会话 top 104→52px；Web 顶行仍为 H60、新会话 top=70px。展开态两个按钮均实际点击；移除 effect 后品牌与几何恢复。
+- 单元套件完整执行：前置 smoke/http/brand/client 检查通过，Node test 262 passed、0 failed、5 skipped。首次因旧的 Playwright 默认路径失败；通过进程局部 DSH_MOBILE_PLAYWRIGHT 指向工作区 `.scratch/pw-core` 后重跑通过，未安装新依赖。
+- 截图 `.scratch/test-system/sidebar-brand-gap/windows-hidden.png` 是简化 DOM fixture，不是日常桌面实例截图。
+
+### 本节未覆盖
+
+- 隔离真实宿主没有输出认证 URL，访问为 401；未绕过认证，未改日常实例。桌面实际安装集成、原生标题栏拖动/命中、抽屉遮罩与真实折叠动画尚未验收；fixture 的 class 切换不等于真实折叠集成。
+- 5 项需要真实宿主 URL 的既有浏览器用例跳过；真机手机键盘、安全区及性能记录未覆盖。
+- 本轮按用户确认只修顶部空白，不修改任务列表／白板随会话滚动的问题；不提交、不发布、不升级日常实例。原有未跟踪 pnpm-lock.yaml 保留。
+
+---

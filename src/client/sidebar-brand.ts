@@ -7,9 +7,9 @@
  * (`SidebarRoot`'s `.logoRow > .brand`) and makes that container the New Session
  * shortcut. Shadowing the two occupants would therefore leave an unlabelled,
  * full-width click target behind, so the switch hides the container with one
- * stylesheet instead: the toggle beside it and the New Session button below it
- * keep their places, and releasing the stylesheet restores the host's own mark,
- * name, and click target untouched.
+ * stylesheet instead. Desktop toggles live in the window chrome, so the empty
+ * brand row also releases its height; Web retains the row carrying its toggle.
+ * Releasing the stylesheet restores the host's mark, name, and row geometry.
  *
  * The selector anchors on the structure rather than on the hashed CSS-module
  * names a build produces: the sidebar slot's anchor wraps the column root, the
@@ -43,18 +43,24 @@ const STYLESHEET_ID = '@guowenzhang/dsh-ui-beautify/sidebar-brand.css'
 
 /**
  * The stylesheet the switch injects.
- * @returns one rule hiding the sidebar's brand container.
+ * Desktop logo rows release their space only while they contain a brand. The
+ * Windows toggle is fixed in the caption; macOS retains its separate top strip.
+ * Web's in-flow toggle and the collapsed rail keep their host geometry.
+ * @returns scoped brand hiding and desktop empty-row compaction rules.
  */
 export function sidebarBrandCss(): string {
+  const row = '[data-slot="sidebar"] [class*="_logoRow"]:has(> [class*="_brand"])'
   return `${SIDEBAR_BRAND_SELECTOR} {\n  display: none;\n}\n`
+    + `html[data-windows-titlebar] ${row},\n`
+    + `html[data-platform="darwin"] ${row} {\n  height: 0;\n  padding: 0;\n  margin: 0;\n  overflow: visible;\n}\n`
 }
 
 /**
  * Install the sidebar-brand hiding.
  *
- * Nothing else is touched: the host's brand occupants, the New Session shortcut,
- * and the sidebar toggle all stay registered and rendered, so releasing this
- * restores the row as the host painted it.
+ * The host's brand occupants, New Session shortcut, and sidebar toggle all stay
+ * registered and rendered. Only the brand's visibility and its desktop row's
+ * empty space change, so releasing this restores the host layout.
  * @returns disposer removing the stylesheet.
  */
 export function installSidebarBrand(): () => void {

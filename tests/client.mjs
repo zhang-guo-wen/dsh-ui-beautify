@@ -1525,8 +1525,8 @@ check('turning it on writes only its own field',
   JSON.stringify(toggleWrites.at(-1)) === JSON.stringify(['hideSidebarBrand', true]))
 setStored({ hideSidebarBrand: true })
 check('the host switch shows the stored sidebar-brand value', renderHideBrand().props.checked === true)
-check('the switch installs one stylesheet hiding only the logo row\'s brand', brandStyles().length === 1
-  && brandStyles()[0].textContent === '[data-slot="sidebar"] [class*="_logoRow"] > [class*="_brand"] {\n  display: none;\n}\n')
+check('the switch installs one stylesheet for the sidebar brand', brandStyles().length === 1
+  && brandStyles()[0].textContent.startsWith('[data-slot="sidebar"] [class*="_logoRow"] > [class*="_brand"] {\n  display: none;\n}'))
 setStored({ hideSidebarBrand: false })
 check('turning it off releases the stylesheet, restoring the host brand', brandStyles().length === 0)
 setStored({ hideSidebarBrand: undefined })

@@ -77,7 +77,7 @@ The same page hides the three readings below the message box with its own switch
 
 Two more switches in the same group empty the message box's bottom row: **Hide the model selector** and **Hide the access mode**. They are independent of each other and **default off**, so a fresh install keeps the host's model and access-mode controls; turning a row on hides only that host seat, and turning it off restores it. Both controls stay reachable through the host's own **/model** and **/permission** commands.
 
-**Hide the sidebar logo and name** empties the sidebar's top-left corner: the mark — the host's own or an uploaded brand image — and the product name beside it both go, while the sidebar toggle in the same row and the **New Session** button below it keep their places. It is independent of the other rows and **default off**, so the brand stays until someone turns it on.
+**Hide the sidebar logo and name** empties the sidebar's top-left corner: the mark — the host's own or an uploaded brand image — and the product name beside it both go, while retaining the sidebar toggle and **New Session** button. Desktop also collapses the empty brand row so New Session moves up without a blank brand placeholder; Web retains the top row carrying its sidebar toggle. Turning it off restores the host layout. It is independent of the other rows and **default off**, so the brand stays until someone turns it on.
 
 ## Context progress ring
 
