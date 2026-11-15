@@ -57,6 +57,25 @@ test('desktop resizing and native mobile host remain unmodified', () => {
   f.controller.dispose()
 })
 
+test('host-native drawer frame (data-sidebar-drawer) stands down instead of masking the sidebar', () => {
+  // DSH 0.2.2+ ships its own phone drawer and marks the frame with
+  // `data-sidebar-drawer`; the frame's first child is then the drawer mask, so
+  // applying this plugin's first-child drawer geometry paints the mask over the
+  // sidebar column — the drawer opens blank and eats every tap.
+  const f = fixture()
+  f.attrs.set('data-sidebar-drawer', 'true')
+  f.observe()
+  assert.equal(f.attrs.has('data-mobile-layout-frame'), false)
+  assert.deepEqual(f.controller.getSnapshot(), { mobile: false, open: false })
+  // A resize to phone width while the host drawer is present must not re-arm it.
+  f.media.matches = false
+  f.mediaEvents.get('change')()
+  f.media.matches = true
+  f.mediaEvents.get('change')()
+  assert.equal(f.attrs.has('data-mobile-layout-frame'), false)
+  f.controller.dispose()
+})
+
 test('Escape closes, navigation closes after host event, menu actions do not', () => {
   const f = fixture()
   f.controller.toggle()

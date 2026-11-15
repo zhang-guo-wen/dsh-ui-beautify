@@ -321,8 +321,6 @@ export interface BeautifySettings {
   mobileLayoutEnabled: boolean
   /** Plugin recent-conversation tabs on desktop and phone; defaults on. */
   recentSessionsEnabled: boolean
-  /** Shared redacted settings reads on remote pages; defaults on. */
-  remoteSettingsEnabled: boolean
   /** Up button that returns to the latest sent question; defaults on. */
   scrollToPromptEnabled: boolean
   /** Floating "conversation start" chip above the transcript; defaults on. */

@@ -1328,7 +1328,6 @@ console.log('independent interface enhancement toggles')
 for (const [componentName, field, title, desc] of [
   ['MobileLayoutToggleRow', 'mobileLayoutEnabled', 'mobileLayoutTitle', 'mobileLayoutDesc'],
   ['RecentSessionsToggleRow', 'recentSessionsEnabled', 'recentSessionsTitle', 'recentSessionsDesc'],
-  ['RemoteSettingsToggleRow', 'remoteSettingsEnabled', 'remoteSettingsTitle', 'remoteSettingsDesc'],
   ['ScrollToPromptToggleRow', 'scrollToPromptEnabled', 'scrollToPromptTitle', 'scrollToPromptDesc'],
   ['SessionStartChipToggleRow', 'sessionStartChipEnabled', 'sessionStartChipTitle', 'sessionStartChipDesc'],
   ['UnreadAnswerStartToggleRow', 'unreadAnswerStartEnabled', 'unreadAnswerStartTitle', 'unreadAnswerStartDesc'],

@@ -103,7 +103,6 @@ export interface SettingsRowState {
   quickRepliesEnabled: boolean
   mobileLayoutEnabled: boolean
   recentSessionsEnabled: boolean
-  remoteSettingsEnabled: boolean
   /** Whether the up button back to the latest sent question is shown. */
   scrollToPromptEnabled: boolean
   /** Whether the floating "conversation start" chip above the transcript is shown. */
@@ -356,7 +355,6 @@ export class SettingsController {
         quickRepliesEnabled: value?.quickRepliesEnabled !== undefined,
         mobileLayoutEnabled: value?.mobileLayoutEnabled !== undefined,
         recentSessionsEnabled: value?.recentSessionsEnabled !== undefined,
-        remoteSettingsEnabled: value?.remoteSettingsEnabled !== undefined,
         scrollToPromptEnabled: value?.scrollToPromptEnabled !== undefined,
         sessionStartChipEnabled: value?.sessionStartChipEnabled !== undefined,
         streamlinedUiEnabled: value?.streamlinedUiEnabled !== undefined,
@@ -386,7 +384,6 @@ export class SettingsController {
       quickRepliesEnabled: value?.quickRepliesEnabled !== false,
       mobileLayoutEnabled: value?.mobileLayoutEnabled !== false,
       recentSessionsEnabled: value?.recentSessionsEnabled !== false,
-      remoteSettingsEnabled: value?.remoteSettingsEnabled !== false,
       scrollToPromptEnabled: value?.scrollToPromptEnabled !== false,
       sessionStartChipEnabled: value?.sessionStartChipEnabled !== false,
       // Off unless the document says otherwise: this switch takes host surfaces

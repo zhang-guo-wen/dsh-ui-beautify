@@ -7,7 +7,7 @@ paths:
   - "lib/**"
   - "docs/**"
   - "README.md"
-  - "README.zh.md"
+  - "README.en.md"
   - "tests/client.mjs"
   - "tests/smoke.mjs"
   - "tests/plugin-metadata.test.mjs"

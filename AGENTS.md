@@ -59,5 +59,5 @@ pnpm run test:replies   # 快捷回复「一行放不下就少显示几条」（
 - [.claude/rules/quick-replies.md](.claude/rules/quick-replies.md)：composer 下方的快捷回复（注册位置与 order、点击=写草稿+提交、PC 端显示开关与手机隐藏、短语可自定义的槽位模型、「一行放不下就少显示几条」的测量与闪烁修复）——动 composer 下方那条带子或快捷回复设置行时读。
 - [.claude/rules/settings.md](.claude/rules/settings.md)：设置页字段与可配项、配置写在哪个文件、设置文案约定、单项保存反馈与请求去重、「界面增强」的一组独立功能开关（含未读会话落点）与「界面精简」的隐藏开关（含隐藏模型／访问模式）——改设置页、加字段或改文案时读。
 - [.claude/rules/mobile-layout.md](.claude/rules/mobile-layout.md)：手机布局控制器与最近对话、设置弹窗的手机重排、Pocket 文件复制按钮、右侧栏归属与手机白板触摸层级——动 ≤600px 行为时读。
-- [.claude/rules/host-integration.md](.claude/rules/host-integration.md)：描述翻译（Typert Remote + 批量翻译）、远程设置只读桥接、PDF/Office 手机兼容补丁、`cordis.patch.yml` 组合接线——碰宿主元数据装饰、远程表单、PDF 补丁或插件接线时读。
+- [.claude/rules/host-integration.md](.claude/rules/host-integration.md)：描述翻译（Typert Remote + 批量翻译）、PDF/Office 手机兼容补丁、`cordis.patch.yml` 组合接线——碰宿主元数据装饰、远程表单、PDF 补丁或插件接线时读。
 - [.claude/rules/build-release.md](.claude/rules/build-release.md)：目录逐文件说明、构建产出、测试清单、部署与生效语义、发版流程、易崩清单、后续可加项、README 截图约定——构建、发布、排障或规划下一步时读。

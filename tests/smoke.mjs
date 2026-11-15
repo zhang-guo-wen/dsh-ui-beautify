@@ -204,7 +204,7 @@ check('declares the quick-reply list live', Config.dict.quickReplies.meta.volati
 check('declares quick-reply visibility live', Config.dict.quickRepliesEnabled.meta.volatile === true)
 check('desktop quick replies default to enabled', Config({}).quickRepliesEnabled.get() === true)
 check('desktop quick replies can be disabled', Config({ quickRepliesEnabled: false }).quickRepliesEnabled.get() === false)
-for (const field of ['mobileLayoutEnabled', 'recentSessionsEnabled', 'remoteSettingsEnabled', 'scrollToPromptEnabled', 'sessionStartChipEnabled', 'unreadAnswerStartEnabled', 'quickActionsEnabled']) {
+for (const field of ['mobileLayoutEnabled', 'recentSessionsEnabled', 'scrollToPromptEnabled', 'sessionStartChipEnabled', 'unreadAnswerStartEnabled', 'quickActionsEnabled']) {
   check(`declares ${field} live`, Config.dict[field].meta.volatile === true)
   check(`${field} defaults on`, Config({})[field].get() === true)
   check(`${field} accepts false`, Config({ [field]: false })[field].get() === false)

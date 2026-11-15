@@ -4,15 +4,12 @@ paths:
   - "src/client/description-*"
   - "src/client/DescriptionTranslationRow.tsx"
   - "src/client/pdf-worker-compat.ts"
-  - "src/client/remote-settings.ts"
-  - "src/client/remote-settings-reader.ts"
   - "cordis.patch.yml"
   - "tests/description-*.test.mjs"
   - "tests/pdf-worker-compat.test.mjs"
-  - "tests/remote-settings*.mjs"
 ---
 
-> 覆盖什么、何时读：本文件覆盖描述翻译（Typert Remote + 批量翻译）、远程设置只读桥接、PDF/Office 手机兼容补丁与 `cordis.patch.yml` 组合接线；当你需要碰宿主元数据装饰、远程表单、PDF 补丁或插件接线时读它。
+> 覆盖什么、何时读：本文件覆盖描述翻译（Typert Remote + 批量翻译）、PDF/Office 手机兼容补丁与 `cordis.patch.yml` 组合接线；当你需要碰宿主元数据装饰、远程表单、PDF 补丁或插件接线时读它。
 
 # 宿主集成与兼容补丁
 
@@ -25,10 +22,6 @@ paths:
 - 翻译目录包括全局已加载 Skill、workspaceRegistry.list() 的所有已登记工作区通过 skills.list({cwd}) 发现的项目 Skill，以及当前会话专属目录；不扫描未登记项目／磁盘。按来源去重，名称和文件分开，工作区读取失败提示。展示 membership 仍按会话和语言隔离，防同名串译。
 - 2026-10-08 用户明确改为真正批量：先 lookup 排除缓存，description-batches.ts 按含 system+JSON 的 UTF-8 16 KB 上限拆批，每批一次 llm.stream 返回编号 JSON。translateBatch 先按哈希有序持全部缺项锁、重读缓存，所有编号／数量／译文验证成功才逐项存储；不得回退为每条调用／仅增加并发。UI 显示实际默认提供方／模型／推理档位，以及插件、Skill（全局／Agent）、工作区 Skill 三类已完成／总数。2026-10-08 用户要求去掉批次／字节说明；运行中的同一按钮切成可点击「取消」，用独立 run AbortController 传到 Remote 和模型，取消不销毁页面只读缓存、不删除成功译文，后续点击复用。插件全部相关描述完成才计完成，官方译文也计完成，失败不算完成。已有官方译文不生成，组件描述计入翻译总数但不重复算插件包。每个批次读取默认模型并将实际路由回传；不擅自切低档或其他模型。
 - 回归新增 `tests/description-*.test.mjs`：持久化、真实子进程去重、认证 Gateway 401/403、默认模型终止校验、作用域／语言、标题同文不误改、菜单原状态不变、卸载恢复。实际 19387 页面已用临时浏览器响应模拟验证按钮／复用、插件列表和详情、斜杠菜单；模拟已移除。真实默认模型及 skill 预览／调用卡片的全流程仍需重载当前宿主后验收，不得把模拟通过表述成真实翻译已生效。
-
-## 远程设置只读（`remote-settings.ts`，原「目录」小节条目）
-
-- `remote-settings.ts` 只在 `remote.$host.isLoopback=false` 的页面装饰共用 configForms 的公开读取方法和已缓存表单，使用现有 `remote.settings.describe()` 脱敏值。禁止伪造本机身份、读取 credentials 或 settings document、调用写 RPC；远程表单 `set/unset/mutate` 必须直接 false。describe 一律 writable/hasDocument=false，变更事件、重连和页面可见时刷新；失败保留上次真实值，卸载恢复方法/监听器。本机不适配，原写队列不变。`tests/remote-settings.test.mjs` 覆盖同步、合并读取、拒写和还原。
 
 ## PDF/Office 预览手机兼容补丁（2026-10-09）
 

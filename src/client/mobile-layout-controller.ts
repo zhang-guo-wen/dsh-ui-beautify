@@ -8,6 +8,18 @@ export interface MobileLayoutController {
   dispose(): void
 }
 
+/**
+ * Frame attributes that mean the host already owns the phone drawer.
+ *
+ * DSH 0.2.2+ renders its own drawer below 768px and marks the frame with
+ * `data-sidebar-drawer` (see the host's `sidebar-drawer` e2e suite); an earlier
+ * draft used `data-mobile-sidebar`. On those hosts the frame's first child is
+ * the drawer mask, not the sidebar column, so this plugin's first-child drawer
+ * geometry would size and raise the mask over the real sidebar — the drawer then
+ * opens blank and swallows every tap. Either attribute means: stand down.
+ */
+const HOST_DRAWER_ATTRIBUTES = ['data-sidebar-drawer', 'data-mobile-sidebar'] as const
+
 export function createMobileController({ document, window, toggleSidebar, css }: {
   document: Document
   window: Pick<Window, 'matchMedia' | 'requestAnimationFrame' | 'cancelAnimationFrame'> & { MutationObserver: typeof MutationObserver }
@@ -42,7 +54,8 @@ export function createMobileController({ document, window, toggleSidebar, css }:
       frame?.removeAttribute('data-mobile-layout-frame')
       frame = next
     }
-    const mobile = media.matches && frame !== null && !frame.hasAttribute('data-mobile-sidebar')
+    const mobile = media.matches && frame !== null
+      && !HOST_DRAWER_ATTRIBUTES.some(name => frame?.hasAttribute(name) === true)
     if (mobile && frame !== null) {
       if (!frame.hasAttribute('data-mobile-layout-frame')) frame.setAttribute('data-mobile-layout-frame', '')
     } else frame?.removeAttribute('data-mobile-layout-frame')
@@ -68,7 +81,7 @@ export function createMobileController({ document, window, toggleSidebar, css }:
   }
   const observer = new window.MutationObserver(sync)
   observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true,
-    attributeFilter: ['data-sidebar-collapsed', 'data-mobile-sidebar', 'data-mobile-layout-frame', 'data-plugin-css', 'media'] })
+    attributeFilter: ['data-sidebar-collapsed', 'data-sidebar-drawer', 'data-mobile-sidebar', 'data-mobile-layout-frame', 'data-plugin-css', 'media'] })
   media.addEventListener('change', sync)
   document.addEventListener('keydown', onKey)
   document.addEventListener('click', onClick)

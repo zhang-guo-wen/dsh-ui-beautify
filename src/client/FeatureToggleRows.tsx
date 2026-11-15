@@ -11,7 +11,6 @@ type Props = PropsLocale<typeof NS> & InjectFace<SettingsRowFace>
 type Feature =
   | 'mobileLayoutEnabled'
   | 'recentSessionsEnabled'
-  | 'remoteSettingsEnabled'
   | 'scrollToPromptEnabled'
   | 'sessionStartChipEnabled'
   | 'unreadAnswerStartEnabled'
@@ -28,7 +27,6 @@ function FeatureToggleRow({ useBeautify, t, choose, retry, field, title, descrip
   title:
     | 'mobileLayoutTitle'
     | 'recentSessionsTitle'
-    | 'remoteSettingsTitle'
     | 'scrollToPromptTitle'
     | 'sessionStartChipTitle'
     | 'unreadAnswerStartTitle'
@@ -42,7 +40,6 @@ function FeatureToggleRow({ useBeautify, t, choose, retry, field, title, descrip
   description:
     | 'mobileLayoutDesc'
     | 'recentSessionsDesc'
-    | 'remoteSettingsDesc'
     | 'scrollToPromptDesc'
     | 'sessionStartChipDesc'
     | 'unreadAnswerStartDesc'
@@ -76,9 +73,6 @@ export function MobileLayoutToggleRow(props: Props): ReactNode {
 }
 export function RecentSessionsToggleRow(props: Props): ReactNode {
   return <FeatureToggleRow {...props} field="recentSessionsEnabled" title="recentSessionsTitle" description="recentSessionsDesc" />
-}
-export function RemoteSettingsToggleRow(props: Props): ReactNode {
-  return <FeatureToggleRow {...props} field="remoteSettingsEnabled" title="remoteSettingsTitle" description="remoteSettingsDesc" />
 }
 export function ScrollToPromptToggleRow(props: Props): ReactNode {
   return <FeatureToggleRow {...props} field="scrollToPromptEnabled" title="scrollToPromptTitle" description="scrollToPromptDesc" />

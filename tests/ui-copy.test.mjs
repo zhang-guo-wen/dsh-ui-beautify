@@ -4,7 +4,7 @@ import { en, zh } from '../src/client/locales.ts'
 
 test('enhancement descriptions stay concise without default/disable instructions', () => {
   for (const copy of [zh, en]) {
-    for (const key of ['mobileLayoutDesc', 'recentSessionsDesc', 'remoteSettingsDesc', 'scrollToPromptDesc', 'sessionStartChipDesc', 'unreadAnswerStartDesc', 'quickActionsDesc', 'hideComposerStatsDesc', 'hideModelSelectorDesc', 'hideAccessModeDesc', 'hideSidebarBrandDesc', 'contextRingDesc']) {
+    for (const key of ['mobileLayoutDesc', 'recentSessionsDesc', 'scrollToPromptDesc', 'sessionStartChipDesc', 'unreadAnswerStartDesc', 'quickActionsDesc', 'hideComposerStatsDesc', 'hideModelSelectorDesc', 'hideAccessModeDesc', 'hideSidebarBrandDesc', 'contextRingDesc']) {
       assert.doesNotMatch(copy[key], /默认开启|关闭后|独立开关|请在本机修改|重新开启|写权限|Enabled by default|Turn off|controlled separately|re-enabling|write permissions/)
     }
     assert.doesNotMatch(copy.fontNotoSansScDesc, /可变字体|分片|variable file|shard/)
@@ -13,7 +13,6 @@ test('enhancement descriptions stay concise without default/disable instructions
   }
   assert.match(zh.mobileLayoutDesc, /设置页布局/)
   assert.match(en.mobileLayoutDesc, /settings layout/)
-  assert.match(zh.remoteSettingsDesc, /解决某些配置在手机端不生效问题/)
   assert.equal(zh.namePlaceholder, '当前名称：{name}')
   assert.equal(en.namePlaceholder, 'Current name: {name}')
   // The tagline hint is host text, not product copy: no static default may remain.

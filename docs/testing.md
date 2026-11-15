@@ -140,3 +140,86 @@ kind: "package-reference"
 - 本轮按用户确认只修顶部空白，不修改任务列表／白板随会话滚动的问题；不提交、不发布、不升级日常实例。原有未跟踪 pnpm-lock.yaml 保留。
 
 ---
+## 4、手机抽屉在宿主原生 drawer（data-sidebar-drawer）下退让，≤600px 侧栏不再空白（2026-11-09，产物 `830A73B8` / `522AF61B`）
+
+### 环境与产物绑定
+
+| 项 | 值 |
+|---|---|
+| 日期 | 2026-11-09 |
+| 插件 | @guowenzhang/dsh-ui-beautify@1.7.1（HEAD bcb7c5a，本次 5 个文件未提交：源码 / 单测 / 样式规则文档 / 本页 / lib 产物） |
+| 宿主（隔离实例） | @deepseek-ai/dsh@0.2.2-rc.1（`--version` 显式指定，npm 安装） |
+| 宿主（问题复现用） | Arcuchi Harness 桌面 0.2.2-alpha.3（只读加载页面，未改配置、未装插件） |
+| DSH_HOME | `C:\02-codespace\DeepSeek\.scratch\harness-tests\mobile-drawer-fix-0.2.2-rc.1-9lx6fo` |
+| 端口 / URL | 55295（隔离）/ 53276（桌面）；token 已抹 |
+| Node | v24.12.0 |
+| lib/index.mjs | `830a73b8de65908c5705b67842ff5a65a83c48415a3aa98c01cb6307416a4094`（93113 字节，2026-11-09T03:46:39.020Z，本次未改宿主侧） |
+| lib/client.js | `522af61b859ad427b161f913e60e5423dc2089d971cf45b70c31c41a7949d34e`（342415 字节，2026-11-09T03:46:39.141Z） |
+| 证据文件 | `.scratch/mobile-sidebar-diag/shots2/40-baseline-blank.png`、`41-after-standdown.png`、`.scratch/mobile-sidebar-diag/isolated/final-w{320,390,600,601}-open.png` |
+
+### 车道结果
+
+| 车道 | 状态 | 退出码 | 耗时 |
+|---|---|---|---|
+| typecheck | passed | 0 | 2.0s |
+| build | passed | 0 | 1.5s |
+| metadata | passed（1/1） | 0 | 0.1s |
+| unit（`pnpm test`，`DSH_MOBILE_PLAYWRIGHT` 指向工作区 `.scratch/pw-core`） | passed：268 项 / 263 pass / 0 fail / 5 skipped（5 项是缺 `DSH_*_URL` 的既有浏览器探针） | 0 | 10.7s |
+| unit（未设该 env） | failed：5 个 `*-browser.test.mjs` 在 import `playwright-core` 时 `ERR_MODULE_NOT_FOUND`（仓内没装该依赖），与本次改动无关；设 env 后即通过 | 1 | - |
+| browser:mobile / scroll / replies / remote-settings | skip（缺 `DSH_MOBILE_URL` / `DSH_SCROLL_URL` / `DSH_QUICK_REPLY_URL` / `DSH_SETTINGS_LOCAL_URL`） | - | - |
+
+### 逐项读数
+
+- **问题复现（桌面 0.2.2-alpha.3，390px，经 Pocket 代理只读加载）**：frame 属性为 `data-sidebar-collapsed` + `data-sidebar-drawer` + `data-mobile-layout-frame`；frame 第一个子节点是 `div.ufGdLG_drawerMask`。抽屉打开后 `elementFromPoint(40,80)` = `div.ufGdLG_drawerMask`，侧栏 16 条会话的 `innerText` 存在、`visibility: visible`，但像素上是一片白（截图 `40-baseline-blank.png`）。
+- **同实例补 `data-mobile-sidebar`（旧控制器唯一认识的「宿主自带抽屉」标记）后**：`data-mobile-layout-frame` 被控制器自行移除，遮罩回到 z-index 70 / `rgba(0,0,0,.24)`，抽屉列 z-index 71 在上，`elementFromPoint(40,80)` = `span._6ZDZmG_newSessionContent`，会话列表完整可见（截图 `41-after-standdown.png`）。
+- **宽度扫描（同一桌面实例）**：320 / 390 / 600px 有 `data-mobile-layout-frame` 且命中遮罩（空白）；601 / 700 / 767px 无该标记（本插件媒体查询上限 600px）且命中会话行（正常）；768px 起宿主不再启用原生抽屉。说明问题只落在 ≤600px。
+- **修复后（隔离实例 0.2.2-rc.1，`pnpm run build` 产物）**：320 / 390 / 600 / 601px 四档均为 `data-mobile-layout-frame` 缺失、`data-sidebar-drawer` 存在、抽屉展开（`data-sidebar-collapsed` 被移除）、侧栏列 `visibility: visible`，`elementFromPoint(40,80)` = `span.hHd-Xa_newSessionContent`（抽屉内容在最上层、可命中）；1024px 不启用原生抽屉也不加标记，桌面行为不变。截图 `isolated/final-w*-open.png`。
+- **单测**：新增用例 `host-native drawer frame (data-sidebar-drawer) stands down instead of masking the sidebar`（含「带抽屉状态下 600px 媒体查询翻转不重新接管」），`node --test tests/mobile-layout.test.mjs` 8/8 通过。
+
+### 本节未覆盖
+
+- 日常桌面实例仍运行内嵌的 ui-beautify 1.7.0 旧产物；按隔离红线没有把新产物装进日常实例，**真机手机未验收**（本轮手机侧证据来自 390px 浏览器视口 + Pocket 代理的只读页面）。
+- 隔离实例的认证 URL 只能在启动输出里拿到（`isolate.mjs start` 未捕获到），本轮用 `npx … web --port 55295 --no-open` 自行捕获；token 未落盘到本页。
+- 在 0.2.2-rc.1 上用旧 CSS 的重现只做到 `elementFromPoint` 返回 `div.pI_x6G_drawerMask`（该宿主下遮罩像素与修复后一致），没有再用旧产物整包复现；空白画面只在 0.2.2-alpha.3 上取得。
+- 601–767px 只做了元素命中读数，未跑真实点击导航；真机软键盘、安全区、深浅色与 `prefers-reduced-motion` 本轮未覆盖。
+
+---
+## 5、下线远程设置只读桥接：手机/局域网可正常写设置（2026-11-09，产物 `F2DEE744` / `AE0F45E8`）
+
+### 环境与产物绑定
+
+| 项 | 值 |
+|---|---|
+| 日期 | 2026-11-09 |
+| 插件 | @guowenzhang/dsh-ui-beautify@1.7.1（基于 HEAD d05aa70，本次改动未提交） |
+| 宿主 | @deepseek-ai/dsh@0.2.2-rc.1（隔离实例，绑定 100.91.74.34） |
+| DSH_HOME | `C:\02-codespace\DeepSeek\.scratch\harness-tests\mobile-drawer-verify-0.2.2-rc.1-0czgne` |
+| 端口 / URL | 55322（非 loopback 来源，正是被下线桥接针对的场景）；token 已抹 |
+| Node | v24.12.0 |
+| lib/index.mjs | `f2dee74433839f98315b49c2af4509d740614f5e801763abbc5a8832108d0a71`（93051 字节） |
+| lib/client.js | `ae0f45e8dea25c60a9881af4cacc88003d4cd311ba307c4f4e9d81673513bb62`（334953 字节，较下线前少 7462 字节） |
+| 证据文件 | 本节读数来自隔离实例真实点击；`lib` 产物 grep 与 `pnpm test` 输出见下文 |
+
+### 车道结果
+
+| 车道 | 状态 | 退出码 | 耗时 |
+|---|---|---|---|
+| typecheck | passed | 0 | 2.1s |
+| build | passed | 0 | 1.4s |
+| metadata | passed（1/1） | 0 | 0.1s |
+| unit（`DSH_MOBILE_PLAYWRIGHT` 指向 `.scratch/pw-core`） | passed：262 项 / 257 pass / 0 fail / 5 skipped（缺 `DSH_*_URL` 的既有浏览器探针） | 0 | 17.1s |
+
+### 逐项读数
+
+- **下线范围**：删掉 `src/client/remote-settings.ts`、`src/client/remote-settings-reader.ts` 与两个测试文件；`index.ts` 摘掉 `remote.settings` 注入与安装块；设置页「界面增强」少一行 `RemoteSettingsToggleRow`，`settings.ts` / `fonts.ts` / `settings-controller.ts` / `locales.ts`（中英）与 `package.json` 的 `test:remote-settings` 脚本、`tools/testing/registry.mjs` 的车道声明一并清掉。
+- **产物无残留**：`lib/index.mjs` 与 `lib/client.js` 里 `remoteSettings`、`远程设置`、`isLoopback` 的出现次数均为 0（下线前 client 产物 342415 字节，现在 334953 字节）。
+- **行为验收（这一步才是关键）**：清掉隔离实例 profile 里预置的 `ui-settings-general.welcomeNoticeVersion`，重启后从 **100.91.74.34:55322**（非 loopback）打开页面，点「预览版说明」的「继续」——弹窗前进到「开始使用」，页面没有出现「暂时无法保存确认状态」，profile 的 `cordis.patch.yml` 重新写回 `welcomeNoticeVersion: 2026-09-28.1`。同一路径在 1.7.1 修复版（保留桥接）时是死循环。
+- **对照**：同一宿主、同一 LAN 地址、不装本插件的干净实例，同样点「继续」也能写入成功 —— 说明这是宿主既有能力，桥接属于多余的越权只读。
+
+### 本节未覆盖
+
+- 「界面美化」设置页面的真实截图没取到：隔离实例没有密钥/账号，「开始使用」弹窗挡住设置入口（设置快捷键在该状态下也不生效），因此「行已消失」只由产物 grep + 单测（`tests/client.mjs` / `tests/ui-copy.test.mjs` / `tests/smoke.mjs` 断言集合已同步）证明，没有页面截图为证。
+- 真机手机、Pocket 远程链路、深浅色与性能未复测；本轮只验非 loopback 写入与产物形状。
+- 没有改宿主，也没有重启/修改日常桌面实例。
+
+---

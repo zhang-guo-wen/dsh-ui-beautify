@@ -73,7 +73,6 @@ import { applyComposerStats } from './composer-stats.ts'
 import { applyHiddenSeats } from './composer-seats.ts'
 import { applySidebarBrand } from './sidebar-brand.ts'
 import { applyContextRing } from './ContextRing.tsx'
-import { installRemoteSettings } from './remote-settings.ts'
 import { applyDescriptionTranslation } from './description-translation.ts'
 import { installPdfWorkerCompat } from './pdf-worker-compat.ts'
 import { installUnreadAnswerStart } from './unread-answer-start.ts'
@@ -159,7 +158,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
  * live, and `uiSession` owns the per-Session standard sources — the lane's
  * output figure is one of them, and it must be active before this body asks.
  */
-export const inject = ['theme', 'slots', 'locale', 'configForms', 'layout', 'remote', 'remote.settings', 'uiSession']
+export const inject = ['theme', 'slots', 'locale', 'configForms', 'layout', 'remote', 'uiSession']
 
 /**
  * Client plugin body: register the settings page, keep the document in sync
@@ -167,15 +166,10 @@ export const inject = ['theme', 'slots', 'locale', 'configForms', 'layout', 'rem
  * @param ctx - client cordis context.
  */
 export async function apply(ctx: Context): Promise<void> {
-  // First, before the awaits below: a page that reloaded with a document tab
-  // open can mount the PDF body while this body is still waiting on the remote
-  // settings read, and the Worker is built the moment a document opens.
+  // First, before any await below: a page that reloaded with a document tab
+  // open can mount the PDF body before this body has finished its awaits, and
+  // the Worker is built the moment a document opens.
   ctx.effect(() => installPdfWorkerCompat(), 'ui-beautify: PDF Worker compatibility')
-  const remoteSettings = installRemoteSettings(ctx)
-  if (remoteSettings) {
-    ctx.effect(() => () => { remoteSettings.dispose() }, 'ui-beautify: remote settings reads')
-    await remoteSettings.ready
-  }
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-beautify: dictionaries')
   const scope = ctx.configForms.get<BeautifySettings>(FONT_SETTINGS_NS)
   const controller = new SettingsController(scope)

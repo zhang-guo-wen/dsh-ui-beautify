@@ -48,7 +48,6 @@ export interface Config {
   quickRepliesEnabled: Volatile<BeautifySettings['quickRepliesEnabled']>
   mobileLayoutEnabled: Volatile<BeautifySettings['mobileLayoutEnabled']>
   recentSessionsEnabled: Volatile<BeautifySettings['recentSessionsEnabled']>
-  remoteSettingsEnabled: Volatile<BeautifySettings['remoteSettingsEnabled']>
   /** Whether the composer's up button back to the latest question is shown. */
   scrollToPromptEnabled: Volatile<BeautifySettings['scrollToPromptEnabled']>
   /** Whether the transcript's floating "conversation start" chip is shown. */
@@ -136,7 +135,6 @@ export const Config = z.object({
   quickRepliesEnabled: z.boolean().default(true).volatile(),
   mobileLayoutEnabled: z.boolean().default(true).volatile(),
   recentSessionsEnabled: z.boolean().default(true).volatile(),
-  remoteSettingsEnabled: z.boolean().default(true).volatile(),
   scrollToPromptEnabled: z.boolean().default(true).volatile(),
   sessionStartChipEnabled: z.boolean().default(true).volatile(),
   // Off by default: the switch removes host surfaces, so only a deployment that
