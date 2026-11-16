@@ -68,6 +68,8 @@ const geometry = ({ rows = [], standalone = false, scrollTop = 1000, onScroll } 
   }
   const scroller = {
     scrollTop,
+    scrollHeight: 3000,
+    clientHeight: 800,
     getBoundingClientRect: () => ({ top: 100 }),
     scrollTo(options) {
       calls.push(options)
@@ -221,6 +223,7 @@ function fixture({ contents = [] } = {}) {
   let statuses = new Map()
   const statusListeners = new Set()
   const documentListeners = new Map()
+  const watchers = new Set()
   const source = {
     getSnapshot: () => statuses,
     subscribe(listener) {
@@ -244,6 +247,10 @@ function fixture({ contents = [] } = {}) {
       return nextFrame
     },
     cancelFrame(handle) { frames.delete(handle) },
+    observe(callback) {
+      watchers.add(callback)
+      return () => { watchers.delete(callback) }
+    },
   }
   const publish = next => {
     statuses = next
@@ -262,12 +269,18 @@ function fixture({ contents = [] } = {}) {
     assert.ok(listener, `no ${type} listener installed`)
     listener(event)
   }
-  return { clock, frames, source, host, contents, publish, frame, intent, statusListeners, documentListeners }
+  /** Deliver one DOM change to the controllers watching for a different conversation. */
+  const changed = () => { for (const watcher of [...watchers]) watcher() }
+  return {
+    clock, frames, source, host, contents, publish, frame, intent, changed,
+    statusListeners, documentListeners, watchers,
+  }
 }
 
 const contentFor = (sessionId, flow) => ({
+  visible: true,
   getAttribute: name => name === 'data-conversation-session' ? sessionId : null,
-  getClientRects: () => [{}],
+  getClientRects: function () { return this.visible ? [{}] : [] },
   querySelector: selector => {
     assert.equal(selector, '[data-chat-flow]')
     return flow
@@ -427,4 +440,115 @@ test('a chip that appears because of the landing is cleared by the next frame', 
   assert.deepEqual(calls.map((call) => call.top), [1276, 1243])
   assert.equal(scroller.scrollTop, 1243)
   dispose()
+})
+
+/** Land session `a` on its only answer, leaving the recorded position at 1276. */
+function landedFixture() {
+  const fixtureParts = fixture()
+  const { source, host, contents, publish, frame } = fixtureParts
+  const dispose = createUnreadAnswerStart(source, host)
+  const first = geometry()
+  first.rows.push(liveRow(1400, first.scroller))
+  const content = contentFor('a', first.flow)
+  contents.push(content)
+  publish(new Map([['a', status(false, true)]]))
+  publish(new Map([['a', status(false, false)]]))
+  for (let index = 0; index <= SETTLE_FRAMES; index += 1) frame()
+  return { ...fixtureParts, dispose, first, content }
+}
+
+test('coming back to a landed conversation opens it on its newest content', () => {
+  const { contents, frame, changed, dispose, first, content } = landedFixture()
+  assert.equal(first.scroller.scrollTop, 1276)
+  // Leave for another conversation, then come back with the host's restored position.
+  content.visible = false
+  const other = geometry()
+  const otherContent = contentFor('b', other.flow)
+  contents.push(otherContent)
+  changed()
+  frame()
+  assert.deepEqual(other.calls, [])
+  otherContent.visible = false
+  content.visible = true
+  first.scroller.scrollTop = 1276
+  changed()
+  frame()
+  frame()
+  assert.deepEqual(first.calls.at(-1), { top: 2200, behavior: 'instant' })
+  assert.equal(first.scroller.scrollTop, 2200)
+  dispose()
+})
+
+test('a conversation the reader moved on from keeps its own position', () => {
+  const { contents, frame, changed, dispose, first, content } = landedFixture()
+  content.visible = false
+  const other = geometry()
+  contents.push(contentFor('b', other.flow))
+  changed()
+  frame()
+  first.scroller.scrollTop = 900
+  contents.at(-1).visible = false
+  content.visible = true
+  changed()
+  frame()
+  frame()
+  assert.deepEqual(first.calls.map((call) => call.top), [1276])
+  dispose()
+})
+
+test('a conversation that never landed is left alone', () => {
+  const { contents, frame, changed, dispose, first, content } = landedFixture()
+  content.visible = false
+  const other = geometry()
+  const otherContent = contentFor('b', other.flow)
+  contents.push(otherContent)
+  changed()
+  frame()
+  otherContent.visible = false
+  contents.push(contentFor('c', geometry().flow))
+  contents.at(-1).visible = true
+  changed()
+  frame()
+  frame()
+  assert.deepEqual(other.calls, [])
+  assert.deepEqual(first.calls.map((call) => call.top), [1276])
+  dispose()
+})
+
+test('a reading gesture abandons a waiting return', () => {
+  const { contents, frame, changed, intent, dispose, first, content } = landedFixture()
+  content.visible = false
+  const other = geometry()
+  contents.push(contentFor('b', other.flow))
+  changed()
+  frame()
+  contents.at(-1).visible = false
+  content.visible = true
+  first.scroller.scrollTop = 1276
+  changed()
+  frame()
+  // The return is waiting for the host's restored position; the reader's gesture owns the viewport.
+  intent('wheel', { type: 'wheel', target: null })
+  frame()
+  frame()
+  assert.deepEqual(first.calls.map((call) => call.top), [1276])
+  dispose()
+})
+
+test('disposing releases the observer and the waiting return', () => {
+  const { contents, frame, changed, dispose, first, content, watchers } = landedFixture()
+  assert.equal(watchers.size, 1)
+  content.visible = false
+  const other = geometry()
+  contents.push(contentFor('b', other.flow))
+  changed()
+  frame()
+  contents.at(-1).visible = false
+  content.visible = true
+  first.scroller.scrollTop = 1276
+  changed()
+  dispose()
+  assert.equal(watchers.size, 0)
+  assert.equal(frame(), false)
+  assert.deepEqual(first.calls.map((call) => call.top), [1276])
 })

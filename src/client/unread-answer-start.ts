@@ -16,10 +16,15 @@
  * The switch that owns this behavior lives in the settings page; the plugin body
  * installs and releases this controller through `watchFeature`.
  *
+ * A settled landing becomes the host's remembered reading position for that
+ * Session, so the same Session opened later would jump back to it. `answer-return`
+ * undoes exactly that when the reader comes back.
+ *
  * @module @guowenzhang/dsh-ui-beautify/client/unread-answer-start
  */
 import type { Context } from '@deepseek-ai/cordis'
 import { answerLanding, ANSWER_TOP_INSET, landAnswer } from './answer-start.ts'
+import { createLandingReturn } from './answer-return.ts'
 import { openedFromUnread, type SessionStatusSnapshot } from './unread-entry.ts'
 
 /** How long an opened Session may take to mount and settle before the landing is abandoned. */
@@ -65,6 +70,12 @@ export interface UnreadAnswerStartHost {
    * @param handle - the handle `requestFrame` returned.
    */
   cancelFrame(handle: number): void
+  /**
+   * Watch DOM changes that can reveal a different conversation.
+   * @param callback - called after a change, not synchronized to frames.
+   * @returns the unsubscribe function.
+   */
+  observe(callback: () => void): () => void
 }
 
 /** One Session whose landing is being waited for. */
@@ -100,6 +111,9 @@ export function createUnreadAnswerStart(
 ): () => void {
   let previous: SessionStatusSnapshot | undefined = source.getSnapshot()
   let pending: PendingLanding | null = null
+  /** Sessions whose landing the host now carries as their remembered reading position. */
+  const landed = new Set<string>()
+  const returns = createLandingReturn(host, landed)
 
   const stopLanding = (): void => {
     if (pending === null) return
@@ -140,6 +154,9 @@ export function createUnreadAnswerStart(
         landing.stable += 1
         if (landing.stable >= SETTLE_FRAMES) {
           pending = null
+          // The host samples this position too; remember it so a later open can undo it.
+          landed.add(landing.sessionId)
+          returns.arm()
           return
         }
       } else {
@@ -152,6 +169,9 @@ export function createUnreadAnswerStart(
 
   const start = (sessionId: string): void => {
     stopLanding()
+    // A fresh landing supersedes the recorded one: the reader is about to read it.
+    landed.delete(sessionId)
+    returns.cancel()
     const landing: PendingLanding = {
       sessionId,
       deadline: host.now() + LANDING_WINDOW_MS,
@@ -171,7 +191,12 @@ export function createUnreadAnswerStart(
   }
 
   const onIntent = (event: Event): void => {
-    if (pending === null) return
+    if (pending === null) {
+      // A return still waiting for the host's restored position must not move a
+      // viewport the reader has already taken over.
+      returns.cancel()
+      return
+    }
     if (event.type === 'keydown') {
       const key = (event as KeyboardEvent).key
       if (!SCROLL_KEYS.has(key)) return
@@ -180,6 +205,7 @@ export function createUnreadAnswerStart(
       return
     }
     stopLanding()
+    returns.cancel()
   }
 
   const stop = source.subscribe(onStatus)
@@ -187,6 +213,7 @@ export function createUnreadAnswerStart(
   return () => {
     stop()
     stopLanding()
+    returns.dispose()
     for (const type of INTENTS) host.document.removeEventListener(type, onIntent, { capture: true })
   }
 }
@@ -212,5 +239,16 @@ export function installUnreadAnswerStart(ctx: Context): () => void {
     now: () => performance.now(),
     requestFrame: callback => requestAnimationFrame(callback),
     cancelFrame: handle => { cancelAnimationFrame(handle) },
+    observe: (callback) => {
+      if (typeof MutationObserver !== 'function') return () => {}
+      const observer = new MutationObserver(callback)
+      observer.observe(document.documentElement, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ['hidden', 'data-conversation-session'],
+      })
+      return () => { observer.disconnect() }
+    },
   })
 }
